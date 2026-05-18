@@ -2422,7 +2422,7 @@ body.chat-mode .top-right {
       if (!sendBtn) return;
       sendBtn.classList.toggle("loading", isLoading);
       sendBtn.disabled = isLoading;
-      input.disabled = isLoading;
+      input.disabled = false;
     }
 
     function getBackendModeForRequest() {
@@ -9356,6 +9356,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Do not say 'check the link' or only list sources.",
       "Do not show backend steps, search process, or tool/debug text.",
       "Use a premium ChatGPT-like sentence rhythm: direct opening, natural transitions, varied sentence length, and calm confident wording.",
+      "Make the answer clean, professional, and Claude-like: precise punctuation, calm tone, no messy fragments, no hype.",
       "Use polished grammar and punctuation: correct commas, periods, apostrophes, capitalization, and sentence boundaries.",
       "When introducing a list, end the lead-in with a colon and keep the bullet grammar parallel.",
       "Prefer paragraph-led answers over bullet dumping; use bullets only for steps, comparisons, options, or compact lists.",
@@ -9984,10 +9985,12 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function showPendingQuestion(input, userText){
     if(!input) return;
-    const display = "Add a follow-up...";
     input.dataset.nxPendingQuestion = userText;
-    input.dataset.nxPendingDisplay = display;
-    input.value = display;
+    if(!input.dataset.nxPreviousPlaceholder){
+      input.dataset.nxPreviousPlaceholder = input.placeholder || "Ask anything...";
+    }
+    input.value = "";
+    input.placeholder = "Add a follow-up...";
     input.title = "Nexora is answering: " + userText;
     input.disabled = false;
     input.classList.add("nx-pending-question");
@@ -9997,7 +10000,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       input.dataset.nxPendingClearHook = "true";
       const clearForTyping = function(){
         if(input.dataset.nxPendingQuestion){
-          clearPendingQuestion(input);
+          input.placeholder = "";
         }
       };
       input.addEventListener("focus", clearForTyping);
@@ -10007,12 +10010,10 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function clearPendingQuestion(input){
     if(!input || !input.dataset.nxPendingQuestion) return;
-    if(input.value === input.dataset.nxPendingDisplay){
-      input.value = "";
-    }
+    input.placeholder = input.dataset.nxPreviousPlaceholder || "Ask anything...";
     input.title = "";
     delete input.dataset.nxPendingQuestion;
-    delete input.dataset.nxPendingDisplay;
+    delete input.dataset.nxPreviousPlaceholder;
     input.classList.remove("nx-pending-question");
     const wrap = input.closest(".input-box");
     if(wrap) wrap.classList.remove("nx-answering-composer");
@@ -10371,8 +10372,31 @@ document.addEventListener("DOMContentLoaded",()=>{
     cursor:text !important;
   }
 
+  #userInput.nx-pending-question::placeholder{
+    color:#dbeafe !important;
+    opacity:.92 !important;
+    font-weight:650 !important;
+  }
+
   #userInput.nx-pending-question::selection{
     background:rgba(96,165,250,.35) !important;
+  }
+
+  .message.user-message,
+  body.chat-mode .message.user-message{
+    margin-left:auto !important;
+    margin-right:0 !important;
+    align-self:flex-end !important;
+    width:fit-content !important;
+    max-width:min(78%, 560px) !important;
+    text-align:right !important;
+    white-space:pre-wrap !important;
+    overflow-wrap:break-word !important;
+    text-wrap:pretty !important;
+  }
+
+  .message.user-message > div{
+    text-align:right !important;
   }
 
   .nx-human-answer p{

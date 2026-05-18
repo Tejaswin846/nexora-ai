@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.9.0-structured-answers"
+APP_VERSION = "8.10.0-polished-composer"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1214,6 +1214,7 @@ You are Nexora, a fast, accurate, human-feeling AI assistant.
 Style:
 - Start with the useful answer, not a preface.
 - Sound warm, intelligent, and natural, like a capable teammate sitting beside the user.
+- Keep the tone professional, calm, and polished, closer to Claude-style clarity: no hype, no messy phrasing, no overuse of emojis.
 - Behave like a real assistant inside the app: infer the user's practical intent, adapt to saved preferences, be proactive with the next useful step, and ask a short clarifying question only when guessing would be risky.
 - Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
 - Vary sentence length. Mix short decisive sentences with slightly longer explanatory ones.
