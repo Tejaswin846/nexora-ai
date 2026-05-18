@@ -4840,7 +4840,7 @@ body.chat-mode .top-right {
     return p;
   }
   window.openNexoraAssistantPage = function(){ ensureAssistant().classList.add('show'); const t=$('nxAssistTitleFinal'); if(t)t.textContent='Say something...'; };
-  window.setSendLoading = function(isLoading){ ensureSendVisuals(); const send=$('sendBtn'), input=$('userInput'); if(!send)return; send.classList.toggle('loading',!!isLoading); send.disabled=!!isLoading; if(input) input.disabled=!!isLoading; updateSendMode(); };
+  window.setSendLoading = function(isLoading){ ensureSendVisuals(); const send=$('sendBtn'), input=$('userInput'); if(!send)return; send.classList.toggle('loading',!!isLoading); send.disabled=!!isLoading; if(input) input.disabled=false; updateSendMode(); };
   window.addTypingDots = function(id){ const box=$('chatBox'); if(!box)return; const wrap=document.createElement('div'); wrap.className='typing-wrap'; wrap.id=id; wrap.innerHTML='<div class="typing-word loading-line"><span class="nx-chat-kimi"><span class="nx-kimi-face2"></span><span class="nx-kimi-dot2"></span></span><span class="nx-loader-only-text"></span></div>'; box.appendChild(wrap); box.scrollTop=box.scrollHeight; };
   function updateSendMode(){ ensureSendVisuals(); const send=$('sendBtn'), input=$('userInput'); if(!send||!input)return; const empty=input.value.trim()==='' && !send.classList.contains('loading'); send.classList.toggle('assistant-ready',empty); send.title=empty?'Open voice assistant':'Send'; }
   function clickHandler(e){ const input=$('userInput'); if(input && input.value.trim()===''){ e.preventDefault(); window.openNexoraAssistantPage(); return; } if(typeof sendMessage==='function') sendMessage(); }
@@ -5713,7 +5713,7 @@ body.chat-mode .top-right {
     if(!send) return;
     send.classList.toggle('loading', !!isLoading);
     send.disabled = !!isLoading;
-    if(input) input.disabled = !!isLoading;
+    if(input) input.disabled = false;
     updateSendMode();
   };
 
@@ -9984,14 +9984,25 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function showPendingQuestion(input, userText){
     if(!input) return;
-    const display = "You asked: " + clipQuestionForComposer(userText);
+    const display = "Add a follow-up...";
     input.dataset.nxPendingQuestion = userText;
     input.dataset.nxPendingDisplay = display;
     input.value = display;
     input.title = "Nexora is answering: " + userText;
+    input.disabled = false;
     input.classList.add("nx-pending-question");
     const wrap = input.closest(".input-box");
     if(wrap) wrap.classList.add("nx-answering-composer");
+    if(input.dataset.nxPendingClearHook !== "true"){
+      input.dataset.nxPendingClearHook = "true";
+      const clearForTyping = function(){
+        if(input.dataset.nxPendingQuestion){
+          clearPendingQuestion(input);
+        }
+      };
+      input.addEventListener("focus", clearForTyping);
+      input.addEventListener("pointerdown", clearForTyping);
+    }
   }
 
   function clearPendingQuestion(input){
@@ -10357,6 +10368,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     color:#dbeafe !important;
     font-weight:650 !important;
     text-overflow:ellipsis !important;
+    cursor:text !important;
   }
 
   #userInput.nx-pending-question::selection{
