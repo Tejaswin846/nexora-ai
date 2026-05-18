@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.8.0-realtime-search"
+APP_VERSION = "8.9.0-structured-answers"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1235,6 +1235,7 @@ Accuracy:
 - If something is uncertain, say so plainly and give the best safe next step.
 - For current/latest/news/finance/company claims, use only provided research evidence. Without evidence, say you cannot verify it.
 - Separate fact from inference when the difference matters.
+- For answers with research evidence, use this structure: a direct answer paragraph first, then "Key details" if useful. Use inline citation markers like [1] and [2]. Do not write a separate raw source list; the app renders sources separately.
 
 Coding:
 - Prefer practical, working solutions.
@@ -1294,11 +1295,37 @@ def clean_reply(text: str) -> str:
         return "Nexora could not generate a proper answer."
     text = text.strip()
     text = strip_provider_noise(text)
+    text = strip_model_source_dump(text)
+    text = structure_answer_text(text)
     text = re.sub(r"(?im)^direct answer\s*:?", "", text)
     text = re.sub(r"(?im)^answer\s*:?", "", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     return polish_grammar_and_punctuation(text).strip()
+
+
+def strip_model_source_dump(text: str) -> str:
+    text = re.sub(r"(?is)\n+\s*(?:sources?|references?|citations?)\s*[:.]\s*.*$", "", text)
+    text = re.sub(r"(?is)\s+(?:sources?|references?|citations?)\s*[:.]\s*\[\d+\].*$", "", text)
+    return text.strip()
+
+
+def structure_answer_text(text: str) -> str:
+    section_names = r"(Key details|Important details|What I found|Why it matters|Summary|Result|Bottom line)"
+    text = re.sub(
+        rf"(?i)\s+\*\*{section_names}\*\*\.?\s*",
+        lambda match: f"\n\n{match.group(1)}:\n",
+        text,
+    )
+    text = re.sub(
+        rf"(?i)\s+{section_names}\.?\s*:\s*",
+        lambda match: f"\n\n{match.group(1)}:\n",
+        text,
+    )
+    text = re.sub(r"(?<!\n)\s+-\s+", "\n- ", text)
+    text = re.sub(r"\bWestBengal\b", "West Bengal", text)
+    text = re.sub(r"\b(\d+)(seat|seats|member|members|year|years)\b", r"\1 \2", text, flags=re.IGNORECASE)
+    return text.strip()
 
 
 def strip_provider_noise(text: str) -> str:
@@ -1716,8 +1743,6 @@ def chat(req: ChatRequest) -> ChatResponse:
                 reply = setup_error_message(str(error))
 
     final_reply = clean_reply(reply)
-    if not model_failed:
-        final_reply = append_sources(final_reply, verified_sources)
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message)

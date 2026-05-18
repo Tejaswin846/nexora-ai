@@ -9149,7 +9149,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     out = out.replace(/Top result:\s*/gi, "");
     out = out.replace(/Based on the available search results, here is the answer:\s*/gi, "");
     out = out.replace(/Based on the available search results\s*🔎\s*/gi, "");
-    out = out.replace(/^\s*Sources:\s*$/gmi, "");
+    out = out.replace(/(?:\n|^)\s*(?:Sources|Source list|References)\s*:?\s*(?:\n[\s\S]*)?$/i, "");
 
     return out.trim();
   }
@@ -9823,13 +9823,18 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function sourceRowHtml(sources){
     if(!sources.length) return "";
-    return `<div class="nx-source-row">${sources.slice(0, 5).map((src, i) => `
-      <a class="nx-source-pill" href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(src.title)}">
-        <span class="nx-source-num">${i + 1}</span>
-        <span class="nx-source-domain">${escapeHtml(src.domain)}</span>
-        <span class="nx-source-title">${escapeHtml(src.title)}</span>
-      </a>
-    `).join("")}</div>`;
+    return `<div class="nx-source-panel">
+      <div class="nx-source-heading">Sources</div>
+      <div class="nx-source-row">${sources.slice(0, 5).map((src, i) => `
+        <a class="nx-source-card" href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(src.title)}">
+          <span class="nx-source-num">${i + 1}</span>
+          <span class="nx-source-text">
+            <span class="nx-source-domain">${escapeHtml(src.domain)}</span>
+            <span class="nx-source-title">${escapeHtml(src.title)}</span>
+          </span>
+        </a>
+      `).join("")}</div>
+    </div>`;
   }
 
   function actionsHtml(){
@@ -10360,6 +10365,92 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-human-answer p{
     overflow-wrap:anywhere !important;
+  }
+
+  .nx-source-panel{
+    margin:14px 0 20px !important;
+    padding:12px !important;
+    border:1px solid rgba(255,255,255,.10) !important;
+    border-radius:14px !important;
+    background:rgba(255,255,255,.035) !important;
+  }
+
+  .nx-source-heading{
+    margin:0 0 10px !important;
+    color:#cbd5e1 !important;
+    font-size:12px !important;
+    font-weight:800 !important;
+    text-transform:uppercase !important;
+    letter-spacing:.04em !important;
+  }
+
+  .nx-source-panel .nx-source-row{
+    display:grid !important;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr)) !important;
+    gap:8px !important;
+    margin:0 !important;
+  }
+
+  .nx-source-panel .nx-source-card{
+    display:grid !important;
+    grid-template-columns:24px minmax(0,1fr) !important;
+    align-items:start !important;
+    gap:9px !important;
+    padding:10px !important;
+    border-radius:12px !important;
+    background:rgba(255,255,255,.06) !important;
+    border:1px solid rgba(255,255,255,.10) !important;
+    color:#f8fafc !important;
+    text-decoration:none !important;
+    min-width:0 !important;
+  }
+
+  .nx-source-panel .nx-source-card:hover{
+    background:rgba(96,165,250,.12) !important;
+    border-color:rgba(96,165,250,.28) !important;
+  }
+
+  .nx-source-panel .nx-source-num{
+    width:24px !important;
+    height:24px !important;
+    border-radius:50% !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    background:rgba(96,165,250,.22) !important;
+    color:#dbeafe !important;
+    font-size:12px !important;
+    font-weight:900 !important;
+  }
+
+  .nx-source-panel .nx-source-text{
+    display:block !important;
+    min-width:0 !important;
+  }
+
+  .nx-source-panel .nx-source-domain,
+  .nx-source-panel .nx-source-title{
+    display:block !important;
+    min-width:0 !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+  }
+
+  .nx-source-panel .nx-source-domain{
+    color:#bfdbfe !important;
+    font-size:12px !important;
+    font-weight:800 !important;
+    white-space:nowrap !important;
+    margin-bottom:4px !important;
+  }
+
+  .nx-source-panel .nx-source-title{
+    color:#f8fafc !important;
+    font-size:13px !important;
+    line-height:1.35 !important;
+    display:-webkit-box !important;
+    -webkit-line-clamp:2 !important;
+    -webkit-box-orient:vertical !important;
   }
 </style>
 
