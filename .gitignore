@@ -1,0 +1,10 @@
+backend/.env
+backend/venv/
+backend/__pycache__/
+backend/**/*.pyc
+backend/nexora_data/
+backend/uvicorn-*.log
+*.log
+.DS_Store
+Thumbs.db
+
