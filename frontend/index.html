@@ -9592,6 +9592,43 @@ document.addEventListener("DOMContentLoaded",()=>{
     font-size:.92em !important;
   }
 
+  .nx-table-wrap{
+    width:100% !important;
+    overflow:auto !important;
+    margin:12px 0 18px !important;
+    border:1px solid rgba(255,255,255,.10) !important;
+    border-radius:12px !important;
+    background:rgba(255,255,255,.035) !important;
+  }
+
+  .nx-smart-table{
+    width:100% !important;
+    border-collapse:collapse !important;
+    min-width:420px !important;
+    color:#f8fafc !important;
+    font-size:14px !important;
+    line-height:1.45 !important;
+  }
+
+  .nx-smart-table th,
+  .nx-smart-table td{
+    padding:10px 12px !important;
+    border-bottom:1px solid rgba(255,255,255,.08) !important;
+    text-align:left !important;
+    vertical-align:top !important;
+  }
+
+  .nx-smart-table th{
+    color:#dbeafe !important;
+    background:rgba(96,165,250,.10) !important;
+    font-weight:800 !important;
+    white-space:nowrap !important;
+  }
+
+  .nx-smart-table tr:last-child td{
+    border-bottom:0 !important;
+  }
+
   .nx-code-block{
     margin:12px 0 18px !important;
     padding:14px 16px !important;
@@ -9800,6 +9837,38 @@ document.addEventListener("DOMContentLoaded",()=>{
     return html;
   }
 
+  function isMarkdownTableLine(line){
+    const text = normalizeMarkdownTableLine(line);
+    return text.startsWith("|") && text.endsWith("|") && text.split("|").length >= 4;
+  }
+
+  function normalizeMarkdownTableLine(line){
+    return String(line || "").trim().replace(/\|\s*[.]\s*$/, "|");
+  }
+
+  function isMarkdownTableSeparator(line){
+    return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(String(line || ""));
+  }
+
+  function splitMarkdownTableRow(line){
+    return normalizeMarkdownTableLine(line)
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map(cell => cell.trim());
+  }
+
+  function renderMarkdownTable(tableLines, sources){
+    if(tableLines.length < 2) return "";
+    const headers = splitMarkdownTableRow(tableLines[0]);
+    const rows = tableLines.slice(2).map(splitMarkdownTableRow).filter(row => row.some(Boolean));
+    if(!headers.length || !rows.length) return "";
+    return `<div class="nx-table-wrap"><table class="nx-smart-table">
+      <thead><tr>${headers.map(cell => `<th>${inlineMarkdown(cell, sources)}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map(row => `<tr>${headers.map((_, index) => `<td>${inlineMarkdown(row[index] || "", sources)}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
+  }
+
   function toSubscript(text){
     const map = {"0":"0","1":"1","2":"2","3":"3","4":"4","5":"5","6":"6","7":"7","8":"8","9":"9","+":"+","-":"-","=":"=","(":"(",")":")","a":"a","e":"e","h":"h","i":"i","j":"j","k":"k","l":"l","m":"m","n":"n","o":"o","p":"p","r":"r","s":"s","t":"t","u":"u","v":"v","x":"x"};
     return String(text || "").split("").map(ch => map[ch] || ch).join("");
@@ -9912,7 +9981,8 @@ document.addEventListener("DOMContentLoaded",()=>{
       return sourceRowHtml(sources);
     }
 
-    for(const raw of lines){
+    for(let lineIndex = 0; lineIndex < lines.length; lineIndex++){
+      const raw = lines[lineIndex];
       let line = raw.trim();
 
       if(/^```/.test(line)){
@@ -9928,6 +9998,19 @@ document.addEventListener("DOMContentLoaded",()=>{
       if(/^#{1,6}\s+/.test(line)) line = line.replace(/^#{1,6}\s+/, "");
       if(/^direct answer:?$/i.test(line)) continue;
       if(/^sources:?$/i.test(line)) continue;
+      if(isMarkdownTableLine(line) && lineIndex + 1 < lines.length && isMarkdownTableSeparator(lines[lineIndex + 1])){
+        closeList();
+        const tableLines = [line, lines[lineIndex + 1]];
+        lineIndex += 2;
+        while(lineIndex < lines.length && isMarkdownTableLine(lines[lineIndex])){
+          tableLines.push(lines[lineIndex]);
+          lineIndex++;
+        }
+        lineIndex--;
+        html += renderMarkdownTable(tableLines, sources);
+        if(!firstParaDone) firstParaDone = true;
+        continue;
+      }
 
       if(/^[-*•]\s+/.test(line)){
         if(!inList){ html += "<ul>"; inList = true; }
@@ -10005,6 +10088,8 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Use light emojis where they improve scanning, like 📌, ⚠️, ✅, 💡, or 🔎.",
       "Never dump links. Use sources only as evidence, with citation markers like [1] and [2].",
       "If current facts are needed, synthesize from search evidence and answer first.",
+      "Decide the best format automatically: short for simple questions, detailed for complex questions, markdown tables for comparisons, chart-style text for trends, and compact text diagrams for processes.",
+      "If you use a table, output a valid markdown table. If you use a diagram, put it in a fenced code block.",
       "Do not show backend logs, model setup text, search process, raw JSON, or tool steps.",
       "User question: " + q
     ].join("\n");

@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.12.0-adaptive-response-lanes"
+APP_VERSION = "8.13.0-presentation-planner"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -261,6 +261,8 @@ def choose_response_mode(message: str, requested_mode: Optional[str], requested_
         return "thinking"
     if any(word in requested for word in ["instant", "fast"]):
         return "instant"
+    if re.search(r"\b(table|chart|diagram|flowchart|compare|comparison|detailed|step by step|full|complete)\b", text):
+        return "thinking"
 
     thinking_patterns = [
         r"\b(explain|analyze|compare|debug|fix|build|create|design|plan|strategy|architecture)\b",
@@ -895,6 +897,87 @@ def classify_response_lane(user_message: str, use_research: bool) -> str:
     return "human_chat"
 
 
+def classify_presentation_style(user_message: str, response_lane: str, use_research: bool) -> str:
+    text = clean_text(user_message).lower()
+    if re.search(r"\b(diagram|flowchart|flow chart|mind map|map it|architecture|pipeline|cycle|process flow|how it works visually)\b", text):
+        return "diagram"
+    if re.search(r"\b(chart|graph|bar chart|pie chart|rank|ranking|trend|growth|timeline|price history|market movement)\b", text):
+        return "chart"
+    if re.search(r"\b(table|tabular|columns|compare|comparison|vs\.?|versus|difference between|pros and cons|advantages and disadvantages)\b", text):
+        return "table"
+    if re.search(r"\b(one line|short|brief|quick|concise|just tell|only answer|simple answer)\b", text):
+        return "short"
+    if response_lane == "learning":
+        if re.search(r"\b(cycle|process|system|working|mechanism|pathway|flow|stages)\b", text):
+            return "diagram"
+        if re.search(r"\b(notes|summary|revise|study|chapter)\b", text):
+            return "teaching_structure"
+    if re.search(r"\b(detailed|deep|full|complete|step by step|explain fully|long answer|essay)\b", text):
+        return "long"
+    if response_lane == "writing":
+        return "finished_draft"
+    if response_lane == "realtime_search" or use_research:
+        return "answer_with_evidence"
+    if response_lane == "learning":
+        return "teaching_structure"
+    if response_lane == "build":
+        return "implementation_summary"
+    if len(text) < 90 and re.search(r"\b(what|who|when|where|which|can|should|is|are)\b", text):
+        return "short"
+    return "balanced"
+
+
+def build_presentation_context(user_message: str, response_lane: str, use_research: bool) -> str:
+    style = classify_presentation_style(user_message, response_lane, use_research)
+    lines = [
+        "Presentation planner:",
+        f"- Preferred format: {style}",
+        "- Choose the clearest format automatically; do not mention this planner.",
+        "- Use short answers for simple direct questions, and longer answers only when explanation, reasoning, or instructions are needed.",
+        "- Use a table when comparing items across multiple features, pros/cons, options, prices, specs, or timelines.",
+        "- Use a chart-style text summary only for rankings, trends, quantities, or progress; keep it readable in plain text.",
+        "- Use a diagram or flow only for processes, cycles, systems, architecture, or cause-and-effect relationships.",
+        "- Do not force tables, charts, or diagrams into normal conversation.",
+    ]
+    if style == "table":
+        lines.extend([
+            "- Output a valid markdown table with a header row and separator row.",
+            "- Keep cell text compact. Add a short takeaway before or after the table.",
+        ])
+    elif style == "chart":
+        lines.extend([
+            "- Prefer a compact markdown table plus simple text bars when useful.",
+            "- Label units clearly. Do not invent numeric values.",
+        ])
+    elif style == "diagram":
+        lines.extend([
+            "- Use a compact text diagram in a fenced code block, then explain the key idea in 2-4 bullets.",
+            "- Avoid Mermaid unless the user explicitly asks for Mermaid.",
+        ])
+    elif style == "short":
+        lines.extend([
+            "- Keep the answer to 1-3 short paragraphs or bullets.",
+            "- Skip headings unless they add clarity.",
+        ])
+    elif style == "long":
+        lines.extend([
+            "- Use clear sections, but avoid filler.",
+            "- Start with the conclusion, then explain reasoning and steps.",
+        ])
+    elif style == "finished_draft":
+        lines.extend([
+            "- Provide the finished draft first.",
+            "- For email, include a subject line when useful.",
+            "- Keep the writing smooth, polished, and ready to send.",
+        ])
+    elif style == "answer_with_evidence":
+        lines.extend([
+            "- Answer first, then give key evidence with inline citations.",
+            "- If evidence is mixed or weak, say so clearly.",
+        ])
+    return "\n".join(lines)
+
+
 def build_response_lane_context(user_message: str, use_research: bool) -> str:
     lane = classify_response_lane(user_message, use_research)
     base = [
@@ -1488,6 +1571,7 @@ Style:
 - For letters, emails, applications, notices, proposals, and personal messages, write with smooth Claude-like prose: graceful, clear, human, and ready to send.
 - For everyday chat, use ChatGPT-like human behavior: conversational, emotionally aware, and practical without sounding scripted.
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
+- Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
 - Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
 - Vary sentence length. Mix short decisive sentences with slightly longer explanatory ones.
 - Prefer clean paragraphs over bullet lists unless the user asks for steps, comparison, options, or a checklist.
@@ -1526,6 +1610,7 @@ def build_messages(
     persona_context: str,
     behavior_context: str,
     response_lane_context: str,
+    presentation_context: str,
     use_research: bool,
     response_mode: str,
 ) -> List[Dict[str, str]]:
@@ -1555,6 +1640,8 @@ def build_messages(
         messages.append({"role": "system", "content": behavior_context})
     if response_lane_context:
         messages.append({"role": "system", "content": response_lane_context})
+    if presentation_context:
+        messages.append({"role": "system", "content": presentation_context})
     if research_context:
         messages.append({"role": "system", "content": research_context})
     if file_context:
@@ -1630,6 +1717,15 @@ def polish_grammar_and_punctuation(text: str) -> str:
     return "".join(polished)
 
 
+def normalize_markdown_table_line(line: str) -> str:
+    return re.sub(r"(\|)\s*[.]\s*$", r"\1", line.rstrip())
+
+
+def is_markdown_table_line(line: str) -> bool:
+    stripped = normalize_markdown_table_line(line.strip())
+    return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2
+
+
 def polish_plain_text_block(text: str) -> str:
     lines = text.splitlines()
     output = []
@@ -1646,6 +1742,15 @@ def polish_plain_text_block(text: str) -> str:
             continue
 
         indent = line[: len(line) - len(line.lstrip())]
+        if is_markdown_table_line(stripped):
+            while index < len(lines):
+                candidate = lines[index].rstrip()
+                if not is_markdown_table_line(candidate.strip()):
+                    break
+                output.append(normalize_markdown_table_line(candidate))
+                index += 1
+            continue
+
         heading_match = re.match(r"^(#{1,6}\s+)(.*)$", stripped)
         if heading_match:
             heading = polish_inline_punctuation(heading_match.group(2), capitalize=True)
@@ -1695,7 +1800,8 @@ def polish_inline_punctuation(text: str, capitalize: bool) -> str:
     text = text.strip()
     text = text.replace(" ,", ",").replace(" .", ".").replace(" !", "!").replace(" ?", "?")
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
-    text = re.sub(r"([,.;:!?])([A-Za-z0-9])", r"\1 \2", text)
+    text = re.sub(r"([,;:!?])([A-Za-z0-9])", r"\1 \2", text)
+    text = re.sub(r"(?<=[a-z0-9])\.([A-Z])", r". \1", text)
     text = re.sub(r"([!?]){2,}", r"\1", text)
     text = re.sub(r"\.{3,}", "...", text)
     text = re.sub(r"\s{2,}", " ", text)
@@ -1982,8 +2088,12 @@ def chat(req: ChatRequest) -> ChatResponse:
     persona_context = build_persona_context(persona_profile)
     tools_used.append("adaptive_persona")
     behavior_context = build_behavior_context(behavior_profile, behavior_signals)
+    response_lane = classify_response_lane(original_user_message, use_research)
+    presentation_style = classify_presentation_style(original_user_message, response_lane, use_research)
     response_lane_context = build_response_lane_context(original_user_message, use_research)
-    tools_used.append(f"response_lane:{classify_response_lane(original_user_message, use_research)}")
+    presentation_context = build_presentation_context(original_user_message, response_lane, use_research)
+    tools_used.append(f"response_lane:{response_lane}")
+    tools_used.append(f"presentation:{presentation_style}")
 
     messages = build_messages(
         user_message=user_message,
@@ -1994,6 +2104,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         persona_context=persona_context,
         behavior_context=behavior_context,
         response_lane_context=response_lane_context,
+        presentation_context=presentation_context,
         use_research=use_research,
         response_mode=response_mode,
     )
