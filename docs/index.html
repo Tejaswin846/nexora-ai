@@ -9841,13 +9841,37 @@ document.addEventListener("DOMContentLoaded",()=>{
   function actionsHtml(){
     return `<div class="nx-answer-actions">
       <button title="Copy" onclick="nxCopyFinalAnswer && nxCopyFinalAnswer(this)">${icons.copy}</button>
-      <button title="Good answer" onclick="nxFinalToast && nxFinalToast('Feedback saved')">${icons.like}</button>
-      <button title="Bad answer" onclick="nxFinalToast && nxFinalToast('Feedback saved')">${icons.dislike}</button>
+      <button title="Good answer" onclick="nxLearnFeedback && nxLearnFeedback('good', this)">${icons.like}</button>
+      <button title="Bad answer" onclick="nxLearnFeedback && nxLearnFeedback('bad', this)">${icons.dislike}</button>
       <button title="Save" onclick="nxSaveFinalAnswer && nxSaveFinalAnswer(this)">${icons.save}</button>
       <button title="Regenerate" onclick="retryLastMessage && retryLastMessage()">${icons.retry}</button>
       <button title="More" onclick="nxFinalToast && nxFinalToast('More options coming next')">${icons.more}</button>
     </div>`;
   }
+
+  window.nxLearnFeedback = async function(rating, button){
+    try{
+      const items = Array.isArray(window.chatHistory) ? window.chatHistory : [];
+      const lastAssistant = [...items].reverse().find(item => item && item.role === "assistant");
+      const lastUser = [...items].reverse().find(item => item && item.role === "user");
+      await fetch(API_BASE_V2 + "/feedback", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          rating: rating === "bad" ? "bad" : "good",
+          session_id: typeof sessionId !== "undefined" ? sessionId : null,
+          question: lastUser ? (lastUser.text || lastUser.content || "") : "",
+          answer: lastAssistant ? (lastAssistant.text || lastAssistant.content || "") : ""
+        })
+      });
+      if(button) button.classList.add("active");
+      if(typeof nxFinalToast === "function"){
+        nxFinalToast(rating === "bad" ? "Feedback saved. I will adjust." : "Feedback saved. I will keep that style.");
+      }
+    }catch(e){
+      if(typeof nxFinalToast === "function") nxFinalToast("Feedback saved locally");
+    }
+  };
 
   function formatHumanAnswer(text, sourceInput){
     const sources = normalizeSources(sourceInput, text);

@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.10.0-polished-composer"
+APP_VERSION = "8.11.0-human-learning"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -41,6 +41,7 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 SESSIONS_FILE = DATA_DIR / "sessions.json"
 MEMORY_FILE = DATA_DIR / "memory.json"
 PERSONA_FILE = DATA_DIR / "persona.json"
+BEHAVIOR_FILE = DATA_DIR / "behavior.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
 
 DATA_DIR.mkdir(exist_ok=True)
@@ -94,6 +95,7 @@ MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
 MAX_MEMORY_ITEMS = 80
 MAX_PERSONA_RULES = 16
+MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = 180
 RESPONSE_CACHE_MAX = 60
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
@@ -163,6 +165,14 @@ class UploadResponse(BaseModel):
     saved_as: str
     extracted_chars: int
     message: str
+
+
+class FeedbackRequest(BaseModel):
+    rating: Literal["good", "bad"]
+    session_id: Optional[str] = None
+    question: Optional[str] = None
+    answer: Optional[str] = None
+    note: Optional[str] = None
 
 
 def now_iso() -> str:
@@ -386,9 +396,9 @@ def system_profile() -> Dict[str, Any]:
             "avoid": avoid_models,
         },
         "self_learning": {
-            "mode": "lightweight_memory_and_persona",
+            "mode": "lightweight_memory_persona_and_behavior",
             "uses_model_weight_training": False,
-            "description": "Nexora learns preferences by saving memory/persona rules, not by retraining a large model on this laptop.",
+            "description": "Nexora learns preferences, behavior signals, and feedback by saving memory/persona/behavior rules, not by retraining a large model on this laptop.",
         },
     }
     return SYSTEM_PROFILE_CACHE
@@ -405,7 +415,7 @@ def runtime_efficiency_context() -> str:
         "Runtime capability profile:\n"
         f"- Level: {profile['level']}\n"
         f"- Reason: {profile['reason']}\n"
-        "- Self-learning mode: lightweight saved memory/persona, not local model-weight training.\n"
+        "- Self-learning mode: lightweight saved memory/persona/behavior profile, not local model-weight training.\n"
         f"- Keep normal answers efficient for this computer: instant <= {limits['instant_max_tokens']} tokens, "
         f"thinking <= {limits['thinking_max_tokens']} tokens unless the user explicitly needs more."
     )
@@ -669,6 +679,207 @@ def persona_update_reply(changes: List[str], profile: Dict[str, Any]) -> str:
         f"Current Nexora style: {profile.get('tone')} tone, {profile.get('length')} length, "
         f"{profile.get('format')} format, emoji setting: {profile.get('emoji')}."
     )
+
+
+def default_behavior_profile() -> Dict[str, Any]:
+    return {
+        "communication": {
+            "tone_needed": "calm and professional",
+            "structure_needed": "answer first, then clean sections",
+            "detail_level": "balanced",
+            "typing_style": "informal with occasional typos; infer intent without correcting spelling unless asked",
+        },
+        "human_signals": {
+            "frustration": 0,
+            "confusion": 0,
+            "urgency": 0,
+            "positive_feedback": 0,
+            "negative_feedback": 0,
+        },
+        "preferences": [
+            "Use clear punctuation and clean formatting.",
+            "Keep UI and answers professional, polished, and easy to scan.",
+            "When the user corrects behavior, adapt immediately and do not repeat the mistake.",
+        ],
+        "recent_events": [],
+        "updated_at": now_iso(),
+    }
+
+
+def normalize_behavior_profile(raw: Any) -> Dict[str, Any]:
+    profile = default_behavior_profile()
+    if isinstance(raw, dict):
+        if isinstance(raw.get("communication"), dict):
+            for key, value in raw["communication"].items():
+                if key in profile["communication"] and isinstance(value, str) and value.strip():
+                    profile["communication"][key] = clean_text(value)[:180]
+        if isinstance(raw.get("human_signals"), dict):
+            for key in profile["human_signals"]:
+                try:
+                    profile["human_signals"][key] = max(0, int(raw["human_signals"].get(key, 0)))
+                except Exception:
+                    pass
+        if isinstance(raw.get("preferences"), list):
+            profile["preferences"] = [
+                clean_text(str(item))[:240]
+                for item in raw["preferences"]
+                if clean_text(str(item))
+            ][-20:] or profile["preferences"]
+        if isinstance(raw.get("recent_events"), list):
+            profile["recent_events"] = [
+                item for item in raw["recent_events"]
+                if isinstance(item, dict) and item.get("created_at")
+            ][-MAX_BEHAVIOR_EVENTS:]
+        if isinstance(raw.get("updated_at"), str):
+            profile["updated_at"] = raw["updated_at"]
+    return profile
+
+
+def load_behavior_profile() -> Dict[str, Any]:
+    return normalize_behavior_profile(safe_read_json(BEHAVIOR_FILE, {}))
+
+
+def save_behavior_profile(profile: Dict[str, Any]) -> None:
+    profile = normalize_behavior_profile(profile)
+    profile["updated_at"] = now_iso()
+    safe_write_json(BEHAVIOR_FILE, profile)
+
+
+def behavior_signature(profile: Dict[str, Any]) -> str:
+    stable = {
+        "communication": profile.get("communication", {}),
+        "human_signals": profile.get("human_signals", {}),
+        "preferences": profile.get("preferences", []),
+    }
+    packed = json.dumps(stable, ensure_ascii=False, sort_keys=True)
+    return str(abs(hash(packed)))
+
+
+def behavior_add_preference(profile: Dict[str, Any], preference: str) -> None:
+    clean_preference = clean_text(preference)[:240]
+    if not clean_preference:
+        return
+    preferences = [
+        item for item in profile.get("preferences", [])
+        if item.lower() != clean_preference.lower()
+    ]
+    preferences.append(clean_preference)
+    profile["preferences"] = preferences[-20:]
+
+
+def detect_behavior_signals(user_message: str) -> Dict[str, Any]:
+    text = clean_text(user_message)
+    lower = text.lower()
+    signals = {
+        "frustration": 0,
+        "confusion": 0,
+        "urgency": 0,
+        "correction": False,
+        "needs_structure": False,
+        "needs_polish": False,
+        "needs_simpler": False,
+        "task_type": "general",
+    }
+    if re.search(r"\b(wrong|bad|not good|wasn'?t supposed|not supposed|fix|again|still|doesn'?t|didn'?t|problem|issue)\b", lower):
+        signals["frustration"] = 1
+        signals["correction"] = True
+    if re.search(r"\b(confused|don'?t understand|explain|what is this|why|how)\b", lower):
+        signals["confusion"] = 1
+    if re.search(r"\b(now|quick|fast|urgent|asap|immediately)\b", lower):
+        signals["urgency"] = 1
+    if re.search(r"\b(structured|structure|clean|professional|claude|punctuation|punctuations|format|organized)\b", lower):
+        signals["needs_structure"] = True
+        signals["needs_polish"] = True
+    if re.search(r"\b(simple|simpler|easy|class 8|beginner|like a teacher)\b", lower):
+        signals["needs_simpler"] = True
+    if re.search(r"\b(code|bug|frontend|backend|github|website|input box|ui|button|css|html)\b", lower):
+        signals["task_type"] = "build_or_ui"
+    elif re.search(r"\b(latest|current|news|search|price|market|president|weather)\b", lower):
+        signals["task_type"] = "current_info"
+    elif re.search(r"\b(explain|learn|study|class|chapter|question)\b", lower):
+        signals["task_type"] = "learning"
+    return signals
+
+
+def learn_behavior_from_message(user_message: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    profile = load_behavior_profile()
+    signals = detect_behavior_signals(user_message)
+    counters = profile.setdefault("human_signals", {})
+    for key in ["frustration", "confusion", "urgency"]:
+        counters[key] = int(counters.get(key, 0)) + int(signals.get(key, 0))
+
+    communication = profile.setdefault("communication", {})
+    if signals["needs_structure"]:
+        communication["structure_needed"] = "highly structured: direct answer, clean headings, compact bullets, source cards only"
+        behavior_add_preference(profile, "Prefer structured, professional answers with clean punctuation.")
+    if signals["needs_polish"]:
+        communication["tone_needed"] = "professional, composed, Claude-like clarity"
+        behavior_add_preference(profile, "Avoid messy fragments; use polished punctuation and calm wording.")
+    if signals["needs_simpler"]:
+        communication["detail_level"] = "simple first, then deeper only if needed"
+        behavior_add_preference(profile, "Explain difficult ideas simply before adding detail.")
+    if signals["correction"]:
+        behavior_add_preference(profile, "When corrected, acknowledge the intended behavior and adapt without arguing.")
+    if signals["task_type"] == "build_or_ui":
+        behavior_add_preference(profile, "For app changes, focus on the visible behavior the user describes and verify it.")
+    if signals["task_type"] == "current_info":
+        behavior_add_preference(profile, "Use real-time search for current facts and do not guess.")
+
+    event = {
+        "created_at": now_iso(),
+        "message": user_message[:220],
+        "signals": signals,
+    }
+    events = profile.setdefault("recent_events", [])
+    events.append(event)
+    profile["recent_events"] = events[-MAX_BEHAVIOR_EVENTS:]
+    save_behavior_profile(profile)
+    return profile, signals
+
+
+def learn_behavior_from_feedback(req: FeedbackRequest) -> Dict[str, Any]:
+    profile = load_behavior_profile()
+    counters = profile.setdefault("human_signals", {})
+    if req.rating == "good":
+        counters["positive_feedback"] = int(counters.get("positive_feedback", 0)) + 1
+        behavior_add_preference(profile, "Repeat answer patterns that receive positive feedback.")
+    else:
+        counters["negative_feedback"] = int(counters.get("negative_feedback", 0)) + 1
+        behavior_add_preference(profile, "If feedback is negative, be more concise, structured, and ask fewer unnecessary questions.")
+    profile.setdefault("recent_events", []).append({
+        "created_at": now_iso(),
+        "type": "feedback",
+        "rating": req.rating,
+        "question": clean_text(req.question or "")[:220],
+        "answer": clean_text(req.answer or "")[:260],
+        "note": clean_text(req.note or "")[:180],
+    })
+    profile["recent_events"] = profile["recent_events"][-MAX_BEHAVIOR_EVENTS:]
+    save_behavior_profile(profile)
+    return profile
+
+
+def build_behavior_context(profile: Dict[str, Any], current_signals: Optional[Dict[str, Any]] = None) -> str:
+    communication = profile.get("communication", {})
+    signals = profile.get("human_signals", {})
+    lines = [
+        "Human behavior learning profile:",
+        f"- Tone needed: {communication.get('tone_needed')}",
+        f"- Structure needed: {communication.get('structure_needed')}",
+        f"- Detail level: {communication.get('detail_level')}",
+        f"- User typing style: {communication.get('typing_style')}",
+        f"- Learned signal counts: frustration={signals.get('frustration', 0)}, confusion={signals.get('confusion', 0)}, urgency={signals.get('urgency', 0)}, positive_feedback={signals.get('positive_feedback', 0)}, negative_feedback={signals.get('negative_feedback', 0)}.",
+    ]
+    if current_signals:
+        active = [key for key, value in current_signals.items() if value and key != "task_type"]
+        lines.append(f"- Current message signals: task_type={current_signals.get('task_type', 'general')}; active={', '.join(active) or 'none'}.")
+    preferences = profile.get("preferences", [])[-8:]
+    if preferences:
+        lines.append("- Behavioral preferences to follow:")
+        for item in preferences:
+            lines.append(f"  - {item}")
+    lines.append("Use this to adapt empathy, clarity, structure, and pacing. Do not mention this profile unless the user asks.")
+    return "\n".join(lines)
 
 
 def maybe_store_memory(user_message: str) -> None:
@@ -1252,6 +1463,7 @@ def build_messages(
     file_context: str,
     memory_context: str,
     persona_context: str,
+    behavior_context: str,
     use_research: bool,
     response_mode: str,
 ) -> List[Dict[str, str]]:
@@ -1277,6 +1489,8 @@ def build_messages(
     ]
     if persona_context:
         messages.append({"role": "system", "content": persona_context})
+    if behavior_context:
+        messages.append({"role": "system", "content": behavior_context})
     if research_context:
         messages.append({"role": "system", "content": research_context})
     if file_context:
@@ -1529,6 +1743,7 @@ def nexora_web_app() -> HTMLResponse:
 @app.get("/health")
 def health() -> Dict[str, Any]:
     persona = load_persona_profile()
+    behavior = load_behavior_profile()
     performance = system_profile()
     return {
         "status": "ok",
@@ -1554,6 +1769,12 @@ def health() -> Dict[str, Any]:
             "enabled": True,
             "signature": persona_signature(persona),
             "updated_at": persona.get("updated_at"),
+        },
+        "behavior_learning": {
+            "enabled": True,
+            "signature": behavior_signature(behavior),
+            "updated_at": behavior.get("updated_at"),
+            "signals": behavior.get("human_signals", {}),
         },
         "timeout": REQUEST_TIMEOUT,
         "instant_timeout": INSTANT_TIMEOUT,
@@ -1597,6 +1818,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     original_user_message = (req.original_message or user_message).strip()
     session_id = ensure_session(req.session_id)
     session = get_session(session_id)
+    behavior_profile, behavior_signals = learn_behavior_from_message(original_user_message)
     persona_profile, persona_changes = learn_persona_from_message(original_user_message)
     if persona_changes:
         reply = persona_update_reply(persona_changes, persona_profile)
@@ -1609,7 +1831,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_adaptive_persona",
             sources=[],
-            tools_used=["adaptive_persona", f"performance:{system_profile()['level']}"],
+            tools_used=["adaptive_persona", "behavior_learning", f"performance:{system_profile()['level']}"],
             created_at=now_iso(),
         )
     response_mode = choose_response_mode(original_user_message, req.mode, req.model)
@@ -1623,7 +1845,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_local_fast",
             sources=[],
-            tools_used=["local_fast_reply", f"performance:{system_profile()['level']}"],
+            tools_used=["local_fast_reply", "behavior_learning", f"performance:{system_profile()['level']}"],
             created_at=now_iso(),
         )
 
@@ -1631,7 +1853,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         session_id,
         original_user_message,
         req.mode,
-        f"{req.model or 'auto'}:{response_mode}:{persona_signature(persona_profile)}",
+        f"{req.model or 'auto'}:{response_mode}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}",
     )
     cached = get_cached_response(response_cache_key)
     if cached:
@@ -1654,6 +1876,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     history = req.chat_history if req.chat_history is not None else history_from_session
     tools_used: List[str] = []
     tools_used.append(f"performance:{system_profile()['level']}")
+    tools_used.append("behavior_learning")
     sources: List[SourceItem] = []
     verified_sources: List[SourceItem] = []
     use_research = should_use_research(original_user_message, req.mode, req.use_web)
@@ -1694,6 +1917,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         tools_used.append("memory")
     persona_context = build_persona_context(persona_profile)
     tools_used.append("adaptive_persona")
+    behavior_context = build_behavior_context(behavior_profile, behavior_signals)
 
     messages = build_messages(
         user_message=user_message,
@@ -1702,6 +1926,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         file_context=file_context,
         memory_context=memory_context,
         persona_context=persona_context,
+        behavior_context=behavior_context,
         use_research=use_research,
         response_mode=response_mode,
     )
@@ -1857,6 +2082,29 @@ def reset_persona() -> Dict[str, Any]:
     profile = default_persona_profile()
     save_persona_profile(profile)
     return {"ok": True, "profile": load_persona_profile(), "message": "Nexora persona reset."}
+
+
+@app.get("/behavior")
+def read_behavior() -> Dict[str, Any]:
+    profile = load_behavior_profile()
+    return {"ok": True, "profile": profile, "signature": behavior_signature(profile)}
+
+
+@app.post("/behavior/reset")
+def reset_behavior() -> Dict[str, Any]:
+    profile = default_behavior_profile()
+    save_behavior_profile(profile)
+    return {"ok": True, "profile": load_behavior_profile(), "message": "Nexora behavior learning reset."}
+
+
+@app.post("/feedback")
+def save_feedback(req: FeedbackRequest) -> Dict[str, Any]:
+    profile = learn_behavior_from_feedback(req)
+    return {
+        "ok": True,
+        "message": "Feedback saved. Nexora will adapt future answers.",
+        "signature": behavior_signature(profile),
+    }
 
 
 @app.get("/finance")
