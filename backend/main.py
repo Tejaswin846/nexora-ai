@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.11.0-human-learning"
+APP_VERSION = "8.12.0-adaptive-response-lanes"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -882,6 +882,62 @@ def build_behavior_context(profile: Dict[str, Any], current_signals: Optional[Di
     return "\n".join(lines)
 
 
+def classify_response_lane(user_message: str, use_research: bool) -> str:
+    text = clean_text(user_message).lower()
+    if use_research:
+        return "realtime_search"
+    if re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft)\b", text):
+        return "writing"
+    if re.search(r"\b(explain|teach|learn|class|chapter|homework|notes|summary|revise|study)\b", text):
+        return "learning"
+    if re.search(r"\b(code|bug|debug|frontend|backend|api|html|css|javascript|python|github|deploy|website)\b", text):
+        return "build"
+    return "human_chat"
+
+
+def build_response_lane_context(user_message: str, use_research: bool) -> str:
+    lane = classify_response_lane(user_message, use_research)
+    base = [
+        "Adaptive response lane:",
+        f"- Lane: {lane}",
+    ]
+    if lane == "writing":
+        base.extend([
+            "- Write with Claude-like smoothness: composed, natural, elegant, and easy to read.",
+            "- For emails and letters, produce a finished draft first. Include a subject line for emails when useful.",
+            "- Use polished punctuation, clean paragraph breaks, and human wording that does not sound robotic.",
+            "- Match the relationship and situation: respectful for teachers/officials, warm for personal messages, concise for business.",
+            "- Avoid overexplaining the draft unless the user asks for notes or alternatives.",
+        ])
+    elif lane == "realtime_search":
+        base.extend([
+            "- Use Perplexity-style search synthesis: answer first, then key evidence, then compact context.",
+            "- Use inline citations like [1] and [2] for claims based on sources.",
+            "- Compare sources when they disagree. State uncertainty clearly instead of forcing a confident answer.",
+            "- Do not dump raw source lists; the app renders source cards separately.",
+        ])
+    elif lane == "human_chat":
+        base.extend([
+            "- Use ChatGPT-like human behavior: warm, attentive, direct, and context-aware.",
+            "- Respond like a thoughtful collaborator, not a form template.",
+            "- Keep normal chat natural and concise. Use headings only when they genuinely help.",
+            "- Notice the user's intent and emotion; be steady, not dramatic.",
+        ])
+    elif lane == "learning":
+        base.extend([
+            "- Teach clearly: simple explanation first, then key points, then a short recap if useful.",
+            "- Use examples and exam-friendly wording when the user seems to be studying.",
+            "- Keep the structure clean and avoid long blocks.",
+        ])
+    elif lane == "build":
+        base.extend([
+            "- Be implementation-focused: state what changed, what to test, and any limitation.",
+            "- Prefer concrete steps and exact file/function references when discussing code.",
+            "- Keep explanations concise unless the user asks for depth.",
+        ])
+    return "\n".join(base)
+
+
 def maybe_store_memory(user_message: str) -> None:
     text = user_message.strip()
     lower = text.lower()
@@ -1359,6 +1415,8 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
     mode_lower = (mode or "").lower()
     if mode_lower in {"web", "search", "research", "deep_research", "research_mode", "finance"}:
         return True
+    if re.search(r"\b(search|searcch|look up|lookup|google|find online|on the internet|real[- ]?time|realtime)\b", text):
+        return True
     keywords = [
         "latest", "today", "current", "recent", "news", "live", "now", "2026", "2025",
         "stock", "share", "market", "price", "ceo", "president", "prime minister",
@@ -1427,6 +1485,9 @@ Style:
 - Sound warm, intelligent, and natural, like a capable teammate sitting beside the user.
 - Keep the tone professional, calm, and polished, closer to Claude-style clarity: no hype, no messy phrasing, no overuse of emojis.
 - Behave like a real assistant inside the app: infer the user's practical intent, adapt to saved preferences, be proactive with the next useful step, and ask a short clarifying question only when guessing would be risky.
+- For letters, emails, applications, notices, proposals, and personal messages, write with smooth Claude-like prose: graceful, clear, human, and ready to send.
+- For everyday chat, use ChatGPT-like human behavior: conversational, emotionally aware, and practical without sounding scripted.
+- For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
 - Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
 - Vary sentence length. Mix short decisive sentences with slightly longer explanatory ones.
 - Prefer clean paragraphs over bullet lists unless the user asks for steps, comparison, options, or a checklist.
@@ -1464,6 +1525,7 @@ def build_messages(
     memory_context: str,
     persona_context: str,
     behavior_context: str,
+    response_lane_context: str,
     use_research: bool,
     response_mode: str,
 ) -> List[Dict[str, str]]:
@@ -1491,6 +1553,8 @@ def build_messages(
         messages.append({"role": "system", "content": persona_context})
     if behavior_context:
         messages.append({"role": "system", "content": behavior_context})
+    if response_lane_context:
+        messages.append({"role": "system", "content": response_lane_context})
     if research_context:
         messages.append({"role": "system", "content": research_context})
     if file_context:
@@ -1918,6 +1982,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     persona_context = build_persona_context(persona_profile)
     tools_used.append("adaptive_persona")
     behavior_context = build_behavior_context(behavior_profile, behavior_signals)
+    response_lane_context = build_response_lane_context(original_user_message, use_research)
+    tools_used.append(f"response_lane:{classify_response_lane(original_user_message, use_research)}")
 
     messages = build_messages(
         user_message=user_message,
@@ -1927,6 +1993,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         memory_context=memory_context,
         persona_context=persona_context,
         behavior_context=behavior_context,
+        response_lane_context=response_lane_context,
         use_research=use_research,
         response_mode=response_mode,
     )

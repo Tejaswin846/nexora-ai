@@ -9983,9 +9983,17 @@ document.addEventListener("DOMContentLoaded",()=>{
   function buildAgentPrompt(userText){
     const q = String(userText || "").trim();
     if(/^(hi|hello|hey|yo|hii|hlo|ok|okay|thanks|thank you)$/i.test(q)) return q;
+    const lower = q.toLowerCase();
+    const writingMode = /\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|apology|invitation|complaint|request|proposal|draft)\b/.test(lower);
+    const searchMode = /\b(latest|current|today|news|search|searcch|look up|find online|real[- ]?time|realtime|price|weather|score|president|market)\b/.test(lower);
+    const chatMode = !writingMode && !searchMode;
     return [
       "Answer the user's real question, not the prompt instructions.",
       "Use a premium ChatGPT-like sentence rhythm: direct opening, natural transitions, varied sentence length, and calm confident wording.",
+      "Make the answer clean, professional, and Claude-like: precise punctuation, calm tone, no messy fragments, no hype.",
+      writingMode ? "WRITING MODE: For emails, letters, applications, and messages, write a finished draft first. Make it smooth, human, polished, and ready to send. Include a subject line for email when useful. Do not over-explain unless asked." : "",
+      searchMode ? "SEARCH MODE: Use Perplexity-style synthesis: answer first, cite evidence with [1] and [2], avoid guessing, and keep sources as evidence rather than raw link dumps." : "",
+      chatMode ? "CHAT MODE: Behave like a thoughtful human assistant: warm, attentive, practical, emotionally aware, and concise unless depth is needed." : "",
       "Use polished grammar and punctuation: correct commas, periods, apostrophes, capitalization, and sentence boundaries.",
       "When introducing a list, end the lead-in with a colon and keep the bullet grammar parallel.",
       "Prefer paragraph-led answers over bullet dumping; use bullets only for steps, comparisons, options, or compact lists.",
