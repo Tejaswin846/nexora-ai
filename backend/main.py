@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html as html_lib
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
+from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 from fastapi import FastAPI, File, Form, UploadFile
@@ -31,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.7.0-real-ai-polish"
+APP_VERSION = "8.8.0-realtime-search"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -82,11 +84,13 @@ HF_API_KEY = os.getenv("HF_API_KEY", "").strip()
 HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
 REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "45"))
+SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "12"))
 MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "850"))
 INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "30"))
 THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "45"))
 MAX_HISTORY_MESSAGES = 5
 MAX_RESEARCH_SOURCES = 4
+MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
 MAX_MEMORY_ITEMS = 80
 MAX_PERSONA_RULES = 16
@@ -1023,6 +1027,120 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
     raise RuntimeError("; ".join(provider_errors) or "No free API provider is configured")
 
 
+def decode_search_url(raw_url: str) -> str:
+    url = html_lib.unescape(str(raw_url or "")).strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    parsed = urlparse(url)
+    if "duckduckgo.com" in parsed.netloc and parsed.path.startswith("/l/"):
+        target = parse_qs(parsed.query).get("uddg", [""])[0]
+        if target:
+            return unquote(target)
+    return url
+
+
+def clean_html_fragment(fragment: str) -> str:
+    text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", fragment or "")
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    return clean_text(html_lib.unescape(text))
+
+
+def source_domain(url: str) -> str:
+    try:
+        host = urlparse(url).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host
+    except Exception:
+        return ""
+
+
+def duckduckgo_search(query: str, max_results: int = MAX_SEARCH_RESULTS) -> List[Dict[str, Any]]:
+    search_url = "https://duckduckgo.com/html/"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    response = HTTP.get(search_url, params={"q": query}, headers=headers, timeout=SEARCH_TIMEOUT)
+    response.raise_for_status()
+    html = response.text
+    pattern = re.compile(
+        r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>(.*?)(?=<a[^>]+class="result__a"|</body>)',
+        re.IGNORECASE | re.DOTALL,
+    )
+    results: List[Dict[str, Any]] = []
+    seen_urls = set()
+    for match in pattern.finditer(html):
+        url = decode_search_url(match.group(1))
+        title = clean_html_fragment(match.group(2))
+        rest = match.group(3)
+        snippet_match = (
+            re.search(r'class="result__snippet"[^>]*>(.*?)</a>', rest, re.IGNORECASE | re.DOTALL)
+            or re.search(r'class="result__snippet"[^>]*>(.*?)</div>', rest, re.IGNORECASE | re.DOTALL)
+        )
+        snippet = clean_html_fragment(snippet_match.group(1)) if snippet_match else ""
+        if not url.startswith(("http://", "https://")) or not title:
+            continue
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        results.append({
+            "title": title[:170],
+            "url": url,
+            "domain": source_domain(url),
+            "snippet": snippet[:700],
+            "score": max(1, 100 - len(results) * 8),
+            "provider": "web_search:duckduckgo",
+        })
+        if len(results) >= max_results:
+            break
+    return results
+
+
+def realtime_search_loop(query: str, max_rounds: int = 1) -> Dict[str, Any]:
+    try:
+        sources = duckduckgo_search(query, max_results=MAX_SEARCH_RESULTS)
+        return {
+            "ok": bool(sources),
+            "sources": sources,
+            "confidence": "medium" if sources else "none",
+            "rounds": max_rounds,
+            "provider": "duckduckgo_html",
+        }
+    except Exception as error:
+        return {
+            "ok": False,
+            "sources": [],
+            "confidence": "none",
+            "rounds": 0,
+            "provider": "duckduckgo_html",
+            "error": str(error),
+        }
+
+
+def research_with_realtime_fallback(query: str) -> Dict[str, Any]:
+    primary_error = ""
+    try:
+        research = research_loop(query, max_rounds=2)
+    except Exception as error:
+        research = {"ok": False, "sources": [], "confidence": "none", "rounds": 0, "error": str(error)}
+    if research.get("ok") and research.get("sources"):
+        research["provider"] = research.get("provider", "research_engine")
+        return research
+
+    primary_error = str(research.get("error", ""))
+    fallback = realtime_search_loop(query, max_rounds=1)
+    if fallback.get("ok"):
+        fallback["fallback_from"] = primary_error or "research_engine_unavailable"
+        return fallback
+    if primary_error and not fallback.get("error"):
+        fallback["error"] = primary_error
+    return fallback
+
+
 def should_use_research(message: str, mode: Optional[str], explicit: Optional[bool]) -> bool:
     if explicit is not None:
         return bool(explicit)
@@ -1031,9 +1149,10 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
     if mode_lower in {"web", "search", "research", "deep_research", "research_mode", "finance"}:
         return True
     keywords = [
-        "latest", "today", "current", "recent", "news", "2026", "2025",
-        "stock", "share", "market", "price", "ceo", "winner", "score",
-        "schedule", "election", "filing", "contract", "order", "announcement",
+        "latest", "today", "current", "recent", "news", "live", "now", "2026", "2025",
+        "stock", "share", "market", "price", "ceo", "president", "prime minister",
+        "winner", "score", "weather", "schedule", "election", "filing", "contract",
+        "order", "announcement", "released", "updated",
     ]
     return any(keyword in text for keyword in keywords)
 
@@ -1058,6 +1177,8 @@ def source_has_real_evidence(source: SourceItem, user_question: str) -> bool:
     question = user_question.lower()
     if not source.title and not source.snippet:
         return False
+    if source.provider.startswith("web_search"):
+        return bool(source.url and source.title)
     current_words = ["latest", "today", "current", "recent", "news"]
     if any(word in question for word in current_words):
         return any(word in hay for word in ["2026", "2025", "announced", "reported", "filing", "release", "update", "today", "latest"])
@@ -1080,6 +1201,7 @@ def build_research_context(sources: List[SourceItem], question: str, confidence:
     for source in sources:
         lines.append(
             f"[{source.id}] Title: {source.title}\n"
+            f"URL: {source.url}\n"
             f"Domain: {source.domain}\n"
             f"Evidence: {source.snippet}"
         )
@@ -1321,6 +1443,21 @@ def append_sources(reply: str, sources: List[SourceItem]) -> str:
     return reply + "\n".join(lines)
 
 
+def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> str:
+    lines = [
+        "I found live web sources for that, but the free answer engine is temporarily unavailable.",
+        "",
+        "Use these current sources as the safest evidence for now:",
+    ]
+    for source in sources[:MAX_RESEARCH_SOURCES]:
+        snippet = clean_text(source.snippet)
+        detail = f" - {snippet}" if snippet else ""
+        lines.append(f"[{source.id}] {source.title} ({source.domain}){detail}")
+    lines.append("")
+    lines.append("Retry the question once and I can synthesize these sources into a cleaner answer.")
+    return "\n".join(lines)
+
+
 def setup_error_message(error_text: str) -> str:
     return (
         "⚠️ Nexora could not reach the free AI engine this time.\n\n"
@@ -1377,6 +1514,12 @@ def health() -> Dict[str, Any]:
         "available_models": ollama_available_models(),
         "free_api": free_provider_status(),
         "research_engine": "optional",
+        "realtime_search": {
+            "enabled": True,
+            "provider": "duckduckgo_html",
+            "max_results": MAX_SEARCH_RESULTS,
+            "timeout": SEARCH_TIMEOUT,
+        },
         "strict_verification": True,
         "performance": performance,
         "adaptive_persona": {
@@ -1399,6 +1542,19 @@ def models() -> Dict[str, Any]:
         "free_api": free_provider_status(),
         "performance": system_profile(),
         "available": ollama_available_models(),
+    }
+
+
+@app.get("/search")
+def search(q: str, max_results: int = MAX_SEARCH_RESULTS) -> Dict[str, Any]:
+    clipped_max = max(1, min(int(max_results or MAX_SEARCH_RESULTS), 10))
+    results = duckduckgo_search(q, max_results=clipped_max)
+    return {
+        "ok": bool(results),
+        "query": q,
+        "provider": "duckduckgo_html",
+        "results": results,
+        "created_at": now_iso(),
     }
 
 
@@ -1477,15 +1633,13 @@ def chat(req: ChatRequest) -> ChatResponse:
     rounds = 0
 
     if use_research:
-        try:
-            research = research_loop(original_user_message, max_rounds=2)
-        except Exception as error:
-            research = {"ok": False, "sources": [], "confidence": "none", "rounds": 0, "error": str(error)}
+        research = research_with_realtime_fallback(original_user_message)
         confidence = str(research.get("confidence", "none"))
         rounds = int(research.get("rounds", 0) or 0)
         sources = convert_sources(research.get("sources", []))
         verified_sources = verified_sources_only(sources, original_user_message)
-        tools_used.append(f"research_engine:{confidence}:rounds_{rounds}")
+        provider = str(research.get("provider", "research_engine"))
+        tools_used.append(f"{provider}:{confidence}:rounds_{rounds}")
         if not research.get("ok") or not verified_sources:
             reply = (
                 "I do not have verified current evidence for that yet. "
@@ -1543,13 +1697,23 @@ def chat(req: ChatRequest) -> ChatResponse:
                 reply = ollama_chat(messages, model_used, response_mode)
                 tools_used.append(f"ollama_fallback:{response_mode}")
             except Exception as fallback_error:
+                if verified_sources:
+                    model_used = "realtime_search_fallback"
+                    reply = search_evidence_fallback_reply(original_user_message, verified_sources)
+                    tools_used.append("search_evidence_fallback")
+                else:
+                    model_failed = True
+                    model_used = "offline"
+                    reply = setup_error_message(f"{error}; Ollama fallback: {fallback_error}")
+        else:
+            if verified_sources:
+                model_used = "realtime_search_fallback"
+                reply = search_evidence_fallback_reply(original_user_message, verified_sources)
+                tools_used.append("search_evidence_fallback")
+            else:
                 model_failed = True
                 model_used = "offline"
-                reply = setup_error_message(f"{error}; Ollama fallback: {fallback_error}")
-        else:
-            model_failed = True
-            model_used = "offline"
-            reply = setup_error_message(str(error))
+                reply = setup_error_message(str(error))
 
     final_reply = clean_reply(reply)
     if not model_failed:
