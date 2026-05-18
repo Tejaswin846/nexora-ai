@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import requests
 from fastapi import FastAPI, File, Form, UploadFile
@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.13.0-presentation-planner"
+APP_VERSION = "8.14.0-app-tools-image-generation"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -42,6 +42,8 @@ SESSIONS_FILE = DATA_DIR / "sessions.json"
 MEMORY_FILE = DATA_DIR / "memory.json"
 PERSONA_FILE = DATA_DIR / "persona.json"
 BEHAVIOR_FILE = DATA_DIR / "behavior.json"
+PROJECTS_FILE = DATA_DIR / "projects.json"
+ARTIFACTS_FILE = DATA_DIR / "artifacts.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
 
 DATA_DIR.mkdir(exist_ok=True)
@@ -99,6 +101,8 @@ MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = 180
 RESPONSE_CACHE_MAX = 60
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
+IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
+IMAGE_BASE_URL = os.getenv("NEXORA_IMAGE_BASE_URL", "https://image.pollinations.ai/prompt").strip().rstrip("/")
 SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 
 HTTP = requests.Session()
@@ -173,6 +177,36 @@ class FeedbackRequest(BaseModel):
     question: Optional[str] = None
     answer: Optional[str] = None
     note: Optional[str] = None
+
+
+class ProjectRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    session_id: Optional[str] = None
+
+
+class ArtifactRequest(BaseModel):
+    title: str = Field("Untitled artifact", max_length=120)
+    type: str = Field("Document", max_length=40)
+    content: str = ""
+    url: str = ""
+    prompt: str = ""
+    session_id: Optional[str] = None
+
+
+class ImageRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=900)
+    size: Optional[str] = "1024x1024"
+    style: Optional[str] = ""
+    session_id: Optional[str] = None
+
+
+class ImageResponse(BaseModel):
+    ok: bool
+    prompt: str
+    url: str
+    artifact_id: str
+    provider: str
+    created_at: str
 
 
 def now_iso() -> str:
@@ -497,6 +531,150 @@ def load_memory() -> List[Dict[str, Any]]:
 
 def save_memory(items: List[Dict[str, Any]]) -> None:
     safe_write_json(MEMORY_FILE, items[-MAX_MEMORY_ITEMS:])
+
+
+def normalize_project_name(name: str) -> str:
+    return clean_text(name)[:80] or "Untitled project"
+
+
+def load_projects() -> List[Dict[str, Any]]:
+    raw_projects = safe_read_json(PROJECTS_FILE, [])
+    if not isinstance(raw_projects, list):
+        return []
+    projects = []
+    for item in raw_projects:
+        if isinstance(item, dict):
+            name = normalize_project_name(str(item.get("name", "")))
+            if not name:
+                continue
+            item.setdefault("id", f"project_{uuid.uuid4().hex[:12]}")
+            item["name"] = name
+            item.setdefault("created_at", now_iso())
+            item.setdefault("updated_at", item.get("created_at"))
+            item.setdefault("sessions", [])
+            projects.append(item)
+        elif isinstance(item, str) and item.strip():
+            projects.append({
+                "id": f"project_{uuid.uuid4().hex[:12]}",
+                "name": normalize_project_name(item),
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+                "sessions": [],
+            })
+    return projects
+
+
+def save_projects(projects: List[Dict[str, Any]]) -> None:
+    safe_write_json(PROJECTS_FILE, projects[:100])
+
+
+def upsert_project(name: str, session_id: Optional[str] = None) -> Dict[str, Any]:
+    clean_name = normalize_project_name(name)
+    projects = load_projects()
+    now = now_iso()
+    for project in projects:
+        if clean_text(str(project.get("name", ""))).lower() == clean_name.lower():
+            project["updated_at"] = now
+            if session_id:
+                sessions = project.setdefault("sessions", [])
+                if session_id not in sessions:
+                    sessions.append(session_id)
+            save_projects(projects)
+            return project
+    project = {
+        "id": f"project_{uuid.uuid4().hex[:12]}",
+        "name": clean_name,
+        "created_at": now,
+        "updated_at": now,
+        "sessions": [session_id] if session_id else [],
+    }
+    projects.insert(0, project)
+    save_projects(projects)
+    return project
+
+
+def load_artifacts() -> List[Dict[str, Any]]:
+    raw_artifacts = safe_read_json(ARTIFACTS_FILE, [])
+    if isinstance(raw_artifacts, dict) and isinstance(raw_artifacts.get("value"), list):
+        raw_artifacts = raw_artifacts["value"]
+    if not isinstance(raw_artifacts, list):
+        return []
+    artifacts = []
+    for item in raw_artifacts:
+        if not isinstance(item, dict):
+            continue
+        item.setdefault("id", f"artifact_{uuid.uuid4().hex[:12]}")
+        item.setdefault("title", "Untitled artifact")
+        item.setdefault("type", "Document")
+        item.setdefault("content", "")
+        item.setdefault("url", "")
+        item.setdefault("prompt", "")
+        item.setdefault("created_at", now_iso())
+        item.setdefault("updated_at", item.get("created_at"))
+        artifacts.append(item)
+    return artifacts
+
+
+def save_artifacts(artifacts: List[Dict[str, Any]]) -> None:
+    safe_write_json(ARTIFACTS_FILE, artifacts[:200])
+
+
+def create_artifact(
+    title: str,
+    artifact_type: str = "Document",
+    content: str = "",
+    url: str = "",
+    prompt: str = "",
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    now = now_iso()
+    artifact = {
+        "id": f"artifact_{uuid.uuid4().hex[:12]}",
+        "title": clean_text(title)[:120] or "Untitled artifact",
+        "type": clean_text(artifact_type)[:40] or "Document",
+        "content": content,
+        "url": url,
+        "prompt": prompt,
+        "session_id": session_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+    artifacts = load_artifacts()
+    artifacts.insert(0, artifact)
+    save_artifacts(artifacts)
+    return artifact
+
+
+def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
+    raw = (size or "1024x1024").lower().strip()
+    presets = {
+        "square": (1024, 1024),
+        "portrait": (832, 1216),
+        "landscape": (1216, 832),
+        "wide": (1344, 768),
+    }
+    if raw in presets:
+        return presets[raw]
+    match = re.match(r"^(\d{3,4})\s*x\s*(\d{3,4})$", raw)
+    if match:
+        width = max(512, min(1536, int(match.group(1))))
+        height = max(512, min(1536, int(match.group(2))))
+        return width, height
+    return 1024, 1024
+
+
+def build_image_url(prompt: str, size: Optional[str], style: Optional[str]) -> str:
+    width, height = parse_image_size(size)
+    clean_prompt = clean_text(prompt)
+    style_text = clean_text(style or "")
+    if style_text:
+        clean_prompt = f"{clean_prompt}, {style_text}"
+    seed = abs(hash(f"{clean_prompt}|{width}x{height}|{int(time.time() // 60)}")) % 1000000
+    encoded_prompt = quote(clean_prompt[:900])
+    return (
+        f"{IMAGE_BASE_URL}/{encoded_prompt}"
+        f"?width={width}&height={height}&seed={seed}&nologo=true&enhance=true"
+    )
 
 
 def default_persona_profile() -> Dict[str, Any]:
@@ -1933,6 +2111,11 @@ def health() -> Dict[str, Any]:
             "max_results": MAX_SEARCH_RESULTS,
             "timeout": SEARCH_TIMEOUT,
         },
+        "image_generation": {
+            "enabled": True,
+            "provider": IMAGE_PROVIDER,
+            "mode": "remote_url_lightweight",
+        },
         "strict_verification": True,
         "performance": performance,
         "adaptive_persona": {
@@ -1980,6 +2163,79 @@ def search(q: str, max_results: int = MAX_SEARCH_RESULTS) -> Dict[str, Any]:
 @app.get("/system/profile")
 def read_system_profile() -> Dict[str, Any]:
     return {"ok": True, "profile": system_profile()}
+
+
+@app.get("/sessions")
+def list_sessions() -> Dict[str, Any]:
+    sessions = load_sessions()
+    rows = []
+    for session_id, session in sessions.items():
+        messages = session.get("messages", []) if isinstance(session, dict) else []
+        first_user = next(
+            (m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"),
+            "",
+        )
+        rows.append({
+            "id": session_id,
+            "title": clean_text(first_user)[:80] or "New chat",
+            "message_count": len(messages),
+            "created_at": session.get("created_at") if isinstance(session, dict) else "",
+            "updated_at": session.get("updated_at") if isinstance(session, dict) else "",
+        })
+    rows.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
+    return {"ok": True, "sessions": rows[:100]}
+
+
+@app.get("/projects")
+def projects() -> Dict[str, Any]:
+    return {"ok": True, "projects": load_projects()}
+
+
+@app.post("/projects/create")
+def create_project(req: ProjectRequest) -> Dict[str, Any]:
+    project = upsert_project(req.name, req.session_id)
+    return {"ok": True, "project": project, "name": project["name"]}
+
+
+@app.get("/artifacts")
+def artifacts() -> Dict[str, Any]:
+    return {"ok": True, "artifacts": load_artifacts()}
+
+
+@app.post("/artifacts/save")
+def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
+    artifact = create_artifact(
+        title=req.title,
+        artifact_type=req.type,
+        content=req.content,
+        url=req.url,
+        prompt=req.prompt,
+        session_id=req.session_id,
+    )
+    return {"ok": True, "artifact": artifact}
+
+
+@app.post("/image/generate", response_model=ImageResponse)
+def generate_image(req: ImageRequest) -> ImageResponse:
+    clean_prompt = clean_text(req.prompt)
+    style = clean_text(req.style or "")
+    url = build_image_url(clean_prompt, req.size, style)
+    artifact = create_artifact(
+        title=clean_prompt[:70] or "Generated image",
+        artifact_type="Image",
+        content="",
+        url=url,
+        prompt=clean_prompt,
+        session_id=req.session_id,
+    )
+    return ImageResponse(
+        ok=True,
+        prompt=clean_prompt,
+        url=url,
+        artifact_id=artifact["id"],
+        provider=IMAGE_PROVIDER,
+        created_at=artifact["created_at"],
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)

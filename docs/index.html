@@ -10607,5 +10607,769 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 </style>
 
+<style id="nx-real-app-tools-style">
+  #canvasPanel{
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
+  }
+
+  .nx-tool-modal{
+    position:fixed;
+    inset:0;
+    z-index:32000;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,.62);
+    backdrop-filter:blur(10px);
+  }
+
+  .nx-tool-modal.show{
+    display:flex;
+  }
+
+  .nx-tool-shell{
+    width:min(760px, 94vw);
+    max-height:min(760px, 88vh);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    background:#202123;
+    border:1px solid rgba(255,255,255,.13);
+    border-radius:18px;
+    box-shadow:0 24px 80px rgba(0,0,0,.55);
+    color:#f4f4f5;
+  }
+
+  .nx-tool-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    padding:20px 22px 14px;
+    border-bottom:1px solid rgba(255,255,255,.09);
+  }
+
+  .nx-tool-title{
+    font-size:20px;
+    font-weight:760;
+    letter-spacing:0;
+    line-height:1.25;
+  }
+
+  .nx-tool-sub{
+    margin-top:6px;
+    color:#b8bbc2;
+    font-size:14px;
+    line-height:1.45;
+  }
+
+  .nx-tool-close{
+    width:34px;
+    height:34px;
+    border:0;
+    border-radius:10px;
+    background:transparent;
+    color:#d4d4d8;
+    cursor:pointer;
+    font-size:20px;
+  }
+
+  .nx-tool-close:hover{
+    background:rgba(255,255,255,.08);
+    color:#fff;
+  }
+
+  .nx-tool-body{
+    padding:18px 22px 22px;
+    overflow:auto;
+  }
+
+  .nx-tool-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:14px;
+  }
+
+  .nx-tool-input,
+  .nx-tool-select,
+  .nx-tool-textarea{
+    width:100%;
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:14px;
+    background:#17181b;
+    color:#fff;
+    outline:none;
+    padding:12px 13px;
+    font-size:14px;
+  }
+
+  .nx-tool-textarea{
+    min-height:132px;
+    resize:vertical;
+    line-height:1.5;
+  }
+
+  .nx-tool-input:focus,
+  .nx-tool-select:focus,
+  .nx-tool-textarea:focus{
+    border-color:rgba(96,165,250,.55);
+    box-shadow:0 0 0 3px rgba(96,165,250,.16);
+  }
+
+  .nx-tool-btn{
+    border:0;
+    border-radius:12px;
+    min-height:42px;
+    padding:0 15px;
+    background:#f4f4f5;
+    color:#111113;
+    font-weight:760;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+
+  .nx-tool-btn.secondary{
+    background:#303136;
+    color:#f4f4f5;
+    border:1px solid rgba(255,255,255,.12);
+  }
+
+  .nx-tool-btn:hover{
+    filter:brightness(1.06);
+  }
+
+  .nx-tool-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));
+    gap:10px;
+  }
+
+  .nx-tool-card{
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:14px;
+    background:#18191c;
+    padding:13px;
+    min-width:0;
+  }
+
+  .nx-tool-card button{
+    width:100%;
+    border:0;
+    background:transparent;
+    color:inherit;
+    text-align:left;
+    cursor:pointer;
+    padding:0;
+  }
+
+  .nx-tool-card-title{
+    font-weight:760;
+    color:#fff;
+    margin-bottom:5px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+
+  .nx-tool-card-meta{
+    color:#a1a1aa;
+    font-size:12px;
+    line-height:1.4;
+  }
+
+  .nx-tool-card-preview{
+    color:#d4d4d8;
+    font-size:13px;
+    line-height:1.45;
+    margin-top:8px;
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+
+  .nx-artifact-img{
+    width:100%;
+    aspect-ratio:1/1;
+    object-fit:cover;
+    border-radius:12px;
+    background:#111;
+    margin-bottom:10px;
+  }
+
+  .nx-image-message{
+    max-width:min(760px, calc(100% - 80px)) !important;
+  }
+
+  .nx-image-result{
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:18px;
+    background:#1f2024;
+    overflow:hidden;
+  }
+
+  .nx-image-result img{
+    display:block;
+    width:100%;
+    max-height:560px;
+    object-fit:contain;
+    background:#111;
+  }
+
+  .nx-image-result-info{
+    padding:13px 14px 14px;
+  }
+
+  .nx-image-result-title{
+    font-weight:760;
+    color:#fff;
+    margin-bottom:5px;
+  }
+
+  .nx-image-result-prompt{
+    color:#c7c9d1;
+    font-size:13px;
+    line-height:1.45;
+  }
+
+  .nx-image-result-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:12px;
+  }
+
+  .nx-image-result-actions a,
+  .nx-image-result-actions button{
+    border:1px solid rgba(255,255,255,.13);
+    border-radius:999px;
+    background:#2c2d32;
+    color:#fff;
+    padding:8px 11px;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:720;
+    cursor:pointer;
+  }
+
+  .nx-chatgpt-sidebar .nx-cgpt-item svg{
+    flex:0 0 auto;
+  }
+</style>
+
+<script id="nx-real-app-tools-script">
+(function(){
+  const API = window.API_BASE || "http://127.0.0.1:8000";
+  const ARTIFACT_KEY = "nexora_artifacts_pages_v2";
+  const IMAGE_KEY = "nexora_images_v1";
+  const CHAT_KEY = "nexora_chat_snapshots_v1";
+  const PROJECT_KEY = "nexora_projects_v2";
+
+  const icon = {
+    search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>',
+    plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
+    chat:'<svg viewBox="0 0 24 24"><path d="M5 6.5h14v9.5H8l-3 3v-12.5z"></path></svg>',
+    artifact:'<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 10h8"></path><path d="M8 14h5"></path></svg>',
+    code:'<svg viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4"></path><path d="M16 8l4 4-4 4"></path><path d="M13.5 5l-3 14"></path></svg>',
+    customize:'<svg viewBox="0 0 24 24"><path d="M12 3l7 4v10l-7 4-7-4V7l7-4z"></path><path d="M9 12h6"></path></svg>',
+    folder:'<svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15z"></path></svg>',
+    panel:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M9 4v16"></path></svg>',
+    user:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 19c1.7-2.8 4.2-4 7-4s5.3 1.2 7 4"></path></svg>'
+  };
+
+  function $(id){ return document.getElementById(id); }
+
+  function escapeHtml(value){
+    const div = document.createElement("div");
+    div.textContent = String(value || "");
+    return div.innerHTML;
+  }
+
+  function escapeAttr(value){
+    return escapeHtml(value).replace(/"/g, "&quot;");
+  }
+
+  function readList(key){
+    try{
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(value) ? value : [];
+    }catch(e){
+      return [];
+    }
+  }
+
+  function writeList(key, value, limit){
+    localStorage.setItem(key, JSON.stringify((value || []).slice(0, limit || 100)));
+  }
+
+  function toast(text){
+    if(typeof window.nxFinalToast === "function"){
+      window.nxFinalToast(text);
+      return;
+    }
+    let el = $("nxToastLive");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "nxToastLive";
+      el.className = "nx-toast-live";
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove("show"), 1600);
+  }
+
+  function ensureChat(){
+    const financePage = $("financePage");
+    const chatPage = $("chatPage");
+    if(financePage) financePage.style.display = "none";
+    if(chatPage) chatPage.classList.remove("chat-hidden");
+    document.body.classList.add("chat-mode");
+  }
+
+  function ensureModal(){
+    let modal = $("nxToolModal");
+    if(modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "nxToolModal";
+    modal.className = "nx-tool-modal";
+    modal.innerHTML = '<div class="nx-tool-shell"><div class="nx-tool-head"><div><div class="nx-tool-title" id="nxToolTitle"></div><div class="nx-tool-sub" id="nxToolSub"></div></div><button class="nx-tool-close" id="nxToolClose" type="button">x</button></div><div class="nx-tool-body" id="nxToolBody"></div></div>';
+    document.body.appendChild(modal);
+    $("nxToolClose").onclick = closeToolModal;
+    modal.addEventListener("click", function(e){
+      if(e.target === modal) closeToolModal();
+    });
+    return modal;
+  }
+
+  function openToolModal(title, subtitle, html, afterRender){
+    const modal = ensureModal();
+    $("nxToolTitle").textContent = title;
+    $("nxToolSub").textContent = subtitle || "";
+    $("nxToolBody").innerHTML = html || "";
+    modal.classList.add("show");
+    if(typeof afterRender === "function") afterRender(modal);
+  }
+
+  function closeToolModal(){
+    const modal = $("nxToolModal");
+    if(modal) modal.classList.remove("show");
+  }
+
+  function storeCurrentChatSnapshot(){
+    const items = Array.isArray(window.chatHistory) ? window.chatHistory : [];
+    const messages = items
+      .filter(item => item && (item.role === "user" || item.role === "assistant"))
+      .map(item => ({role:item.role, content:item.text || item.content || ""}))
+      .filter(item => item.content.trim());
+    if(!messages.length) return;
+    const title = messages.find(m => m.role === "user")?.content || "Nexora chat";
+    const list = readList(CHAT_KEY);
+    const signature = messages.map(m => m.role + ":" + m.content).join("|").slice(0, 600);
+    if(list.some(chat => chat.signature === signature)) return;
+    list.unshift({
+      id:"chat_" + Date.now().toString(36),
+      title:title.replace(/\s+/g, " ").trim().slice(0, 80),
+      updatedAt:new Date().toLocaleString(),
+      signature,
+      messages
+    });
+    writeList(CHAT_KEY, list, 50);
+  }
+
+  function renderMessages(messages){
+    ensureChat();
+    const box = $("chatBox");
+    if(!box) return;
+    storeCurrentChatSnapshot();
+    box.innerHTML = "";
+    window.chatHistory = [];
+    messages.forEach(item => {
+      const role = item.role || "assistant";
+      const cls = role === "user" ? "user-message" : role === "assistant" ? "ai-message" : "system-message";
+      if(typeof window.addMessage === "function") window.addMessage(item.content || item.text || "", cls, role);
+    });
+    closeToolModal();
+  }
+
+  function getProjectsLocal(){
+    return readList(PROJECT_KEY).map(item => typeof item === "string" ? item : item.name).filter(Boolean);
+  }
+
+  function saveProjectLocal(name){
+    const clean = String(name || "").trim();
+    if(!clean) return;
+    const list = getProjectsLocal().filter(project => project.toLowerCase() !== clean.toLowerCase());
+    list.unshift(clean);
+    writeList(PROJECT_KEY, list, 80);
+  }
+
+  async function fetchProjects(){
+    const local = getProjectsLocal();
+    try{
+      const res = await fetch(API + "/projects");
+      if(res.ok){
+        const data = await res.json();
+        const backend = Array.isArray(data.projects) ? data.projects.map(p => typeof p === "string" ? p : p.name).filter(Boolean) : [];
+        return Array.from(new Set(local.concat(backend)));
+      }
+    }catch(e){}
+    return local;
+  }
+
+  async function createProject(name){
+    const clean = String(name || "").trim();
+    if(!clean) return;
+    saveProjectLocal(clean);
+    try{
+      await fetch(API + "/projects/create", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:clean, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+      });
+    }catch(e){}
+    renderSidebar();
+    openProject(clean);
+  }
+
+  function openProject(name){
+    ensureChat();
+    try{ if(typeof window.setProjectContext === "function") window.setProjectContext(name); }catch(e){}
+    try{ window.currentMode = "project"; }catch(e){}
+    const input = $("userInput");
+    if(input) input.placeholder = "Ask inside " + name + "...";
+    if(typeof window.addMessage === "function") window.addMessage("Project opened: " + name, "system-message", "system");
+    closeToolModal();
+  }
+
+  function openProjectsPanel(){
+    openToolModal("Projects", "Create and open focused workspaces for chats, code, research, and files.", '<div class="nx-tool-row"><input class="nx-tool-input" id="nxProjectQuickName" placeholder="New project name"><button class="nx-tool-btn" id="nxCreateProjectBtn">Create</button></div><div id="nxProjectList" class="nx-tool-grid"><div class="nx-tool-card"><div class="nx-tool-card-meta">Loading projects...</div></div></div>', async function(){
+      $("nxCreateProjectBtn").onclick = () => createProject($("nxProjectQuickName").value);
+      $("nxProjectQuickName").onkeydown = e => { if(e.key === "Enter") createProject(e.target.value); };
+      const projects = await fetchProjects();
+      const box = $("nxProjectList");
+      if(!box) return;
+      box.innerHTML = projects.length ? projects.map(name => '<div class="nx-tool-card"><button type="button" data-project-name="' + escapeAttr(name) + '"><div class="nx-tool-card-title">' + escapeHtml(name) + '</div><div class="nx-tool-card-meta">Project workspace</div></button></div>').join("") : '<div class="nx-tool-card"><div class="nx-tool-card-title">No projects yet</div><div class="nx-tool-card-meta">Create your first project above.</div></div>';
+      box.querySelectorAll("[data-project-name]").forEach(btn => btn.onclick = () => openProject(btn.dataset.projectName));
+    });
+  }
+
+  async function openChatsPanel(){
+    storeCurrentChatSnapshot();
+    openToolModal("Chats", "Open recent conversations saved on this computer and in the local backend.", '<div id="nxChatsList" class="nx-tool-grid"><div class="nx-tool-card"><div class="nx-tool-card-meta">Loading chats...</div></div></div>', async function(){
+      const local = readList(CHAT_KEY);
+      let backend = [];
+      try{
+        const res = await fetch(API + "/sessions");
+        if(res.ok){
+          const data = await res.json();
+          backend = Array.isArray(data.sessions) ? data.sessions : [];
+        }
+      }catch(e){}
+      const box = $("nxChatsList");
+      if(!box) return;
+      const localHtml = local.map(chat => '<div class="nx-tool-card"><button type="button" data-local-chat="' + escapeAttr(chat.id) + '"><div class="nx-tool-card-title">' + escapeHtml(chat.title || "Saved chat") + '</div><div class="nx-tool-card-meta">' + escapeHtml(chat.updatedAt || "") + '</div><div class="nx-tool-card-preview">' + escapeHtml((chat.messages || []).map(m => m.content).join(" ").slice(0, 160)) + '</div></button></div>').join("");
+      const backendHtml = backend.map(chat => '<div class="nx-tool-card"><button type="button" data-session-id="' + escapeAttr(chat.id) + '"><div class="nx-tool-card-title">' + escapeHtml(chat.title || "Backend chat") + '</div><div class="nx-tool-card-meta">' + escapeHtml(chat.updated_at || "") + ' · ' + Number(chat.message_count || 0) + ' messages</div></button></div>').join("");
+      box.innerHTML = localHtml + backendHtml || '<div class="nx-tool-card"><div class="nx-tool-card-title">No saved chats yet</div><div class="nx-tool-card-meta">Start chatting and Nexora will list chats here.</div></div>';
+      box.querySelectorAll("[data-local-chat]").forEach(btn => btn.onclick = () => {
+        const chat = local.find(item => item.id === btn.dataset.localChat);
+        if(chat) renderMessages(chat.messages || []);
+      });
+      box.querySelectorAll("[data-session-id]").forEach(btn => btn.onclick = async () => {
+        try{
+          const res = await fetch(API + "/sessions/" + encodeURIComponent(btn.dataset.sessionId));
+          const session = await res.json();
+          renderMessages(session.messages || []);
+        }catch(e){ toast("Could not open that chat"); }
+      });
+    });
+  }
+
+  function openSearchPanel(){
+    openToolModal("Search", "Search your chats or use realtime web search for current facts.", '<div class="nx-tool-row"><input class="nx-tool-input" id="nxSearchInput" placeholder="Search chats or the web"><button class="nx-tool-btn" id="nxRunSearch">Search</button><button class="nx-tool-btn secondary" id="nxAskSearch">Ask with search</button></div><div id="nxSearchResults" class="nx-tool-grid"></div>', function(){
+      async function run(){
+        const q = ($("nxSearchInput").value || "").trim();
+        const box = $("nxSearchResults");
+        if(!q || !box) return;
+        const localChats = readList(CHAT_KEY);
+        const history = Array.isArray(window.chatHistory) ? window.chatHistory : [];
+        const matches = [];
+        history.forEach(item => {
+          const text = item.text || item.content || "";
+          if(text.toLowerCase().includes(q.toLowerCase())) matches.push({title:item.role || "Current chat", text});
+        });
+        localChats.forEach(chat => {
+          const joined = (chat.messages || []).map(m => m.content).join(" ");
+          if(joined.toLowerCase().includes(q.toLowerCase())) matches.push({title:chat.title || "Saved chat", text:joined});
+        });
+        let web = [];
+        try{
+          const res = await fetch(API + "/search?q=" + encodeURIComponent(q));
+          if(res.ok){
+            const data = await res.json();
+            web = Array.isArray(data.results) ? data.results : [];
+          }
+        }catch(e){}
+        const matchHtml = matches.slice(0, 6).map(m => '<div class="nx-tool-card"><div class="nx-tool-card-title">' + escapeHtml(m.title) + '</div><div class="nx-tool-card-meta">Chat match</div><div class="nx-tool-card-preview">' + escapeHtml(m.text.slice(0, 180)) + '</div></div>').join("");
+        const webHtml = web.slice(0, 6).map((r, i) => '<div class="nx-tool-card"><button type="button" data-web-url="' + escapeAttr(r.url || "#") + '"><div class="nx-tool-card-title">' + (i + 1) + '. ' + escapeHtml(r.title || r.domain || "Result") + '</div><div class="nx-tool-card-meta">' + escapeHtml(r.domain || "") + '</div><div class="nx-tool-card-preview">' + escapeHtml(r.snippet || "") + '</div></button></div>').join("");
+        box.innerHTML = matchHtml + webHtml || '<div class="nx-tool-card"><div class="nx-tool-card-title">No results</div><div class="nx-tool-card-meta">Try a different search.</div></div>';
+        box.querySelectorAll("[data-web-url]").forEach(btn => btn.onclick = () => window.open(btn.dataset.webUrl || "#", "_blank"));
+      }
+      $("nxRunSearch").onclick = run;
+      $("nxAskSearch").onclick = function(){
+        const q = ($("nxSearchInput").value || "").trim();
+        if(!q) return;
+        closeToolModal();
+        const send = window.nxTextSendMessage || window.nxFinalSendMessage || window.sendMessage;
+        if(typeof send === "function") send("Search the web and answer this accurately: " + q);
+      };
+      $("nxSearchInput").onkeydown = e => { if(e.key === "Enter") run(); };
+      setTimeout(() => $("nxSearchInput") && $("nxSearchInput").focus(), 50);
+    });
+  }
+
+  async function loadArtifacts(){
+    const local = readList(ARTIFACT_KEY);
+    const images = readList(IMAGE_KEY);
+    let backend = [];
+    try{
+      const res = await fetch(API + "/artifacts");
+      if(res.ok){
+        const data = await res.json();
+        backend = Array.isArray(data.artifacts) ? data.artifacts : [];
+      }
+    }catch(e){}
+    const byKey = new Map();
+    images.concat(local, backend).forEach(item => {
+      const id = item.id || item.url || item.content || item.title;
+      if(id && !byKey.has(id)) byKey.set(id, item);
+    });
+    return Array.from(byKey.values());
+  }
+
+  async function openArtifactsPanel(){
+    openToolModal("Artifacts", "Saved answers, generated images, and useful outputs. Canvas has been removed.", '<div class="nx-tool-row"><button class="nx-tool-btn" id="nxArtifactCreateImage">Create image</button><button class="nx-tool-btn secondary" id="nxArtifactRefresh">Refresh</button></div><div id="nxArtifactsList" class="nx-tool-grid"><div class="nx-tool-card"><div class="nx-tool-card-meta">Loading artifacts...</div></div></div>', async function(){
+      $("nxArtifactCreateImage").onclick = () => openImageCreator();
+      $("nxArtifactRefresh").onclick = () => openArtifactsPanel();
+      const items = await loadArtifacts();
+      const box = $("nxArtifactsList");
+      if(!box) return;
+      box.innerHTML = items.length ? items.map(item => {
+        const type = item.type || (item.url ? "Image" : "Document");
+        const isImage = String(type).toLowerCase().includes("image") || /\.(png|jpg|jpeg|webp)(\?|$)/i.test(item.url || "");
+        const img = isImage && item.url ? '<img class="nx-artifact-img" src="' + escapeAttr(item.url) + '" alt="' + escapeAttr(item.prompt || item.title || "Generated image") + '">' : "";
+        const open = item.url ? '<a class="nx-tool-btn secondary" style="display:inline-flex;align-items:center;text-decoration:none;margin-top:10px;" href="' + escapeAttr(item.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' : "";
+        const preview = item.prompt || item.content || "";
+        return '<div class="nx-tool-card">' + img + '<div class="nx-tool-card-title">' + escapeHtml(item.title || item.prompt || "Artifact") + '</div><div class="nx-tool-card-meta">' + escapeHtml(type) + '</div><div class="nx-tool-card-preview">' + escapeHtml(String(preview).replace(/<[^>]*>/g, " ").slice(0, 180)) + '</div>' + open + '</div>';
+      }).join("") : '<div class="nx-tool-card"><div class="nx-tool-card-title">No artifacts yet</div><div class="nx-tool-card-meta">Generate an image or save an answer to see it here.</div></div>';
+    });
+  }
+
+  function openCustomizePanel(){
+    openToolModal("Customize", "Tune Nexora personality, memory, voice, and account tools.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxOpenAccount"><div class="nx-tool-card-title">Account</div><div class="nx-tool-card-meta">Open profile and account settings.</div></button></div><div class="nx-tool-card"><button id="nxOpenVoice"><div class="nx-tool-card-title">Voice</div><div class="nx-tool-card-meta">Change speech and wake settings.</div></button></div><div class="nx-tool-card"><button id="nxResetPersona"><div class="nx-tool-card-title">Reset persona</div><div class="nx-tool-card-meta">Clear style customization.</div></button></div><div class="nx-tool-card"><button id="nxResetBehavior"><div class="nx-tool-card-title">Reset behavior learning</div><div class="nx-tool-card-meta">Clear feedback-based adaptation.</div></button></div></div>', function(){
+      $("nxOpenAccount").onclick = () => { closeToolModal(); if(typeof window.openAccount === "function") window.openAccount(); };
+      $("nxOpenVoice").onclick = () => { closeToolModal(); if(typeof window.openVoiceSettings === "function") window.openVoiceSettings(); };
+      $("nxResetPersona").onclick = async () => { try{ await fetch(API + "/persona/reset", {method:"POST"}); toast("Persona reset"); }catch(e){ toast("Persona reset locally"); } };
+      $("nxResetBehavior").onclick = async () => { try{ await fetch(API + "/behavior/reset", {method:"POST"}); toast("Behavior learning reset"); }catch(e){ toast("Behavior reset locally"); } };
+    });
+  }
+
+  function openCodeMode(){
+    ensureChat();
+    try{ if(typeof window.setMode === "function") window.setMode("code_mode", "Code"); }catch(e){}
+    try{ window.currentMode = "code_mode"; }catch(e){}
+    const input = $("userInput");
+    if(input){
+      input.placeholder = "Ask Nexora to build, debug, explain, or refactor code...";
+      input.focus();
+    }
+    if(typeof window.addMessage === "function") window.addMessage("Code mode is ready. Ask me to build, debug, explain, or improve code.", "system-message", "system");
+  }
+
+  function openImageCreator(initialPrompt){
+    openToolModal("Create image", "Describe the picture you want. Nexora will generate it in the chat and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: a futuristic study room at night, cinematic lighting, realistic, high detail"></textarea><div class="nx-tool-row" style="margin-top:12px;"><select class="nx-tool-select" id="nxImageSize"><option value="1024x1024">Square</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><input class="nx-tool-input" id="nxImageStyle" placeholder="Optional style, like realistic, anime, logo, poster"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate</button></div>', function(){
+      const box = $("nxImagePromptBox");
+      if(box) box.value = initialPrompt || "";
+      $("nxImageGenerateBtn").onclick = () => createImage(($("nxImagePromptBox").value || "").trim(), $("nxImageSize").value, $("nxImageStyle").value);
+      if(box){
+        box.onkeydown = e => {
+          if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) createImage(box.value.trim(), $("nxImageSize").value, $("nxImageStyle").value);
+        };
+        setTimeout(() => box.focus(), 50);
+      }
+    });
+  }
+
+  function saveImageLocal(data){
+    const list = readList(IMAGE_KEY);
+    list.unshift({
+      id:data.artifact_id || ("image_" + Date.now().toString(36)),
+      type:"Image",
+      title:(data.prompt || "Generated image").slice(0, 80),
+      prompt:data.prompt || "",
+      url:data.url || "",
+      createdAt:new Date().toLocaleString()
+    });
+    writeList(IMAGE_KEY, list, 80);
+  }
+
+  function renderImageResult(data){
+    const box = $("chatBox");
+    if(!box) return;
+    const msg = document.createElement("div");
+    msg.className = "message ai-message nx-image-message";
+    msg.innerHTML = '<div class="nx-image-result"><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(data.prompt) + '"><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div><div class="nx-image-result-prompt">' + escapeHtml(data.prompt) + '</div><div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.prompt || "") + '">Edit prompt</button></div></div></div>';
+    const editBtn = msg.querySelector(".nx-edit-image-prompt");
+    if(editBtn) editBtn.onclick = () => openImageCreator(editBtn.dataset.prompt || "");
+    box.appendChild(msg);
+    box.scrollTop = box.scrollHeight;
+    window.chatHistory = window.chatHistory || [];
+    window.chatHistory.push({role:"assistant", className:"ai-message", text:"Generated image: " + (data.prompt || ""), content:"Generated image: " + (data.prompt || ""), sources:[], meta:{image:data.url}});
+  }
+
+  async function createImage(prompt, size, style){
+    const clean = String(prompt || "").trim();
+    if(!clean){ toast("Describe the image first"); return; }
+    closeToolModal();
+    ensureChat();
+    try{ if(typeof window.ensureSessionId === "function") window.ensureSessionId(); }catch(e){}
+    if(typeof window.addMessage === "function") window.addMessage("Create image: " + clean, "user-message", "user");
+    else{
+      const box = $("chatBox");
+      if(box){
+        const user = document.createElement("div");
+        user.className = "message user-message";
+        user.textContent = "Create image: " + clean;
+        box.appendChild(user);
+      }
+    }
+    const typingId = "typing-image-" + Date.now();
+    try{ if(typeof window.addTypingDots === "function") window.addTypingDots(typingId); }catch(e){}
+    try{ if(typeof window.setSendLoading === "function") window.setSendLoading(true); }catch(e){}
+    try{
+      const res = await fetch(API + "/image/generate", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({prompt:clean, size:size || "1024x1024", style:style || "", session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+      });
+      const typing = $(typingId);
+      if(typing) typing.remove();
+      if(!res.ok) throw new Error("Image endpoint failed");
+      const data = await res.json();
+      saveImageLocal(data);
+      renderImageResult(data);
+      toast("Image created");
+    }catch(e){
+      const typing = $(typingId);
+      if(typing) typing.remove();
+      if(typeof window.addMessage === "function") window.addMessage("Image generation failed. Check that the backend is running and try again.", "ai-message", "assistant");
+      toast("Image generation failed");
+    }finally{
+      try{ if(typeof window.setSendLoading === "function") window.setSendLoading(false); }catch(e){}
+    }
+  }
+
+  function isImageRequest(text){
+    const t = String(text || "").toLowerCase();
+    return /\b(create|generate|make|draw)\b[\s\S]{0,60}\b(image|picture|photo|art|poster|logo|wallpaper)\b/.test(t) || /\b(image|picture|photo)\b[\s\S]{0,40}\b(of|for)\b/.test(t);
+  }
+
+  function stripImagePrompt(text){
+    return String(text || "")
+      .replace(/^\s*(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*/i, "")
+      .trim() || String(text || "").trim();
+  }
+
+  function installImageSendInterceptor(){
+    const oldSend = window.nxTextSendMessage || window.nxFinalSendMessage || window.sendMessage;
+    if(oldSend && !window.nxTextSendMessage) window.nxTextSendMessage = oldSend;
+    window.nxFinalSendMessage = async function(messageOverride){
+      const input = $("userInput");
+      const text = (messageOverride !== undefined && messageOverride !== null ? messageOverride : (input ? input.value : "")).trim();
+      if(text && isImageRequest(text)){
+        if(input && messageOverride == null) input.value = "";
+        await createImage(stripImagePrompt(text), "1024x1024", "");
+        return;
+      }
+      if(typeof window.nxTextSendMessage === "function") return window.nxTextSendMessage(messageOverride);
+    };
+    window.sendMessage = window.nxFinalSendMessage;
+  }
+
+  function renderSidebar(){
+    const sidebar = document.querySelector(".sidebar");
+    if(!sidebar) return;
+    const projects = getProjectsLocal().slice(0, 6);
+    function item(label, svg, action, active){
+      return '<button class="nx-cgpt-item' + (active ? " active" : "") + '" type="button" onclick="' + action + '">' + svg + '<span>' + escapeHtml(label) + '</span></button>';
+    }
+    sidebar.innerHTML = '<div class="nx-chatgpt-sidebar"><div class="nx-cgpt-header"><div class="nx-cgpt-logo"><div class="nx-cgpt-logo-mark">' + icon.customize + '</div><span>Nexora</span></div><button class="nx-cgpt-collapse" type="button" title="Sidebar">' + icon.panel + '</button></div><div class="nx-cgpt-group">' + item("Search", icon.search, "nxActionSearch()") + item("New chat", icon.plus, "nxActionNewChat()", true) + '</div><div class="nx-cgpt-divider"></div><div class="nx-cgpt-section-title">Projects</div><div class="nx-cgpt-group">' + item("New project", icon.plus, "openProjectModal()") + projects.map(name => '<button class="nx-cgpt-item" type="button" data-sidebar-project="' + escapeAttr(name) + '">' + icon.folder + '<span>' + escapeHtml(name) + '</span></button>').join("") + '</div><div class="nx-cgpt-divider"></div><div class="nx-cgpt-group">' + item("Chats", icon.chat, "nxActionChats()") + item("Artifacts", icon.artifact, "nxActionArtifacts()") + item("Code", icon.code, "nxActionCode()") + item("Customize", icon.customize, "nxActionCustomize()") + '</div><div class="nx-cgpt-spacer"></div><div class="nx-cgpt-account">' + item("Account", icon.user, "nxActionAccount()") + '</div></div>';
+    sidebar.querySelectorAll("[data-sidebar-project]").forEach(btn => btn.onclick = () => openProject(btn.dataset.sidebarProject));
+  }
+
+  window.__nxRenderFinalSidebar = renderSidebar;
+  window.nxActionSearch = openSearchPanel;
+  window.nxActionChats = openChatsPanel;
+  window.nxActionProjects = openProjectsPanel;
+  window.nxActionArtifacts = openArtifactsPanel;
+  window.nxOpenArtifacts = openArtifactsPanel;
+  window.nxActionCode = openCodeMode;
+  window.nxActionCustomize = openCustomizePanel;
+  window.nxActionAccount = function(){ if(typeof window.openAccount === "function") window.openAccount(); else openCustomizePanel(); };
+  window.openProjectModal = function(){ openProjectsPanel(); setTimeout(() => $("nxProjectQuickName") && $("nxProjectQuickName").focus(), 60); };
+  window.openProjectsList = openProjectsPanel;
+  window.openCanvas = openArtifactsPanel;
+  window.openImages = function(){ openImageCreator(); };
+  window.openImageCreator = openImageCreator;
+  window.generateImagePrompt = function(){
+    const prompt = $("imagePrompt") ? $("imagePrompt").value : "";
+    const oldModal = $("imageModal");
+    if(oldModal) oldModal.classList.remove("show");
+    createImage(prompt, "1024x1024", "");
+  };
+  window.openImageModal = function(){ openImageCreator(); };
+  window.closeImageModal = function(){ closeToolModal(); const oldModal = $("imageModal"); if(oldModal) oldModal.classList.remove("show"); };
+
+  const oldNewChat = window.nxActionNewChat;
+  window.nxActionNewChat = function(){
+    storeCurrentChatSnapshot();
+    if(typeof oldNewChat === "function"){
+      try{ oldNewChat(); }catch(e){}
+    }
+    const box = $("chatBox");
+    const input = $("userInput");
+    if(box) box.innerHTML = "";
+    window.chatHistory = [];
+    if(input){
+      input.value = "";
+      input.placeholder = "Ask anything...";
+      input.focus();
+    }
+    document.body.classList.remove("chat-mode");
+    toast("New chat ready");
+  };
+
+  function install(){
+    renderSidebar();
+    installImageSendInterceptor();
+    const title = document.querySelector("#imageModal .modal-title");
+    if(title) title.textContent = "Create Image";
+    const label = document.querySelector("#imageModal .modal-label");
+    if(label) label.textContent = "Describe the image";
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", install);
+  else install();
+  setTimeout(install, 600);
+  setTimeout(install, 1800);
+  setTimeout(install, 3800);
+  setTimeout(install, 5200);
+})();
+</script>
+
 </body>
 </html>
