@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.17.0-empty-reply-search-fallback"
+APP_VERSION = "8.18.0-answer-structure"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1142,6 +1142,7 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         lines.extend([
             "- Use clear sections, but avoid filler.",
             "- Start with the conclusion, then explain reasoning and steps.",
+            "- Preferred section flow: short answer, key points, details, bottom line.",
         ])
     elif style == "finished_draft":
         lines.extend([
@@ -1151,8 +1152,10 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         ])
     elif style == "answer_with_evidence":
         lines.extend([
+            "- Use this exact flow when useful: one direct answer paragraph, then 'Key points:', then 'What it means:', then 'Bottom line:'.",
             "- Answer first, then give key evidence with inline citations.",
             "- If evidence is mixed or weak, say so clearly.",
+            "- Keep source-backed bullets compact. Do not make every source a separate paragraph.",
         ])
     return "\n".join(lines)
 
@@ -1772,6 +1775,8 @@ Style:
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
 - Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
 - Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
+- Default structure for serious answers: a direct answer paragraph first, then only the useful sections. Prefer section names like "Key points:", "What it means:", "Details:", and "Bottom line:".
+- Do not use decorative headings, markdown-heavy titles, or heading-only lines ending in periods. A heading should be plain text ending with a colon.
 - Vary sentence length. Mix short decisive sentences with slightly longer explanatory ones.
 - Prefer clean paragraphs over bullet lists unless the user asks for steps, comparison, options, or a checklist.
 - When using bullets, make each bullet read like a complete thought, not a label dump.
@@ -1791,7 +1796,7 @@ Accuracy:
 - If something is uncertain, say so plainly and give the best safe next step.
 - For current/latest/news/finance/company claims, use only provided research evidence. Without evidence, say you cannot verify it.
 - Separate fact from inference when the difference matters.
-- For answers with research evidence, use this structure: a direct answer paragraph first, then "Key details" if useful. Use inline citation markers like [1] and [2]. Do not write a separate raw source list; the app renders sources separately.
+- For answers with research evidence, use this structure when useful: a direct answer paragraph first, then "Key points:", then "What it means:", then "Bottom line:". Use inline citation markers like [1] and [2]. Do not write a separate raw source list; the app renders sources separately.
 
 Coding:
 - Prefer practical, working solutions.
@@ -1879,14 +1884,99 @@ def is_bad_generated_reply(text: str) -> bool:
     }
 
 
+def ensure_inline_citations(text: str, sources: List[SourceItem]) -> str:
+    if not sources or re.search(r"\[\d+\]", text):
+        return text
+    source_ids = [source.id for source in sources[:MAX_RESEARCH_SOURCES]]
+    if not source_ids:
+        return text
+
+    lines = text.splitlines()
+    first_paragraph_done = False
+    bullet_citation_index = 0
+    output = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            output.append(line)
+            continue
+        is_heading = normalize_section_heading_text(stripped) is not None or stripped.endswith(":")
+        is_bullet = re.match(r"^[-*]\s+", stripped) is not None
+
+        if not first_paragraph_done and not is_heading and not is_bullet:
+            citation = "".join(f"[{source_id}]" for source_id in source_ids[: min(2, len(source_ids))])
+            output.append(line.rstrip() + f" {citation}")
+            first_paragraph_done = True
+            continue
+
+        if first_paragraph_done and is_bullet and bullet_citation_index < len(source_ids):
+            output.append(line.rstrip() + f" [{source_ids[bullet_citation_index]}]")
+            bullet_citation_index += 1
+            continue
+
+        output.append(line)
+
+    return "\n".join(output)
+
+
 def strip_model_source_dump(text: str) -> str:
     text = re.sub(r"(?is)\n+\s*(?:sources?|references?|citations?)\s*[:.]\s*.*$", "", text)
     text = re.sub(r"(?is)\s+(?:sources?|references?|citations?)\s*[:.]\s*\[\d+\].*$", "", text)
     return text.strip()
 
 
+SECTION_HEADING_LABELS = {
+    "answer",
+    "short answer",
+    "quick answer",
+    "direct answer",
+    "key point",
+    "key points",
+    "key detail",
+    "key details",
+    "key evidence",
+    "important details",
+    "what i found",
+    "what it means",
+    "why it matters",
+    "impact",
+    "details",
+    "context",
+    "summary",
+    "result",
+    "bottom line",
+    "takeaway",
+    "next step",
+    "next steps",
+}
+
+
+def normalize_section_heading_text(line: str) -> Optional[str]:
+    raw = clean_text(line)
+    if not raw:
+        return None
+    raw = re.sub(r"^#{1,6}\s*", "", raw)
+    raw = re.sub(r"^\*\*(.*?)\*\*\.?$", r"\1", raw)
+    raw = raw.strip(" \t:.-")
+    key = raw.lower()
+    if key not in SECTION_HEADING_LABELS:
+        return None
+    if key in {"answer", "direct answer"}:
+        raw = "Quick answer"
+    if key == "key detail":
+        raw = "Key details"
+    if key == "key point":
+        raw = "Key points"
+    return capitalize_first_letter(raw) + ":"
+
+
 def structure_answer_text(text: str) -> str:
-    section_names = r"(Key details|Important details|What I found|Why it matters|Summary|Result|Bottom line)"
+    section_names = (
+        r"(Answer|Short answer|Quick answer|Direct answer|Key points?|Key details?|Key evidence|"
+        r"Important details|What I found|What it means|Why it matters|Impact|Details|Context|"
+        r"Summary|Result|Bottom line|Takeaway|Next steps?)"
+    )
     text = re.sub(
         rf"(?i)\s+\*\*{section_names}\*\*\.?\s*",
         lambda match: f"\n\n{match.group(1)}:\n",
@@ -1900,7 +1990,11 @@ def structure_answer_text(text: str) -> str:
     text = re.sub(r"(?<!\n)\s+-\s+", "\n- ", text)
     text = re.sub(r"\bWestBengal\b", "West Bengal", text)
     text = re.sub(r"\b(\d+)(seat|seats|member|members|year|years)\b", r"\1 \2", text, flags=re.IGNORECASE)
-    return text.strip()
+    normalized_lines = []
+    for line in text.splitlines():
+        heading = normalize_section_heading_text(line)
+        normalized_lines.append(heading if heading else line)
+    return "\n".join(normalized_lines).strip()
 
 
 def strip_provider_noise(text: str) -> str:
@@ -1951,6 +2045,12 @@ def polish_plain_text_block(text: str) -> str:
             continue
 
         indent = line[: len(line) - len(line.lstrip())]
+        section_heading = normalize_section_heading_text(stripped)
+        if section_heading:
+            output.append(f"{indent}{section_heading}")
+            index += 1
+            continue
+
         if is_markdown_table_line(stripped):
             while index < len(lines):
                 candidate = lines[index].rstrip()
@@ -2031,6 +2131,8 @@ def capitalize_first_letter(text: str) -> str:
     if not match:
         return text
     index = match.start()
+    if re.search(r"\d", text[:index]):
+        return text
     return text[:index] + text[index].upper() + text[index + 1:]
 
 
@@ -2065,17 +2167,27 @@ def append_sources(reply: str, sources: List[SourceItem]) -> str:
 
 
 def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> str:
+    usable_sources = sources[:MAX_RESEARCH_SOURCES]
+    first_title = clean_text(usable_sources[0].title) if usable_sources else "the available evidence"
     lines = [
-        "I found live web sources for that, but the free answer engine is temporarily unavailable.",
+        f"I found live web sources for this, but the text model could not synthesize them cleanly. The safest answer is based on the available evidence, especially {first_title}.",
         "",
-        "Use these current sources as the safest evidence for now:",
+        "Key points:",
     ]
-    for source in sources[:MAX_RESEARCH_SOURCES]:
+    for source in usable_sources:
         snippet = clean_text(source.snippet)
-        detail = f" - {snippet}" if snippet else ""
-        lines.append(f"[{source.id}] {source.title} ({source.domain}){detail}")
-    lines.append("")
-    lines.append("Retry the question once and I can synthesize these sources into a cleaner answer.")
+        evidence = snippet or clean_text(source.title)
+        if evidence:
+            lines.append(f"- {evidence} [{source.id}]")
+    lines.extend([
+        "",
+        "What it means:",
+        "- Treat this as a source-backed fallback, not a full model-written explanation.",
+        "- The source cards below are the best places to verify the latest details.",
+        "",
+        "Bottom line:",
+        "The evidence is available, but the model response failed once. Retry the question if you want a fuller explanation.",
+    ])
     return "\n".join(lines)
 
 
@@ -2454,6 +2566,8 @@ def chat(req: ChatRequest) -> ChatResponse:
         tools_used.append("empty_reply_search_fallback")
 
     final_reply = clean_reply(reply)
+    if verified_sources:
+        final_reply = ensure_inline_citations(final_reply, verified_sources)
     if is_bad_generated_reply(final_reply) and not model_failed:
         model_failed = True
         model_used = model_used or "empty_reply"

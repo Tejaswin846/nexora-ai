@@ -9824,6 +9824,25 @@ document.addEventListener("DOMContentLoaded",()=>{
     return "";
   }
 
+  function normalizeStructuredHeading(line){
+    let text = String(line || "").trim();
+    text = text.replace(/^#{1,6}\s+/, "");
+    text = text.replace(/^\*\*(.*?)\*\*\.?$/, "$1");
+    text = text.replace(/[:.\-]+$/g, "").trim();
+    const key = text.toLowerCase();
+    const labels = new Set([
+      "answer","direct answer","short answer","quick answer","key point","key points",
+      "key detail","key details","key evidence","important details","what i found",
+      "what it means","why it matters","impact","details","context","summary",
+      "result","bottom line","takeaway","next step","next steps"
+    ]);
+    if(!labels.has(key)) return "";
+    if(key === "answer" || key === "direct answer") text = "Quick answer";
+    if(key === "key point") text = "Key points";
+    if(key === "key detail") text = "Key details";
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
   function inlineMarkdown(line, sources){
     let html = escapeHtml(line)
       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
@@ -9998,6 +10017,16 @@ document.addEventListener("DOMContentLoaded",()=>{
       if(/^#{1,6}\s+/.test(line)) line = line.replace(/^#{1,6}\s+/, "");
       if(/^direct answer:?$/i.test(line)) continue;
       if(/^sources:?$/i.test(line)) continue;
+      const structuredHeading = normalizeStructuredHeading(line);
+      if(structuredHeading){
+        closeList();
+        if(!firstParaDone && lines.length > 2){
+          html += `<h2>${headingEmoji(structuredHeading)}${inlineMarkdown(structuredHeading, sources)}</h2>`;
+        }else{
+          html += `<h3>${headingEmoji(structuredHeading)}${inlineMarkdown(structuredHeading, sources)}</h3>`;
+        }
+        continue;
+      }
       if(isMarkdownTableLine(line) && lineIndex + 1 < lines.length && isMarkdownTableSeparator(lines[lineIndex + 1])){
         closeList();
         const tableLines = [line, lines[lineIndex + 1]];
