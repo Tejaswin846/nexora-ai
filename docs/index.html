@@ -10101,26 +10101,6 @@ document.addEventListener("DOMContentLoaded",()=>{
     </div>`;
   }
 
-  window.nxAskFollowup = function(button){
-    const prompt = button && button.dataset ? button.dataset.prompt : "";
-    const input = document.getElementById("userInput");
-    if(input){
-      input.value = prompt;
-      input.focus();
-    }
-    const send = window.nxFinalSendMessage || window.sendMessage;
-    if(typeof send === "function" && prompt) send(prompt);
-  };
-
-  function followupsHtml(text){
-    const clean = String(text || "").toLowerCase();
-    let prompts = ["Make it simpler", "Give an example", "Turn it into steps"];
-    if(/\|.+\|/.test(text || "")) prompts = ["Explain the table", "Which is best?", "Make it shorter"];
-    else if(/\b(code|function|error|bug|api|backend|frontend)\b/.test(clean)) prompts = ["Show the exact fix", "Explain the code", "Give test steps"];
-    else if(/\b(study|chapter|exam|class|learn|explain)\b/.test(clean)) prompts = ["Make study notes", "Quiz me on this", "Explain like class 8"];
-    return '<div class="nx-followup-row">' + prompts.map(p => '<button type="button" data-prompt="' + escapeHtml(p) + '" onclick="nxAskFollowup(this)">' + escapeHtml(p) + '</button>').join("") + '</div>';
-  }
-
   window.nxLearnFeedback = async function(rating, button){
     try{
       const items = Array.isArray(window.chatHistory) ? window.chatHistory : [];
@@ -10292,7 +10272,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     msg.className = "message ai-message";
     msg.dataset.nxV2Formatted = "true";
     msg.dataset.nxFinalFormatted = "true";
-    msg.innerHTML = formatHumanAnswer(text, sources) + followupsHtml(text) + actionsHtml();
+    msg.innerHTML = formatHumanAnswer(text, sources) + actionsHtml();
     box.appendChild(msg);
     box.scrollTop = box.scrollHeight;
     try{
@@ -10315,7 +10295,8 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Never put a colon on its own line. A section heading must stay on one line, like 'Key points:'.",
       "If using a table, output a real markdown table with visible | separators and a separator row. Never use spaced columns.",
       "Use clear punctuation, short paragraphs, and natural rhythm. Avoid filler and backend/tool talk.",
-      "When useful, end with a practical next step instead of generic filler.",
+      "Do not add follow-up suggestions, extra prompts, or generic closing questions.",
+      "End once the answer is complete.",
       writingMode ? "Writing task: give the finished draft first, smooth and ready to send." : "",
       searchMode ? "Current-info task: answer first, cite evidence with [1] when sources are available, and do not guess." : "",
       "For study or explanation: simple idea first, key points next, bottom line last.",
@@ -10414,8 +10395,8 @@ document.addEventListener("DOMContentLoaded",()=>{
           model: null,
           stream: false,
           complete: true,
-          answer_style: "polished_human_with_perplexity_sources",
-          max_tokens: 1800
+          answer_style: "efficient_polished_structure",
+          max_tokens: 900
         })
       });
 
@@ -11190,7 +11171,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-followup-row{
-    display:flex;
+    display:none !important;
     gap:8px;
     flex-wrap:wrap;
     margin:12px 0 4px;

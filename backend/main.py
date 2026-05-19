@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.28.0-speed-image-ui"
+APP_VERSION = "8.29.0-answer-efficiency"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1443,6 +1443,8 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "- Use a diagram or flow only for processes, cycles, systems, architecture, or cause-and-effect relationships.",
         "- Put exactly one blank line between major sections. Avoid giant text blocks and avoid bullet dumping.",
         "- Bullets should be parallel, compact, and meaningful. Numbered lists are for ordered steps only.",
+        "- Do not add follow-up suggestions, extra prompts, or generic closing questions after the answer.",
+        "- End once the answer is complete.",
         "- Do not force tables, charts, or diagrams into normal conversation.",
     ]
     if style == "table":
@@ -2454,6 +2456,8 @@ Style:
 - Avoid stiff phrases like "It is important to note", "In conclusion", "As an AI", "Based on your query", and "Here is the answer".
 - Use short paragraphs, crisp bullets, or small tables when they improve clarity.
 - Keep casual answers concise; expand only when the task genuinely needs depth.
+- Do not add follow-up suggestions, extra prompts, or generic closing questions after the answer.
+- End once the answer is complete.
 - Never write "Direct Answer" or expose backend/system details.
 - Do not output raw LaTeX delimiters like \[...\] unless the user explicitly asks for LaTeX. For equations, prefer readable plain text such as "6 CO2 + 6 H2O -> C6H12O6 + 6 O2" or simple Unicode subscripts when possible.
 
