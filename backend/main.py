@@ -1435,6 +1435,7 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "- Use this section order for explainers: 'Short answer:', 'Key points:', 'Why it matters:' or 'How it works:', then 'Bottom line:'.",
         "- Use this section order for how-to tasks: 'Goal:', 'Steps:', 'Check:', then 'Bottom line:'.",
         "- Use this section order for research answers: 'Answer:', 'Key evidence:', 'Context:', then 'Bottom line:'.",
+        "- Never put a colon on its own line. Keep labels as 'Key points:' on one line.",
         "- Keep simple direct questions to 1-3 short paragraphs with no headings unless a heading makes the answer easier to scan.",
         "- Use a table only when comparing items across features, pros/cons, options, prices, specs, timelines, or tradeoffs.",
         "- Do not add current prices, dates, percentages, exact counts, or technical numbers unless the user asks for them or evidence/context supports them.",
@@ -1447,6 +1448,7 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
     if style == "table":
         lines.extend([
             "- Output a valid markdown table with a header row and separator row.",
+            "- Use visible | separators. Do not output spaced columns.",
             "- Keep cell text compact. Add a short takeaway before or after the table.",
         ])
     elif style == "chart":
@@ -2432,6 +2434,8 @@ Style:
   - Current/search answer: short answer first, then compact evidence with inline citations, then "Bottom line:".
 - Make structured answers visually balanced for the app renderer: one compact lead paragraph, short section labels, bullet groups with parallel wording, and a final takeaway when useful.
 - Do not use decorative headings, markdown-heavy titles, or heading-only lines ending in periods. A heading should be plain text ending with a colon.
+- Never put a colon on its own line. Keep labels as "Key points:" on one line.
+- If you use a table, it must be a valid markdown table with visible | separators and a separator row. Never use spaced columns.
 - Treat writing as rhythm and clarity, not just grammar. Use punctuation to control pacing: commas for small pauses, periods for completion and impact, and dashes only when they make emphasis more natural.
 - Use short sentences for confidence and impact. Use longer sentences only when they carry explanation or flow.
 - Use spacing as part of the answer. Break dense ideas into small paragraphs with breathing room; never force a complex answer into one giant block.
@@ -2659,6 +2663,8 @@ def normalize_section_heading_text(line: str) -> Optional[str]:
         raw = "Examples"
     if key == "quick summary":
         raw = "Summary"
+    if raw == line or raw.upper() == raw:
+        raw = key
     return capitalize_first_letter(raw) + ":"
 
 
@@ -2818,6 +2824,9 @@ def polish_plain_text_block(text: str) -> str:
 
         if not stripped:
             output.append("")
+            index += 1
+            continue
+        if re.fullmatch(r"[:;.,\-–—]+", stripped):
             index += 1
             continue
 

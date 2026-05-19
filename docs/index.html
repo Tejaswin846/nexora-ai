@@ -9546,7 +9546,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     color:#f4f4f5 !important;
     line-height:1.78 !important;
     font-size:16px !important;
-    letter-spacing:-.012em !important;
+    letter-spacing:0 !important;
     white-space:normal !important;
   }
 
@@ -9554,7 +9554,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   .nx-human-answer h3{
     color:#fff !important;
     font-weight:780 !important;
-    letter-spacing:-.03em !important;
+    letter-spacing:0 !important;
     line-height:1.32 !important;
   }
 
@@ -9600,10 +9600,10 @@ document.addEventListener("DOMContentLoaded",()=>{
   .nx-table-wrap{
     width:100% !important;
     overflow:auto !important;
-    margin:12px 0 18px !important;
+    margin:10px 0 18px !important;
     border:1px solid rgba(255,255,255,.10) !important;
-    border-radius:12px !important;
-    background:rgba(255,255,255,.035) !important;
+    border-radius:10px !important;
+    background:rgba(255,255,255,.025) !important;
   }
 
   .nx-smart-table{
@@ -9617,7 +9617,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-smart-table th,
   .nx-smart-table td{
-    padding:10px 12px !important;
+    padding:11px 13px !important;
     border-bottom:1px solid rgba(255,255,255,.08) !important;
     text-align:left !important;
     vertical-align:top !important;
@@ -9625,9 +9625,16 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-smart-table th{
     color:#dbeafe !important;
-    background:rgba(96,165,250,.10) !important;
+    background:rgba(96,165,250,.08) !important;
     font-weight:800 !important;
-    white-space:nowrap !important;
+    white-space:normal !important;
+  }
+
+  .nx-smart-table th:first-child,
+  .nx-smart-table td:first-child{
+    color:#ffffff !important;
+    font-weight:760 !important;
+    width:22% !important;
   }
 
   .nx-smart-table tr:last-child td{
@@ -9746,37 +9753,30 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-human-answer .nx-answer-lead{
-    margin:0 0 14px !important;
-    padding:16px 18px !important;
-    border-radius:18px !important;
-    background:linear-gradient(135deg, rgba(96,165,250,.12), rgba(255,255,255,.045)) !important;
-    border:1px solid rgba(147,197,253,.20) !important;
-    box-shadow:0 14px 42px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.06) !important;
+    margin:0 0 16px !important;
+    padding:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
     color:#f8fafc !important;
     font-size:16.5px !important;
     line-height:1.72 !important;
   }
 
   .nx-answer-section-title{
-    display:flex !important;
-    align-items:center !important;
-    gap:10px !important;
-    margin:22px 0 10px !important;
+    display:block !important;
+    margin:22px 0 8px !important;
     color:#f8fafc !important;
-    font-size:14px !important;
-    font-weight:850 !important;
-    text-transform:uppercase !important;
-    letter-spacing:.055em !important;
+    font-size:16px !important;
+    font-weight:780 !important;
+    text-transform:none !important;
+    letter-spacing:0 !important;
   }
 
   .nx-answer-section-title::before{
-    content:"" !important;
-    width:8px !important;
-    height:8px !important;
-    border-radius:999px !important;
-    background:#93c5fd !important;
-    box-shadow:0 0 0 5px rgba(147,197,253,.12) !important;
-    flex:0 0 auto !important;
+    display:none !important;
+    content:none !important;
   }
 
   .nx-section-what-it-means::before,
@@ -9794,32 +9794,29 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-human-answer .nx-answer-list{
     margin:8px 0 16px !important;
-    padding:0 !important;
-    list-style:none !important;
-    display:grid !important;
-    gap:8px !important;
+    padding-left:22px !important;
+    list-style:disc !important;
+    display:block !important;
   }
 
   .nx-human-answer .nx-answer-list li{
-    position:relative !important;
-    margin:0 !important;
-    padding:11px 13px 11px 36px !important;
-    border-radius:14px !important;
-    background:rgba(255,255,255,.047) !important;
-    border:1px solid rgba(255,255,255,.08) !important;
+    position:static !important;
+    margin:6px 0 !important;
+    padding:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    border:0 !important;
     color:#eef2ff !important;
     line-height:1.55 !important;
   }
 
+  .nx-human-answer ol.nx-answer-list{
+    list-style:decimal !important;
+  }
+
   .nx-human-answer .nx-answer-list li::before{
-    content:"" !important;
-    position:absolute !important;
-    left:14px !important;
-    top:19px !important;
-    width:7px !important;
-    height:7px !important;
-    border-radius:999px !important;
-    background:#93c5fd !important;
+    display:none !important;
+    content:none !important;
   }
 
   .nx-human-answer .nx-answer-paragraph{
@@ -9829,10 +9826,11 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-human-answer .nx-answer-bottom{
     margin:10px 0 16px !important;
-    padding:14px 16px !important;
-    border-radius:16px !important;
-    background:rgba(250,204,21,.09) !important;
-    border:1px solid rgba(250,204,21,.18) !important;
+    padding:10px 0 10px 14px !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    border:0 !important;
+    border-left:3px solid rgba(250,204,21,.55) !important;
     color:#fff7d6 !important;
     line-height:1.65 !important;
   }
@@ -9951,6 +9949,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(key === "how") text = "How it works";
     if(key === "example") text = "Examples";
     if(key === "quick summary") text = "Summary";
+    if(text === line || text.toUpperCase() === text) text = key;
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
@@ -9977,7 +9976,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function isMarkdownTableLine(line){
     const text = normalizeMarkdownTableLine(line);
-    return text.startsWith("|") && text.endsWith("|") && text.split("|").length >= 4;
+    return text.includes("|") && text.split("|").filter(Boolean).length >= 2;
   }
 
   function normalizeMarkdownTableLine(line){
@@ -9994,6 +9993,52 @@ document.addEventListener("DOMContentLoaded",()=>{
       .replace(/\|$/, "")
       .split("|")
       .map(cell => cell.trim());
+  }
+
+  function isPunctuationOnlyLine(line){
+    return /^[:;.,\-–—]+$/.test(String(line || "").trim());
+  }
+
+  function parseLooseAnimeStyleRow(line){
+    const styles = [
+      "Slice of life", "Magical girl", "Kishotenketsu", "Kishōtenketsu",
+      "Shounen", "Shonen", "Shōnen", "Shojo", "Shoujo", "Shōjo",
+      "Seinen", "Josei", "Kodomo", "Gekiga", "Isekai", "Mecha",
+      "Sports", "Horror", "Fantasy", "Romance", "Cyberpunk"
+    ];
+    const text = String(line || "").replace(/\s+/g, " ").trim();
+    const style = styles.find(name => text.toLowerCase().startsWith(name.toLowerCase() + " "));
+    if(!style) return null;
+    let rest = text.slice(style.length).trim();
+    const audienceMatch = rest.match(/\b(Teens(?:,\s*(?:boys|girls))?|Boys|Girls|Adults|General|Kids|Children|Young adults|All ages|Everyone)\s*$/i);
+    if(!audienceMatch) return null;
+    const audience = audienceMatch[1];
+    rest = rest.slice(0, audienceMatch.index).trim();
+    const themeIndex = rest.search(/\b(Action|Romance|Mature drama|Psychological|Story-driven|Social issues|Friendship|Growth|Emotion|Inner life|Adventure|Comedy|Drama|Fantasy|Mystery|Realism|Competition|Identity)\b/i);
+    if(themeIndex <= 0) return [style, rest, "", audience];
+    return [style, rest.slice(0, themeIndex).trim(), rest.slice(themeIndex).trim(), audience];
+  }
+
+  function renderLooseTable(lines, startIndex, sources){
+    const header = String(lines[startIndex] || "").trim().replace(/\s+/g, " ").toLowerCase();
+    if(header !== "style typical look common themes audience") return null;
+    const rows = [];
+    let index = startIndex + 1;
+    while(index < lines.length){
+      const line = String(lines[index] || "").trim();
+      if(!line || isPunctuationOnlyLine(line) || normalizeStructuredHeading(line) || isMarkdownTableLine(line)) break;
+      const parsed = parseLooseAnimeStyleRow(line);
+      if(!parsed) break;
+      rows.push(parsed);
+      index += 1;
+    }
+    if(rows.length < 2) return null;
+    const tableLines = [
+      "| Style | Typical look | Common themes | Audience |",
+      "|---|---|---|---|",
+      ...rows.map(row => "| " + row.map(cell => String(cell || "").replace(/\|/g, "/")).join(" | ") + " |")
+    ];
+    return { html: renderMarkdownTable(tableLines, sources), endIndex: index - 1 };
   }
 
   function renderMarkdownTable(tableLines, sources){
@@ -10161,7 +10206,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       }
       if(inCode){ codeLines.push(raw); continue; }
 
-      if(!line){ closeList(); continue; }
+      if(!line || isPunctuationOnlyLine(line)){ closeList(); continue; }
 
       if(/^#{1,6}\s+/.test(line)) line = line.replace(/^#{1,6}\s+/, "");
       if(/^direct answer:?$/i.test(line)) continue;
@@ -10187,6 +10232,15 @@ document.addEventListener("DOMContentLoaded",()=>{
         }
         lineIndex--;
         html += renderMarkdownTable(tableLines, sources);
+        if(!firstParaDone) firstParaDone = true;
+        continue;
+      }
+
+      const looseTable = renderLooseTable(lines, lineIndex, sources);
+      if(looseTable){
+        closeList();
+        html += looseTable.html;
+        lineIndex = looseTable.endIndex;
         if(!firstParaDone) firstParaDone = true;
         continue;
       }
@@ -10229,12 +10283,15 @@ document.addEventListener("DOMContentLoaded",()=>{
     return html;
   }
 
+  window.nxFormatHumanAnswer = formatHumanAnswer;
+
   function renderAssistant(text, sources){
     const box = el("chatBox");
     if(!box) return;
     const msg = document.createElement("div");
     msg.className = "message ai-message";
     msg.dataset.nxV2Formatted = "true";
+    msg.dataset.nxFinalFormatted = "true";
     msg.innerHTML = formatHumanAnswer(text, sources) + followupsHtml(text) + actionsHtml();
     box.appendChild(msg);
     box.scrollTop = box.scrollHeight;
@@ -10255,6 +10312,8 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Answer directly in a warm, human, polished style.",
       "Keep simple answers short. Use sections, tables, or steps only when they genuinely help.",
       "Choose the format automatically: paragraph, steps, compact table, or simple text diagram when it makes the answer clearer.",
+      "Never put a colon on its own line. A section heading must stay on one line, like 'Key points:'.",
+      "If using a table, output a real markdown table with visible | separators and a separator row. Never use spaced columns.",
       "Use clear punctuation, short paragraphs, and natural rhythm. Avoid filler and backend/tool talk.",
       "When useful, end with a practical next step instead of generic filler.",
       writingMode ? "Writing task: give the finished draft first, smooth and ready to send." : "",
@@ -10420,6 +10479,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       msg.querySelectorAll(".source-card,.source-list,.source-item,.tool-badge-row,.thinking,.debug,.backend-log,.process-log,.source-dump,.raw-sources").forEach(x => x.remove());
       msg.innerHTML = formatHumanAnswer(text, []) + actionsHtml();
       msg.dataset.nxV2Formatted = "true";
+      msg.dataset.nxFinalFormatted = "true";
     });
   }
 
