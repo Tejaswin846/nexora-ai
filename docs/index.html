@@ -11178,7 +11178,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     });
   }
 
-  function openCodeMode(){
+  function openCodeWorkspaceInChat(){
     ensureChat();
     try{ if(typeof window.setMode === "function") window.setMode("code_mode", "Code"); }catch(e){}
     try{ window.currentMode = "code_mode"; }catch(e){}
@@ -11188,6 +11188,18 @@ document.addEventListener("DOMContentLoaded",()=>{
       input.focus();
     }
     if(typeof window.addMessage === "function") window.addMessage("Code mode is ready. Ask me to build, debug, explain, or improve code.", "system-message", "system");
+  }
+
+  function codePageUrl(){
+    const path = window.location.pathname || "";
+    if(window.location.protocol === "file:") return "code.html";
+    if(window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") return "/code";
+    if(path.endsWith("/index.html")) return path.replace(/index\.html$/, "code.html");
+    return "code.html";
+  }
+
+  function openCodeMode(){
+    window.location.href = codePageUrl();
   }
 
   function openImageCreator(initialPrompt){
@@ -11318,6 +11330,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   window.nxActionArtifacts = openArtifactsPanel;
   window.nxOpenArtifacts = openArtifactsPanel;
   window.nxActionCode = openCodeMode;
+  window.nxOpenCodeWorkspace = openCodeWorkspaceInChat;
   window.nxActionCustomize = openCustomizePanel;
   window.nxActionAccount = function(){ if(typeof window.openAccount === "function") window.openAccount(); else openCustomizePanel(); };
   window.openProjectModal = function(){ openProjectsPanel(); setTimeout(() => $("nxProjectQuickName") && $("nxProjectQuickName").focus(), 60); };
@@ -11356,6 +11369,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   function install(){
     renderSidebar();
     installImageSendInterceptor();
+    try{
+      if(localStorage.getItem("nexora_launch_code_workspace") === "1"){
+        localStorage.removeItem("nexora_launch_code_workspace");
+        setTimeout(openCodeWorkspaceInChat, 120);
+      }
+    }catch(error){}
     const title = document.querySelector("#imageModal .modal-title");
     if(title) title.textContent = "Create Image";
     const label = document.querySelector("#imageModal .modal-label");

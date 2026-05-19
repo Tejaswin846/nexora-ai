@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.14.0-app-tools-image-generation"
+APP_VERSION = "8.15.0-code-page"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -45,6 +45,7 @@ BEHAVIOR_FILE = DATA_DIR / "behavior.json"
 PROJECTS_FILE = DATA_DIR / "projects.json"
 ARTIFACTS_FILE = DATA_DIR / "artifacts.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
+CODE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "code.html"
 
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -2086,6 +2087,21 @@ def web_app() -> HTMLResponse:
 @app.get("/nexora", response_class=HTMLResponse)
 def nexora_web_app() -> HTMLResponse:
     return web_app()
+
+
+@app.get("/code", response_class=HTMLResponse)
+def code_page() -> HTMLResponse:
+    if not CODE_PAGE_INDEX.exists():
+        return HTMLResponse(
+            "<h1>Nexora Code page not found</h1><p>Expected frontend/code.html beside the main frontend file.</p>",
+            status_code=404,
+        )
+    return HTMLResponse(CODE_PAGE_INDEX.read_text(encoding="utf-8"))
+
+
+@app.get("/code/", response_class=HTMLResponse)
+def code_page_slash() -> HTMLResponse:
+    return code_page()
 
 
 @app.get("/health")

@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexora Code</title>
+  <style>
+    :root{
+      --ink:#090a12;
+      --text:#0b1020;
+      --muted:#4b5568;
+      --soft:#eef3ff;
+      --line:rgba(15,23,42,.13);
+      --glow:#315cff;
+      --violet:#7c5cff;
+      --cyan:#5de2ff;
+    }
+
+    *{
+      box-sizing:border-box;
+      margin:0;
+      padding:0;
+    }
+
+    html{
+      scroll-behavior:smooth;
+    }
+
+    body{
+      min-height:100vh;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:var(--text);
+      background:#eef3ff;
+      overflow-x:hidden;
+    }
+
+    button,
+    a{
+      font:inherit;
+    }
+
+    .hero{
+      position:relative;
+      min-height:100vh;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      isolation:isolate;
+      background:#eef3ff;
+    }
+
+    #nexoraCodeScene{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      z-index:-3;
+      background:#dfe8ff;
+    }
+
+    .hero::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      z-index:-2;
+      background:
+        radial-gradient(860px 520px at 14% 82%, rgba(24,63,226,.72), transparent 62%),
+        radial-gradient(720px 440px at 80% 20%, rgba(133,102,255,.52), transparent 66%),
+        radial-gradient(760px 540px at 49% 47%, rgba(255,255,255,.72), transparent 58%);
+      mix-blend-mode:multiply;
+      opacity:.92;
+    }
+
+    .hero::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      z-index:-1;
+      background:linear-gradient(180deg, rgba(255,255,255,.58), rgba(255,255,255,.08) 48%, rgba(255,255,255,.52));
+      pointer-events:none;
+    }
+
+    .nav{
+      width:100%;
+      min-height:82px;
+      padding:18px clamp(20px, 4vw, 46px);
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      gap:20px;
+      position:relative;
+      z-index:3;
+    }
+
+    .brand{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      color:#070815;
+      text-decoration:none;
+      font-weight:780;
+      font-size:20px;
+    }
+
+    .brand-icon,
+    .hero-icon{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(255,255,255,.82);
+      box-shadow:0 18px 45px rgba(50,68,170,.22), inset 0 0 28px rgba(255,255,255,.78);
+    }
+
+    .brand-icon{
+      width:34px;
+      height:34px;
+      border-radius:8px;
+    }
+
+    .hero-icon{
+      width:94px;
+      height:94px;
+      border-radius:28px;
+      margin:0 auto 38px;
+    }
+
+    .brand-icon svg,
+    .hero-icon svg{
+      width:74%;
+      height:74%;
+      filter:drop-shadow(0 7px 16px rgba(49,92,255,.35));
+    }
+
+    .nav-links{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:28px;
+    }
+
+    .nav-links a{
+      color:rgba(10,15,31,.68);
+      text-decoration:none;
+      font-size:14px;
+      font-weight:560;
+    }
+
+    .nav-links a:hover{
+      color:#070815;
+    }
+
+    .nav-actions{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:10px;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      min-height:40px;
+      padding:0 18px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.42);
+      text-decoration:none;
+      color:#090a12;
+      background:rgba(255,255,255,.22);
+      backdrop-filter:blur(16px);
+      font-size:14px;
+      font-weight:690;
+      cursor:pointer;
+    }
+
+    .pill.primary{
+      background:#050508;
+      color:#fff;
+      border-color:#050508;
+      box-shadow:0 12px 34px rgba(6,7,12,.25);
+    }
+
+    .pill:hover{
+      transform:translateY(-1px);
+    }
+
+    .hero-center{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:42px 20px 72px;
+    }
+
+    .hero-copy{
+      width:min(780px, 92vw);
+      transform:translateY(-2vh);
+    }
+
+    h1{
+      font-size:clamp(56px, 8vw, 88px);
+      line-height:.98;
+      font-weight:640;
+      letter-spacing:0;
+      color:#060711;
+      margin-bottom:26px;
+    }
+
+    .subtitle{
+      color:#101524;
+      font-size:clamp(20px, 2.2vw, 26px);
+      line-height:1.35;
+      font-weight:430;
+      margin:0 auto 36px;
+    }
+
+    .hero-actions{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .builder-strip{
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:0;
+      z-index:2;
+      padding:22px clamp(20px, 7vw, 100px) 24px;
+      display:grid;
+      gap:18px;
+      text-align:center;
+      color:rgba(10,15,31,.55);
+      background:linear-gradient(180deg, transparent, rgba(255,255,255,.55));
+    }
+
+    .builder-label{
+      font-size:14px;
+      font-weight:560;
+    }
+
+    .builder-pills{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:14px;
+      align-items:center;
+    }
+
+    .builder-pills span{
+      min-height:44px;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:rgba(9,10,18,.56);
+      font-size:19px;
+      font-weight:760;
+      background:rgba(255,255,255,.16);
+      border:1px solid rgba(255,255,255,.16);
+      backdrop-filter:blur(10px);
+    }
+
+    main{
+      background:#f8faff;
+    }
+
+    .section{
+      width:min(1120px, calc(100% - 40px));
+      margin:0 auto;
+      padding:76px 0;
+    }
+
+    .section-head{
+      max-width:720px;
+      margin-bottom:28px;
+    }
+
+    .eyebrow{
+      color:#315cff;
+      font-size:13px;
+      font-weight:780;
+      text-transform:uppercase;
+      letter-spacing:0;
+      margin-bottom:12px;
+    }
+
+    h2{
+      font-size:clamp(32px, 4vw, 48px);
+      line-height:1.08;
+      font-weight:650;
+      letter-spacing:0;
+      color:#0b1020;
+      margin-bottom:14px;
+    }
+
+    .section-head p{
+      color:var(--muted);
+      font-size:18px;
+      line-height:1.6;
+    }
+
+    .feature-grid{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:14px;
+    }
+
+    .feature{
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:#fff;
+      padding:18px;
+      min-height:190px;
+      box-shadow:0 16px 45px rgba(15,23,42,.06);
+    }
+
+    .feature svg{
+      width:26px;
+      height:26px;
+      margin-bottom:18px;
+      stroke:#315cff;
+      fill:none;
+      stroke-width:1.9;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+
+    .feature h3{
+      font-size:18px;
+      font-weight:760;
+      letter-spacing:0;
+      margin-bottom:9px;
+    }
+
+    .feature p{
+      color:var(--muted);
+      line-height:1.55;
+      font-size:15px;
+    }
+
+    .workflow{
+      display:grid;
+      grid-template-columns:1.05fr .95fr;
+      gap:16px;
+      align-items:stretch;
+    }
+
+    .terminal{
+      border-radius:8px;
+      background:#0a0d16;
+      color:#dbe7ff;
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 24px 80px rgba(15,23,42,.18);
+      overflow:hidden;
+    }
+
+    .terminal-head{
+      height:42px;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      padding:0 14px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background:#111725;
+    }
+
+    .dot{
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:#64748b;
+    }
+
+    .terminal pre{
+      padding:22px;
+      font-size:14px;
+      line-height:1.7;
+      overflow:auto;
+      white-space:pre-wrap;
+    }
+
+    .terminal .blue{
+      color:#78a6ff;
+    }
+
+    .terminal .green{
+      color:#85f6bd;
+    }
+
+    .steps{
+      display:grid;
+      gap:12px;
+    }
+
+    .step{
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:#fff;
+      padding:18px;
+    }
+
+    .step strong{
+      display:block;
+      margin-bottom:6px;
+      font-size:16px;
+    }
+
+    .step span{
+      color:var(--muted);
+      line-height:1.55;
+      font-size:15px;
+    }
+
+    .final-cta{
+      text-align:center;
+      padding:70px 20px 84px;
+      background:#eef3ff;
+      border-top:1px solid rgba(15,23,42,.08);
+    }
+
+    .final-cta h2{
+      margin-bottom:18px;
+    }
+
+    .final-cta p{
+      color:var(--muted);
+      font-size:18px;
+      margin-bottom:26px;
+    }
+
+    @media (max-width:900px){
+      .nav{
+        grid-template-columns:1fr auto;
+      }
+
+      .nav-links{
+        display:none;
+      }
+
+      .builder-pills,
+      .feature-grid,
+      .workflow{
+        grid-template-columns:1fr;
+      }
+
+      .builder-strip{
+        position:relative;
+      }
+
+      .hero-center{
+        padding-bottom:30px;
+      }
+    }
+
+    @media (max-width:560px){
+      .nav{
+        padding:14px 16px;
+      }
+
+      .brand span{
+        display:none;
+      }
+
+      .nav-actions .pill:not(.primary){
+        display:none;
+      }
+
+      .hero-icon{
+        width:78px;
+        height:78px;
+        border-radius:22px;
+        margin-bottom:30px;
+      }
+
+      h1{
+        font-size:50px;
+      }
+
+      .subtitle{
+        font-size:20px;
+      }
+
+      .section{
+        width:min(100% - 28px, 1120px);
+        padding:56px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero" id="overview">
+    <canvas id="nexoraCodeScene" aria-hidden="true"></canvas>
+
+    <nav class="nav" aria-label="Nexora Code navigation">
+      <a class="brand" href="#" onclick="goHome(); return false;" aria-label="Back to Nexora">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64">
+            <defs>
+              <linearGradient id="codeIconA" x1="8" y1="8" x2="58" y2="58">
+                <stop offset="0" stop-color="#5de2ff"/>
+                <stop offset=".52" stop-color="#7c5cff"/>
+                <stop offset="1" stop-color="#254cff"/>
+              </linearGradient>
+            </defs>
+            <path d="M32 7 51 18v21L32 57 13 39V18L32 7Z" fill="url(#codeIconA)"/>
+            <path d="m28 22-9 10 9 10" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="m38 22 8 10-8 10" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M32 45 36 19" fill="none" stroke="#dbeafe" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span>Nexora</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#features">Features</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#workflow">Guide</a>
+        <a href="#download">Download</a>
+      </div>
+
+      <div class="nav-actions">
+        <a class="pill" href="#" onclick="goHome(); return false;">Back to Nexora</a>
+        <a class="pill primary" href="#" onclick="openWorkspace(); return false;">Open workspace</a>
+      </div>
+    </nav>
+
+    <div class="hero-center">
+      <div class="hero-copy">
+        <div class="hero-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64">
+            <defs>
+              <linearGradient id="heroCodeA" x1="8" y1="8" x2="58" y2="58">
+                <stop offset="0" stop-color="#5de2ff"/>
+                <stop offset=".5" stop-color="#8a63ff"/>
+                <stop offset="1" stop-color="#2148ff"/>
+              </linearGradient>
+              <filter id="heroGlow">
+                <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                <feMerge>
+                  <feMergeNode in="blur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            <path d="M32 7 51 18v21L32 57 13 39V18L32 7Z" fill="url(#heroCodeA)" filter="url(#heroGlow)"/>
+            <path d="m27 22-8 10 8 10" fill="none" stroke="#fff" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="m38 22 8 10-8 10" fill="none" stroke="#fff" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M32 45 36 19" fill="none" stroke="#e0f2fe" stroke-width="4.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h1>Nexora Code</h1>
+        <p class="subtitle">Your AI assistant for building, debugging, and shipping work.</p>
+        <div class="hero-actions">
+          <a class="pill primary" href="#" onclick="openWorkspace(); return false;">Open Code Workspace</a>
+          <a class="pill" href="#features">Explore features</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="builder-strip" aria-label="Use cases">
+      <div class="builder-label">Built for focused builders</div>
+      <div class="builder-pills">
+        <span>Product teams</span>
+        <span>Student projects</span>
+        <span>Automation work</span>
+        <span>Research notes</span>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <section class="section" id="features">
+      <div class="section-head">
+        <div class="eyebrow">Capabilities</div>
+        <h2>A cleaner coding workspace for Nexora.</h2>
+        <p>Nexora Code is a focused page for planning, explaining, debugging, and improving code without mixing it into normal chat.</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature">
+          <svg viewBox="0 0 24 24"><path d="M8 8 4 12l4 4"></path><path d="m16 8 4 4-4 4"></path><path d="m13.5 5-3 14"></path></svg>
+          <h3>Explain and refactor</h3>
+          <p>Ask for clearer code, safer structure, smaller functions, and practical explanations that stay close to your project.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24"><path d="M12 3v4"></path><path d="M12 17v4"></path><path d="M5.6 5.6 8.4 8.4"></path><path d="M15.6 15.6 18.4 18.4"></path><circle cx="12" cy="12" r="4"></circle></svg>
+          <h3>Find bugs faster</h3>
+          <p>Give Nexora an error, a file, or a failing behavior and get a direct diagnosis with the next change to try.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24"><path d="M5 6h14"></path><path d="M5 12h10"></path><path d="M5 18h14"></path></svg>
+          <h3>Plan real changes</h3>
+          <p>Turn a rough feature idea into steps, files to edit, test notes, and a clear implementation path.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="section-head">
+        <div class="eyebrow">Workflow</div>
+        <h2>Move from question to working change.</h2>
+        <p>The page opens a dedicated coding lane in Nexora so your coding tasks stay separate from everyday questions.</p>
+      </div>
+      <div class="workflow">
+        <div class="terminal" aria-label="Example code session">
+          <div class="terminal-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre><span class="blue">nexora-code</span> plan "add realtime search"
+
+1. inspect current request flow
+2. add backend route
+3. connect sidebar action
+4. verify with local server
+
+<span class="green">ready:</span> open the workspace and start building</pre>
+        </div>
+        <div class="steps">
+          <div class="step"><strong>1. Describe the goal</strong><span>Use normal language. Nexora turns it into a coding task.</span></div>
+          <div class="step"><strong>2. Review the plan</strong><span>See what files, tests, and risks are involved before changes happen.</span></div>
+          <div class="step"><strong>3. Build and verify</strong><span>Use the local app, backend routes, and saved artifacts together.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta" id="download">
+      <h2>Open your code workspace.</h2>
+      <p>Launch Nexora in code mode and keep building from there.</p>
+      <a class="pill primary" href="#" onclick="openWorkspace(); return false;">Open Code Workspace</a>
+    </section>
+  </main>
+
+  <script>
+    function appUrl(){
+      if(location.protocol === "file:") return "index.html";
+      if(location.hostname === "127.0.0.1" || location.hostname === "localhost") return "/app";
+      return "index.html";
+    }
+
+    function goHome(){
+      window.location.href = appUrl();
+    }
+
+    function openWorkspace(){
+      try{ localStorage.setItem("nexora_launch_code_workspace", "1"); }catch(error){}
+      window.location.href = appUrl();
+    }
+
+    const canvas = document.getElementById("nexoraCodeScene");
+    const ctx = canvas.getContext("2d");
+    const glyphs = ["</>", "{}", "fn", "AI", "git", "run", "fix", "api"];
+    const particles = [];
+    let pointer = {x:0, y:0, active:false};
+
+    function resize(){
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = window.innerWidth + "px";
+      canvas.style.height = window.innerHeight + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      seedParticles();
+    }
+
+    function seedParticles(){
+      particles.length = 0;
+      const count = Math.max(44, Math.floor(window.innerWidth / 22));
+      for(let i = 0; i < count; i++){
+        particles.push({
+          x:Math.random() * window.innerWidth,
+          y:Math.random() * window.innerHeight,
+          r:Math.random() * 2.4 + .8,
+          vx:(Math.random() - .5) * .18,
+          vy:(Math.random() - .5) * .14,
+          a:Math.random() * .24 + .08,
+          label:glyphs[Math.floor(Math.random() * glyphs.length)]
+        });
+      }
+    }
+
+    function draw(time){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      ctx.clearRect(0, 0, w, h);
+
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#b9cbff");
+      grad.addColorStop(.45, "#edf3ff");
+      grad.addColorStop(1, "#b8a9ff");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      for(let i = 0; i < 7; i++){
+        const x = w * (.12 + i * .13) + Math.sin(time * .00018 + i) * 80;
+        const y = h * (.22 + (i % 3) * .2) + Math.cos(time * .00016 + i) * 70;
+        const radius = Math.max(w, h) * (.23 + i * .012);
+        const fog = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        fog.addColorStop(0, i % 2 ? "rgba(255,255,255,.36)" : "rgba(62,91,255,.24)");
+        fog.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = fog;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      particles.forEach((p, index) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if(pointer.active){
+          const dx = p.x - pointer.x;
+          const dy = p.y - pointer.y;
+          const dist = Math.max(40, Math.sqrt(dx * dx + dy * dy));
+          if(dist < 180){
+            p.x += dx / dist * .32;
+            p.y += dy / dist * .32;
+          }
+        }
+        if(p.x < -40) p.x = w + 40;
+        if(p.x > w + 40) p.x = -40;
+        if(p.y < -40) p.y = h + 40;
+        if(p.y > h + 40) p.y = -40;
+
+        ctx.globalAlpha = p.a;
+        ctx.fillStyle = "#16306f";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        if(index % 4 === 0){
+          ctx.font = "600 12px Inter, system-ui, sans-serif";
+          ctx.fillText(p.label, p.x + 8, p.y - 8);
+        }
+      });
+      ctx.globalAlpha = 1;
+
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("pointermove", event => {
+      pointer = {x:event.clientX, y:event.clientY, active:true};
+    });
+    window.addEventListener("pointerleave", () => pointer.active = false);
+    resize();
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
