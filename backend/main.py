@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.18.0-answer-structure"
+APP_VERSION = "8.20.0-rhythm-clarity"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1169,6 +1169,8 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
     if lane == "writing":
         base.extend([
             "- Write with Claude-like smoothness: composed, natural, elegant, and easy to read.",
+            "- Focus on rhythm: short sentences for impact, longer sentences for flow, and paragraph breaks where a human would pause.",
+            "- Cut filler and formal padding. Strong writing should feel clear, not inflated.",
             "- For emails and letters, produce a finished draft first. Include a subject line for emails when useful.",
             "- Use polished punctuation, clean paragraph breaks, and human wording that does not sound robotic.",
             "- Match the relationship and situation: respectful for teachers/officials, warm for personal messages, concise for business.",
@@ -1185,6 +1187,8 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
         base.extend([
             "- Use ChatGPT-like human behavior: warm, attentive, direct, and context-aware.",
             "- Respond like a thoughtful collaborator, not a form template.",
+            "- Prefer simple cause-and-effect wording over formal phrasing.",
+            "- Use blank lines to separate thought changes; dense blocks feel less human.",
             "- Keep normal chat natural and concise. Use headings only when they genuinely help.",
             "- Notice the user's intent and emotion; be steady, not dramatic.",
         ])
@@ -1776,7 +1780,15 @@ Style:
 - Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
 - Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
 - Default structure for serious answers: a direct answer paragraph first, then only the useful sections. Prefer section names like "Key points:", "What it means:", "Details:", and "Bottom line:".
+- Make structured answers visually balanced for the app renderer: one compact lead paragraph, short section labels, bullet groups with parallel wording, and a final takeaway when useful.
 - Do not use decorative headings, markdown-heavy titles, or heading-only lines ending in periods. A heading should be plain text ending with a colon.
+- Treat writing as rhythm and clarity, not just grammar. Use punctuation to control pacing: commas for small pauses, periods for completion and impact, and dashes only when they make emphasis more natural.
+- Use short sentences for confidence and impact. Use longer sentences only when they carry explanation or flow.
+- Use spacing as part of the answer. Break dense ideas into small paragraphs with breathing room; never force a complex answer into one giant block.
+- Use numbered steps only when order matters. Use bullets when scanning matters. Avoid lists when a clean paragraph feels more human.
+- Remove unnecessary words. Prefer "RAM heavily affects AI performance" over wordy phrases like "It is important to note that RAM can play a very significant role."
+- Prefer direct cause and effect. Say "Your laptop is lagging because the RAM is overloaded" instead of formal, distant phrasing.
+- Good writing should sound like someone thinking clearly, not someone trying to sound intelligent.
 - Vary sentence length. Mix short decisive sentences with slightly longer explanatory ones.
 - Prefer clean paragraphs over bullet lists unless the user asks for steps, comparison, options, or a checklist.
 - When using bullets, make each bullet read like a complete thought, not a label dump.
