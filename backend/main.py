@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.27.0-user-workflows"
+APP_VERSION = "8.28.0-speed-image-ui"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -98,7 +98,7 @@ FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "2600"))
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
-FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "24"))
+FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "12"))
 MAX_HISTORY_MESSAGES = 5
 MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
@@ -107,12 +107,13 @@ MAX_MEMORY_ITEMS = 80
 MAX_IMAGE_MEMORY_ITEMS = 160
 MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
-RESPONSE_CACHE_TTL = 180
-RESPONSE_CACHE_MAX = 60
+RESPONSE_CACHE_TTL = int(os.getenv("NEXORA_RESPONSE_CACHE_TTL", "600"))
+RESPONSE_CACHE_MAX = int(os.getenv("NEXORA_RESPONSE_CACHE_MAX", "100"))
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
 IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
 IMAGE_BASE_URL = os.getenv("NEXORA_IMAGE_BASE_URL", "https://image.pollinations.ai/prompt").strip().rstrip("/")
 IMAGE_MODEL = os.getenv("NEXORA_IMAGE_MODEL", "").strip()
+IMAGE_DEFAULT_SIZE = os.getenv("NEXORA_IMAGE_DEFAULT_SIZE", "768x768").strip()
 IMAGE_PROMPT_ENHANCE = os.getenv("NEXORA_IMAGE_PROMPT_ENHANCE", "true").strip().lower() not in {"0", "false", "off", "no"}
 SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 
@@ -211,7 +212,7 @@ class ArtifactRequest(BaseModel):
 class ImageRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=900)
     user_id: Optional[str] = None
-    size: Optional[str] = "1024x1024"
+    size: Optional[str] = IMAGE_DEFAULT_SIZE
     style: Optional[str] = ""
     negative_prompt: Optional[str] = ""
     enhance: Optional[bool] = True
@@ -233,9 +234,9 @@ class ImageResponse(BaseModel):
     url: str
     artifact_id: str
     provider: str
-    size: str = "1024x1024"
-    width: int = 1024
-    height: int = 1024
+    size: str = IMAGE_DEFAULT_SIZE
+    width: int = 768
+    height: int = 768
     cached: bool = False
     user_id: str = "default"
     workflow: Dict[str, Any] = {}
@@ -750,8 +751,10 @@ def create_artifact(
 
 
 def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
-    raw = (size or "1024x1024").lower().strip()
+    raw = (size or IMAGE_DEFAULT_SIZE or "768x768").lower().strip()
     presets = {
+        "fast": (768, 768),
+        "fast-square": (768, 768),
         "square": (1024, 1024),
         "portrait": (832, 1216),
         "landscape": (1216, 832),
@@ -3053,6 +3056,7 @@ def health() -> Dict[str, Any]:
             "mode": "remote_url_lightweight",
             "prompt_enhancement": IMAGE_PROMPT_ENHANCE,
             "model": IMAGE_MODEL or "provider_default",
+            "default_size": IMAGE_DEFAULT_SIZE,
             "workflow_memory": True,
             "per_user_cache": True,
         },

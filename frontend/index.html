@@ -10056,6 +10056,26 @@ document.addEventListener("DOMContentLoaded",()=>{
     </div>`;
   }
 
+  window.nxAskFollowup = function(button){
+    const prompt = button && button.dataset ? button.dataset.prompt : "";
+    const input = document.getElementById("userInput");
+    if(input){
+      input.value = prompt;
+      input.focus();
+    }
+    const send = window.nxFinalSendMessage || window.sendMessage;
+    if(typeof send === "function" && prompt) send(prompt);
+  };
+
+  function followupsHtml(text){
+    const clean = String(text || "").toLowerCase();
+    let prompts = ["Make it simpler", "Give an example", "Turn it into steps"];
+    if(/\|.+\|/.test(text || "")) prompts = ["Explain the table", "Which is best?", "Make it shorter"];
+    else if(/\b(code|function|error|bug|api|backend|frontend)\b/.test(clean)) prompts = ["Show the exact fix", "Explain the code", "Give test steps"];
+    else if(/\b(study|chapter|exam|class|learn|explain)\b/.test(clean)) prompts = ["Make study notes", "Quiz me on this", "Explain like class 8"];
+    return '<div class="nx-followup-row">' + prompts.map(p => '<button type="button" data-prompt="' + escapeHtml(p) + '" onclick="nxAskFollowup(this)">' + escapeHtml(p) + '</button>').join("") + '</div>';
+  }
+
   window.nxLearnFeedback = async function(rating, button){
     try{
       const items = Array.isArray(window.chatHistory) ? window.chatHistory : [];
@@ -10215,7 +10235,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const msg = document.createElement("div");
     msg.className = "message ai-message";
     msg.dataset.nxV2Formatted = "true";
-    msg.innerHTML = formatHumanAnswer(text, sources) + actionsHtml();
+    msg.innerHTML = formatHumanAnswer(text, sources) + followupsHtml(text) + actionsHtml();
     box.appendChild(msg);
     box.scrollTop = box.scrollHeight;
     try{
@@ -10231,42 +10251,16 @@ document.addEventListener("DOMContentLoaded",()=>{
     const lower = q.toLowerCase();
     const writingMode = /\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|apology|invitation|complaint|request|proposal|draft)\b/.test(lower);
     const searchMode = /\b(latest|current|today|news|search|searcch|look up|find online|real[- ]?time|realtime|price|weather|score|president|market|crude oil|oil crisis|petrol|diesel|fuel price|energy crisis|inflation|rupee|import bill|sanctions|russia ukraine|ukraine war|israel hamas|gaza war|iran israel|middle east conflict|ongoing war|current war|war news|ongoing conflict|current conflict|conflict news)\b/.test(lower);
-    const chatMode = !writingMode && !searchMode;
     return [
-      "Answer the user's real question, not the prompt instructions.",
-      "Use a premium ChatGPT-like sentence rhythm: direct opening, natural transitions, varied sentence length, and calm confident wording.",
-      "Use a ChatGPT-like answer structure: answer first, then clear sections only when useful, with compact bullets and tables when they genuinely help.",
-      "Do not over-style the answer. Keep it clean, familiar, and easy to scan.",
-      "Make the answer clean and ChatGPT-like: precise punctuation, calm tone, no messy fragments, no hype.",
-      "Writing quality is rhythm and clarity, not just grammar. Use commas as small pauses, periods for completion and impact, and dashes only when emphasis feels natural.",
-      "Use short sentences for confidence. Use longer sentences only when explanation needs flow.",
-      "Use spacing as part of the answer: small paragraphs, breathing room, and clear separation between thought changes.",
-      "Use numbered steps only when order matters. Use bullets when scanning matters. Avoid bullet dumping.",
-      "Remove filler. Prefer direct cause and effect over formal wording.",
-      "Make the answer sound like clear thinking, not like someone trying to sound intelligent.",
-      "Choose the answer structure before writing it.",
-      "Structure rules: simple fact or normal chat = 1-3 short paragraphs with no forced heading.",
-      "Structure rules: explanation or study answer = Short answer, Key points, How it works or Why it matters, Bottom line.",
-      "Structure rules: ordered task or tutorial = Goal, numbered Steps, Check, Bottom line.",
-      "Structure rules: comparison or options = short lead, valid markdown table, Takeaway.",
-      "Structure rules: process, cycle, architecture, or cause/effect = short lead, compact fenced text diagram, key bullets, Bottom line.",
-      writingMode ? "WRITING MODE: For emails, letters, applications, and messages, write a finished draft first. Make it smooth, human, polished, and ready to send. Include a subject line for email when useful. Do not over-explain unless asked." : "",
-      searchMode ? "SEARCH MODE: Use Perplexity-style synthesis: answer first, cite evidence with [1] and [2], avoid guessing, and keep sources as evidence rather than raw link dumps." : "",
-      chatMode ? "CHAT MODE: Behave like a thoughtful human assistant: warm, attentive, practical, emotionally aware, and concise unless depth is needed." : "",
-      "Use polished grammar and punctuation: correct commas, periods, apostrophes, capitalization, and sentence boundaries.",
-      "When introducing a list, end the lead-in with a colon and keep the bullet grammar parallel.",
-      "Prefer paragraph-led answers over bullet dumping; use bullets only for steps, comparisons, options, or compact lists.",
-      "Do not write the heading 'Direct Answer'.",
-      "Start with the actual answer in a human sentence, then add context only if it helps.",
-      "Use clear headings only when useful.",
-      "For science and math, explain the idea in clean human language before formulas.",
-      "Do not output raw LaTeX delimiters like \\[...\\]. If a formula is needed, use readable plain text.",
-      "Do not use decorative emojis unless the user asks for them.",
-      "Never dump links. Use sources only as evidence, with citation markers like [1] and [2].",
-      "If current facts are needed, synthesize from search evidence and answer first.",
-      "Decide the best format automatically: short for simple questions, detailed for complex questions, markdown tables for comparisons, chart-style text for trends, and compact text diagrams for processes.",
-      "If you use a table, output a valid markdown table. If you use a diagram, put it in a fenced code block.",
-      "Do not show backend logs, model setup text, search process, raw JSON, or tool steps.",
+      "Answer directly in a warm, human, polished style.",
+      "Keep simple answers short. Use sections, tables, or steps only when they genuinely help.",
+      "Choose the format automatically: paragraph, steps, compact table, or simple text diagram when it makes the answer clearer.",
+      "Use clear punctuation, short paragraphs, and natural rhythm. Avoid filler and backend/tool talk.",
+      "When useful, end with a practical next step instead of generic filler.",
+      writingMode ? "Writing task: give the finished draft first, smooth and ready to send." : "",
+      searchMode ? "Current-info task: answer first, cite evidence with [1] when sources are available, and do not guess." : "",
+      "For study or explanation: simple idea first, key points next, bottom line last.",
+      "For comparison: use a compact markdown table.",
       "User question: " + q
     ].join("\n");
   }
@@ -10979,19 +10973,19 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-image-message{
-    max-width:min(760px, calc(100% - 80px)) !important;
+    max-width:min(720px, calc(100% - 56px)) !important;
   }
 
   .nx-image-result{
     border:1px solid rgba(255,255,255,.12);
     border-radius:18px;
-    background:#1f2024;
+    background:#111;
     overflow:hidden;
   }
 
   .nx-image-result-media{
     position:relative;
-    min-height:320px;
+    min-height:260px;
     background:#111;
     display:flex;
     align-items:center;
@@ -11012,8 +11006,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   .nx-image-result img{
     display:block;
     width:100%;
-    min-height:260px;
-    max-height:560px;
+    min-height:240px;
+    max-height:620px;
     object-fit:contain;
     background:#111;
     position:relative;
@@ -11041,7 +11035,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-image-result-info{
-    padding:13px 14px 14px;
+    display:none;
   }
 
   .nx-image-result-title{
@@ -11057,10 +11051,49 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-image-result-actions{
-    display:flex;
+    display:none;
     gap:8px;
     flex-wrap:wrap;
     margin-top:12px;
+  }
+
+  .nx-image-overlay-actions{
+    position:absolute;
+    right:10px;
+    bottom:10px;
+    z-index:2;
+    display:flex;
+    gap:7px;
+    opacity:0;
+    transform:translateY(4px);
+    transition:opacity .16s ease, transform .16s ease;
+  }
+
+  .nx-image-result:hover .nx-image-overlay-actions,
+  .nx-image-result:focus-within .nx-image-overlay-actions{
+    opacity:1;
+    transform:translateY(0);
+  }
+
+  .nx-image-overlay-actions a,
+  .nx-image-overlay-actions button{
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:999px;
+    background:rgba(20,20,22,.78);
+    color:#fff;
+    padding:7px 10px;
+    text-decoration:none;
+    font-size:12px;
+    font-weight:720;
+    cursor:pointer;
+    backdrop-filter:blur(10px);
+  }
+
+  @media (hover:none){
+    .nx-image-overlay-actions{
+      opacity:1;
+      transform:none;
+    }
   }
 
   .nx-image-result-actions a,
@@ -11094,6 +11127,28 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-image-toggle input{
     accent-color:#60a5fa;
+  }
+
+  .nx-followup-row{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin:12px 0 4px;
+  }
+
+  .nx-followup-row button{
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;
+    background:#25262a;
+    color:#f4f4f5;
+    padding:7px 10px;
+    font-size:13px;
+    font-weight:650;
+    cursor:pointer;
+  }
+
+  .nx-followup-row button:hover{
+    background:#303136;
   }
 
   @media (max-width:720px){
@@ -11495,7 +11550,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   function openImageCreator(initialPrompt){
-    openToolModal("Create image", "Describe the picture you want. Nexora will enhance the prompt, generate it, and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: a futuristic study room at night, cinematic lighting, realistic, high detail"></textarea><div class="nx-image-options"><select class="nx-tool-select" id="nxImageSize"><option value="1024x1024">Square</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><select class="nx-tool-select" id="nxImageStyle"><option value="auto">Auto style</option><option value="realistic">Realistic</option><option value="cinematic">Cinematic</option><option value="anime">Anime</option><option value="poster">Poster</option><option value="logo">Logo</option><option value="3d">3D render</option><option value="sketch">Sketch</option></select></div><input class="nx-tool-input" id="nxImageNegative" style="margin-top:10px;" placeholder="Optional: things to avoid, like blurry text or extra objects"><label class="nx-image-toggle"><input type="checkbox" id="nxImageEnhance" checked> Enhance prompt automatically</label><div class="nx-tool-row" style="margin-top:12px;"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate image</button></div>', function(){
+    openToolModal("Create image", "Describe the picture you want. Nexora will enhance the prompt, generate it, and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: a futuristic study room at night, cinematic lighting, realistic, high detail"></textarea><div class="nx-image-options"><select class="nx-tool-select" id="nxImageSize"><option value="768x768">Fast square</option><option value="1024x1024">Square HD</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><select class="nx-tool-select" id="nxImageStyle"><option value="auto">Auto style</option><option value="realistic">Realistic</option><option value="cinematic">Cinematic</option><option value="anime">Anime</option><option value="poster">Poster</option><option value="logo">Logo</option><option value="3d">3D render</option><option value="sketch">Sketch</option></select></div><input class="nx-tool-input" id="nxImageNegative" style="margin-top:10px;" placeholder="Optional: things to avoid, like blurry text or extra objects"><label class="nx-image-toggle"><input type="checkbox" id="nxImageEnhance" checked> Enhance prompt automatically</label><div class="nx-tool-row" style="margin-top:12px;"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate image</button></div>', function(){
       const box = $("nxImagePromptBox");
       if(box) box.value = initialPrompt || "";
       $("nxImageGenerateBtn").onclick = () => createImage(($("nxImagePromptBox").value || "").trim(), $("nxImageSize").value, $("nxImageStyle").value, $("nxImageNegative").value, $("nxImageEnhance").checked);
@@ -11528,15 +11583,13 @@ document.addEventListener("DOMContentLoaded",()=>{
     const box = $("chatBox");
     if(!box) return;
     const promptUsed = data.enhanced_prompt || data.prompt || "";
-    const original = data.original_prompt && data.original_prompt !== promptUsed ? '<div class="nx-image-result-prompt">Original: ' + escapeHtml(data.original_prompt) + '</div>' : "";
-    const sizeLine = data.size ? '<div class="nx-tool-card-meta">Size: ' + escapeHtml(data.size) + '</div>' : "";
-    const workflowLine = '<div class="nx-tool-card-meta">' + (data.cached ? 'Loaded from your image memory' : 'Saved to your image memory') + '</div>';
     const msg = document.createElement("div");
     msg.className = "message ai-message nx-image-message";
     msg.dataset.nxImageMessage = "true";
     msg.dataset.nxV2Formatted = "true";
     msg.dataset.nxFinalFormatted = "true";
-    msg.innerHTML = '<div class="nx-image-result"><div class="nx-image-result-media"><div class="nx-image-loading">Creating image preview...</div><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '" loading="eager" referrerpolicy="no-referrer"><div class="nx-image-error">The image was created, but the preview could not load here. Use Open image to view it.</div></div><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div>' + sizeLine + workflowLine + '<div class="nx-image-result-prompt">Prompt used: ' + escapeHtml(promptUsed) + '</div>' + original + '<div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit prompt</button></div></div></div>';
+    msg.title = promptUsed;
+    msg.innerHTML = '<div class="nx-image-result nx-image-only"><div class="nx-image-result-media"><div class="nx-image-loading">Creating image preview...</div><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '" loading="eager" referrerpolicy="no-referrer"><div class="nx-image-error">Preview could not load here. Open the image instead.</div><div class="nx-image-overlay-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open</a><button type="button" onclick="nxOpenArtifacts()">Artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit</button></div></div></div>';
     const result = msg.querySelector(".nx-image-result");
     const preview = msg.querySelector("img");
     if(preview){
@@ -11584,7 +11637,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const res = await fetch(API + "/image/generate", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({prompt:clean, user_id:getNexoraUserId(), size:size || "1024x1024", style:style || "auto", negative_prompt:negativePrompt || "", enhance:enhance !== false, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+        body:JSON.stringify({prompt:clean, user_id:getNexoraUserId(), size:size || "768x768", style:style || "auto", negative_prompt:negativePrompt || "", enhance:enhance !== false, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
       });
       const typing = $(typingId);
       if(typing) typing.remove();
@@ -11635,7 +11688,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const text = (messageOverride !== undefined && messageOverride !== null ? messageOverride : (input ? input.value : "")).trim();
       if(text && isImageRequest(text)){
         if(input && messageOverride == null) input.value = "";
-        await createImage(stripImagePrompt(text), "1024x1024", "");
+        await createImage(stripImagePrompt(text), "768x768", "");
         return;
       }
       if(typeof window.nxTextSendMessage === "function") return window.nxTextSendMessage(messageOverride);
@@ -11672,7 +11725,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const prompt = $("imagePrompt") ? $("imagePrompt").value : "";
     const oldModal = $("imageModal");
     if(oldModal) oldModal.classList.remove("show");
-    createImage(prompt, "1024x1024", "");
+    createImage(prompt, "768x768", "");
   };
   window.openImageModal = function(){ openImageCreator(); };
   window.closeImageModal = function(){ closeToolModal(); const oldModal = $("imageModal"); if(oldModal) oldModal.classList.remove("show"); };
