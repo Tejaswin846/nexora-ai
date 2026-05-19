@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.21.0-history-search-fix"
+APP_VERSION = "8.22.0-reliability-fixes"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -173,7 +173,7 @@ class UploadResponse(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    rating: Literal["good", "bad"]
+    rating: str = Field("good", max_length=30)
     session_id: Optional[str] = None
     question: Optional[str] = None
     answer: Optional[str] = None
@@ -271,14 +271,14 @@ def local_fast_reply(message: str) -> Optional[str]:
             result = left * right
         elif op == "/":
             if right == 0:
-                return "⚠️ Division by zero is undefined."
+                return "Division by zero is undefined."
             result = left / right
         elif op == "+":
             result = left + right
         else:
             result = left - right
         pretty = int(result) if result.is_integer() else round(result, 8)
-        return f"✅ {pretty}"
+        return f"Result: {pretty}"
     if re.fullmatch(r"(hi+|hello+|hey+|yo|hlo|hii+|namaste|namaskar)[!. ]*", text):
         return "Hey, I am here. What are we building or solving today?"
     if re.fullmatch(r"(thanks|thank you|thx|ty|ok|okay|cool|nice)[!. ]*", text):
@@ -1035,10 +1035,28 @@ def learn_behavior_from_message(user_message: str) -> Tuple[Dict[str, Any], Dict
     return profile, signals
 
 
+def normalize_feedback_rating(rating: str) -> str:
+    normalized = clean_text(rating).lower().replace("-", "_").replace(" ", "_")
+    positive = {
+        "good", "up", "like", "liked", "thumb_up", "thumbs_up", "positive",
+        "yes", "helpful", "great", "works", "worked",
+    }
+    negative = {
+        "bad", "down", "dislike", "disliked", "thumb_down", "thumbs_down",
+        "negative", "no", "unhelpful", "wrong", "poor",
+    }
+    if normalized in negative:
+        return "bad"
+    if normalized in positive:
+        return "good"
+    return "good"
+
+
 def learn_behavior_from_feedback(req: FeedbackRequest) -> Dict[str, Any]:
     profile = load_behavior_profile()
     counters = profile.setdefault("human_signals", {})
-    if req.rating == "good":
+    rating = normalize_feedback_rating(req.rating)
+    if rating == "good":
         counters["positive_feedback"] = int(counters.get("positive_feedback", 0)) + 1
         behavior_add_preference(profile, "Repeat answer patterns that receive positive feedback.")
     else:
@@ -1047,7 +1065,7 @@ def learn_behavior_from_feedback(req: FeedbackRequest) -> Dict[str, Any]:
     profile.setdefault("recent_events", []).append({
         "created_at": now_iso(),
         "type": "feedback",
-        "rating": req.rating,
+        "rating": rating,
         "question": clean_text(req.question or "")[:220],
         "answer": clean_text(req.answer or "")[:260],
         "note": clean_text(req.note or "")[:180],
