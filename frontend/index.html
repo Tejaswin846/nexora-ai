@@ -9933,13 +9933,19 @@ document.addEventListener("DOMContentLoaded",()=>{
     const labels = new Set([
       "answer","direct answer","short answer","quick answer","key point","key points",
       "key detail","key details","key evidence","important details","what i found",
-      "what it means","why it matters","impact","details","context","summary",
-      "result","bottom line","takeaway","next step","next steps"
+      "what it means","why it matters","why","how","how it works","main idea",
+      "how to think about it","impact","details","context","examples","example",
+      "goal","steps","check","comparison","pros","cons","recommendation",
+      "summary","quick summary","result","bottom line","takeaway","next step","next steps"
     ]);
     if(!labels.has(key)) return "";
     if(key === "answer" || key === "direct answer") text = "Quick answer";
     if(key === "key point") text = "Key points";
     if(key === "key detail") text = "Key details";
+    if(key === "why") text = "Why it matters";
+    if(key === "how") text = "How it works";
+    if(key === "example") text = "Examples";
+    if(key === "quick summary") text = "Summary";
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
@@ -10090,6 +10096,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const lines = clean.split("\n");
     let html = '<div class="nx-human-answer">';
     let inList = false;
+    let listType = "ul";
     let firstParaDone = false;
     let rowInserted = false;
     let inCode = false;
@@ -10097,7 +10104,15 @@ document.addEventListener("DOMContentLoaded",()=>{
     let codeLang = "";
     let currentSection = "nx-section-intro";
 
-    function closeList(){ if(inList){ html += "</ul>"; inList = false; } }
+    function closeList(){ if(inList){ html += listType === "ol" ? "</ol>" : "</ul>"; inList = false; listType = "ul"; } }
+    function openList(type){
+      if(inList && listType !== type) closeList();
+      if(!inList){
+        listType = type;
+        html += `<${type} class="nx-answer-list ${currentSection}">`;
+        inList = true;
+      }
+    }
     function flushCode(){
       if(!inCode) return;
       html += `<pre class="nx-code-block"><code>${escapeHtml(codeLines.join("\n").trim())}</code></pre>`;
@@ -10152,13 +10167,13 @@ document.addEventListener("DOMContentLoaded",()=>{
       }
 
       if(/^[-*•]\s+/.test(line)){
-        if(!inList){ html += `<ul class="nx-answer-list ${currentSection}">`; inList = true; }
+        openList("ul");
         html += `<li>${inlineMarkdown(line.replace(/^[-*•]\s+/, ""), sources)}</li>`;
         continue;
       }
 
       if(/^\d+[.)]\s+/.test(line)){
-        if(!inList){ html += `<ul class="nx-answer-list ${currentSection}">`; inList = true; }
+        openList("ol");
         html += `<li>${inlineMarkdown(line.replace(/^\d+[.)]\s+/, ""), sources)}</li>`;
         continue;
       }
@@ -10222,6 +10237,12 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Use numbered steps only when order matters. Use bullets when scanning matters. Avoid bullet dumping.",
       "Remove filler. Prefer direct cause and effect over formal wording.",
       "Make the answer sound like clear thinking, not like someone trying to sound intelligent.",
+      "Choose the answer structure before writing it.",
+      "Structure rules: simple fact or normal chat = 1-3 short paragraphs with no forced heading.",
+      "Structure rules: explanation or study answer = Short answer, Key points, How it works or Why it matters, Bottom line.",
+      "Structure rules: ordered task or tutorial = Goal, numbered Steps, Check, Bottom line.",
+      "Structure rules: comparison or options = short lead, valid markdown table, Takeaway.",
+      "Structure rules: process, cycle, architecture, or cause/effect = short lead, compact fenced text diagram, key bullets, Bottom line.",
       writingMode ? "WRITING MODE: For emails, letters, applications, and messages, write a finished draft first. Make it smooth, human, polished, and ready to send. Include a subject line for email when useful. Do not over-explain unless asked." : "",
       searchMode ? "SEARCH MODE: Use Perplexity-style synthesis: answer first, cite evidence with [1] and [2], avoid guessing, and keep sources as evidence rather than raw link dumps." : "",
       chatMode ? "CHAT MODE: Behave like a thoughtful human assistant: warm, attentive, practical, emotionally aware, and concise unless depth is needed." : "",
@@ -10233,7 +10254,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Use clear headings only when useful.",
       "For science and math, explain the idea in clean human language before formulas.",
       "Do not output raw LaTeX delimiters like \\[...\\]. If a formula is needed, use readable plain text.",
-      "Use light emojis where they improve scanning, like 📌, ⚠️, ✅, 💡, or 🔎.",
+      "Do not use decorative emojis unless the user asks for them.",
       "Never dump links. Use sources only as evidence, with citation markers like [1] and [2].",
       "If current facts are needed, synthesize from search evidence and answer first.",
       "Decide the best format automatically: short for simple questions, detailed for complex questions, markdown tables for comparisons, chart-style text for trends, and compact text diagrams for processes.",

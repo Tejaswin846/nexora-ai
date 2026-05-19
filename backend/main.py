@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.22.0-reliability-fixes"
+APP_VERSION = "8.23.0-answer-structure"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1147,10 +1147,17 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "Presentation planner:",
         f"- Preferred format: {style}",
         "- Choose the clearest format automatically; do not mention this planner.",
-        "- Use short answers for simple direct questions, and longer answers only when explanation, reasoning, or instructions are needed.",
-        "- Use a table when comparing items across multiple features, pros/cons, options, prices, specs, or timelines.",
-        "- Use a chart-style text summary only for rankings, trends, quantities, or progress; keep it readable in plain text.",
+        "- Open with the answer itself. Do not open with meta phrases like 'Here is' or 'Based on your question'.",
+        "- Default serious-answer blueprint: one compact lead paragraph, then short sections only if they help.",
+        "- Use this section order for explainers: 'Short answer:', 'Key points:', 'Why it matters:' or 'How it works:', then 'Bottom line:'.",
+        "- Use this section order for how-to tasks: 'Goal:', 'Steps:', 'Check:', then 'Bottom line:'.",
+        "- Use this section order for research answers: 'Answer:', 'Key evidence:', 'Context:', then 'Bottom line:'.",
+        "- Keep simple direct questions to 1-3 short paragraphs with no headings unless a heading makes the answer easier to scan.",
+        "- Use a table only when comparing items across features, pros/cons, options, prices, specs, timelines, or tradeoffs.",
+        "- Use a chart-style text summary only for rankings, trends, quantities, or progress. Keep it readable in plain text.",
         "- Use a diagram or flow only for processes, cycles, systems, architecture, or cause-and-effect relationships.",
+        "- Put exactly one blank line between major sections. Avoid giant text blocks and avoid bullet dumping.",
+        "- Bullets should be parallel, compact, and meaningful. Numbered lists are for ordered steps only.",
         "- Do not force tables, charts, or diagrams into normal conversation.",
     ]
     if style == "table":
@@ -1170,14 +1177,14 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         ])
     elif style == "short":
         lines.extend([
-            "- Keep the answer to 1-3 short paragraphs or bullets.",
+            "- Keep the answer to 1-3 short paragraphs or up to 3 bullets.",
             "- Skip headings unless they add clarity.",
         ])
     elif style == "long":
         lines.extend([
             "- Use clear sections, but avoid filler.",
             "- Start with the conclusion, then explain reasoning and steps.",
-            "- Preferred section flow: short answer, key points, details, bottom line.",
+            "- Preferred section flow: 'Short answer:', 'Key points:', 'Details:', 'Bottom line:'.",
         ])
     elif style == "finished_draft":
         lines.extend([
@@ -1224,7 +1231,7 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
             "- Respond like a thoughtful collaborator, not a form template.",
             "- Prefer simple cause-and-effect wording over formal phrasing.",
             "- Use blank lines to separate thought changes; dense blocks feel less human.",
-            "- Keep normal chat natural and concise. Use headings only when they genuinely help.",
+            "- Keep normal chat natural and concise. Use headings only when the answer has more than one clear part.",
             "- Notice the user's intent and emotion; be steady, not dramatic.",
         ])
     elif lane == "learning":
@@ -1817,7 +1824,14 @@ Style:
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
 - Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
 - Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
-- Default structure for serious answers: a direct answer paragraph first, then only the useful sections. Prefer section names like "Key points:", "What it means:", "Details:", and "Bottom line:".
+- Default structure for serious answers: one direct lead paragraph first, then only the useful sections. Prefer section names like "Short answer:", "Key points:", "How it works:", "What it means:", "Details:", and "Bottom line:".
+- Use this answer blueprint:
+  - Simple fact or normal chat: 1-3 short paragraphs, no forced headings.
+  - Explanation or study answer: "Short answer:", then "Key points:", then "How it works:" or "Why it matters:", then "Bottom line:".
+  - Ordered task or tutorial: "Goal:", then "Steps:" as a numbered list, then "Check:", then "Bottom line:".
+  - Comparison or options: short lead, valid markdown table, then "Takeaway:".
+  - Process, cycle, architecture, or cause-and-effect: short lead, compact fenced text diagram, then key bullets, then "Bottom line:".
+  - Current/search answer: short answer first, then compact evidence with inline citations, then "Bottom line:".
 - Make structured answers visually balanced for the app renderer: one compact lead paragraph, short section labels, bullet groups with parallel wording, and a final takeaway when useful.
 - Do not use decorative headings, markdown-heavy titles, or heading-only lines ending in periods. A heading should be plain text ending with a colon.
 - Treat writing as rhythm and clarity, not just grammar. Use punctuation to control pacing: commas for small pauses, periods for completion and impact, and dashes only when they make emphasis more natural.
@@ -1871,12 +1885,12 @@ def build_messages(
     mode_instruction = (
         "Response mode: THINKING. Give a structured answer with a clear answer first, then useful sections. "
         "Use paragraph-led prose before bullets unless bullets are clearly better. "
-        "Use relevant emojis sparingly: ✅ for outcomes, ⚠️ for risks, 💡 for ideas, 🔎 for evidence, 🧭 for steps."
+        "Use clean headings, paragraph breaks, ordered steps when order matters, and compact bullets when scanning matters."
         if response_mode == "thinking"
         else
         "Response mode: INSTANT. Answer quickly in 1-4 concise paragraphs or bullets. "
         "Use the same natural sentence rhythm as a premium assistant: clear, calm, and conversational. "
-        "Use at most one helpful emoji if it improves clarity."
+        "Skip headings unless they genuinely improve clarity."
     )
     messages: List[Dict[str, str]] = [
         {
@@ -1981,19 +1995,35 @@ SECTION_HEADING_LABELS = {
     "short answer",
     "quick answer",
     "direct answer",
+    "main idea",
     "key point",
     "key points",
     "key detail",
     "key details",
     "key evidence",
+    "evidence",
     "important details",
     "what i found",
     "what it means",
     "why it matters",
+    "why",
+    "how",
+    "how it works",
+    "how to think about it",
     "impact",
     "details",
     "context",
+    "examples",
+    "example",
+    "goal",
+    "steps",
+    "check",
+    "comparison",
+    "pros",
+    "cons",
+    "recommendation",
     "summary",
+    "quick summary",
     "result",
     "bottom line",
     "takeaway",
@@ -2014,27 +2044,46 @@ def normalize_section_heading_text(line: str) -> Optional[str]:
         return None
     if key in {"answer", "direct answer"}:
         raw = "Quick answer"
+    if key == "main idea":
+        raw = "Main idea"
     if key == "key detail":
         raw = "Key details"
     if key == "key point":
         raw = "Key points"
+    if key == "evidence":
+        raw = "Key evidence"
+    if key == "why":
+        raw = "Why it matters"
+    if key == "how":
+        raw = "How it works"
+    if key == "example":
+        raw = "Examples"
+    if key == "quick summary":
+        raw = "Summary"
     return capitalize_first_letter(raw) + ":"
 
 
 def structure_answer_text(text: str) -> str:
     section_names = (
-        r"(Answer|Short answer|Quick answer|Direct answer|Key points?|Key details?|Key evidence|"
-        r"Important details|What I found|What it means|Why it matters|Impact|Details|Context|"
-        r"Summary|Result|Bottom line|Takeaway|Next steps?)"
+        r"Short answer|Quick answer|Direct answer|Answer|Main idea|Key points?|Key details?|"
+        r"Key evidence|Evidence|Important details|What I found|What it means|Why it matters|"
+        r"How it works|How to think about it|Impact|Details|Context|Examples?|Goal|Steps|"
+        r"Check|Comparison|Pros|Cons|Recommendation|Summary|Quick summary|Result|Bottom line|"
+        r"Takeaway|Next steps?"
     )
     text = re.sub(
-        rf"(?i)\s+\*\*{section_names}\*\*\.?\s*",
+        rf"(?i)(?<![A-Za-z])\s+\*\*({section_names})\*\*\.?\s*",
         lambda match: f"\n\n{match.group(1)}:\n",
         text,
     )
     text = re.sub(
-        rf"(?i)\s+{section_names}\.?\s*:\s*",
+        rf"(?i)(?<![A-Za-z])\s+({section_names})\.?\s*:\s*",
         lambda match: f"\n\n{match.group(1)}:\n",
+        text,
+    )
+    text = re.sub(
+        rf"(?im)^({section_names})\.?\s*:\s*(\S.*)$",
+        lambda match: f"{match.group(1)}:\n{match.group(2)}",
         text,
     )
     text = re.sub(r"(?<!\n)\s+-\s+", "\n- ", text)
@@ -2117,13 +2166,13 @@ def polish_plain_text_block(text: str) -> str:
             index += 1
             continue
 
-        bullet_match = re.match(r"^([-*•]\s+|\d+[.)]\s+)(.*)$", stripped)
+        bullet_match = re.match(r"^([-*\u2022]\s+|\d+[.)]\s+)(.*)$", stripped)
         if bullet_match:
             bullet_group = []
             while index < len(lines):
                 candidate = lines[index].rstrip()
                 candidate_stripped = candidate.strip()
-                match = re.match(r"^([-*•]\s+|\d+[.)]\s+)(.*)$", candidate_stripped)
+                match = re.match(r"^([-*\u2022]\s+|\d+[.)]\s+)(.*)$", candidate_stripped)
                 if not match:
                     break
                 candidate_indent = candidate[: len(candidate) - len(candidate.lstrip())]
@@ -2243,10 +2292,10 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
 
 def setup_error_message(error_text: str) -> str:
     return (
-        "⚠️ Nexora could not reach the free AI engine this time.\n\n"
+        "Nexora could not reach the free AI engine this time.\n\n"
         "Please retry once. The app is using a free no-key provider, so it can occasionally slow down or rate-limit. "
         "I kept the backend error hidden because it is not useful inside the chat.\n\n"
-        "✅ No payment is required. For a steadier free setup, you can also run local Ollama later."
+        "No payment is required. For a steadier free setup, you can also run local Ollama later."
     )
 
 
