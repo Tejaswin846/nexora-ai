@@ -9503,6 +9503,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function cleanExistingAiMessages(){
     document.querySelectorAll(".ai-message").forEach(msg => {
+      if(msg.classList.contains("nx-image-message") || msg.dataset.nxImageMessage === "true" || msg.querySelector(".nx-image-result")) return;
       if(msg.dataset.nxFinalFormatted === "true") return;
 
       const text = msg.innerText.trim();
@@ -10415,6 +10416,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function reformatOldMessages(){
     document.querySelectorAll(".ai-message").forEach(msg => {
+      if(msg.classList.contains("nx-image-message") || msg.dataset.nxImageMessage === "true" || msg.querySelector(".nx-image-result")) return;
       if(msg.dataset.nxV2Formatted === "true") return;
       const text = msg.innerText.trim();
       if(!text) return;
@@ -10984,12 +10986,55 @@ document.addEventListener("DOMContentLoaded",()=>{
     overflow:hidden;
   }
 
+  .nx-image-result-media{
+    position:relative;
+    min-height:320px;
+    background:#111;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .nx-image-loading{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#a1a1aa;
+    font-size:14px;
+    background:linear-gradient(110deg,#141414,#202125,#141414);
+  }
+
   .nx-image-result img{
     display:block;
     width:100%;
+    min-height:260px;
     max-height:560px;
     object-fit:contain;
     background:#111;
+    position:relative;
+    z-index:1;
+  }
+
+  .nx-image-result.image-loaded .nx-image-loading{
+    display:none;
+  }
+
+  .nx-image-result.image-error img{
+    display:none;
+  }
+
+  .nx-image-error{
+    display:none;
+    padding:28px;
+    color:#f4f4f5;
+    text-align:center;
+    line-height:1.5;
+  }
+
+  .nx-image-result.image-error .nx-image-error{
+    display:block;
   }
 
   .nx-image-result-info{
@@ -11471,7 +11516,26 @@ document.addEventListener("DOMContentLoaded",()=>{
     const sizeLine = data.size ? '<div class="nx-tool-card-meta">Size: ' + escapeHtml(data.size) + '</div>' : "";
     const msg = document.createElement("div");
     msg.className = "message ai-message nx-image-message";
-    msg.innerHTML = '<div class="nx-image-result"><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '"><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div>' + sizeLine + '<div class="nx-image-result-prompt">Prompt used: ' + escapeHtml(promptUsed) + '</div>' + original + '<div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit prompt</button></div></div></div>';
+    msg.dataset.nxImageMessage = "true";
+    msg.dataset.nxV2Formatted = "true";
+    msg.dataset.nxFinalFormatted = "true";
+    msg.innerHTML = '<div class="nx-image-result"><div class="nx-image-result-media"><div class="nx-image-loading">Creating image preview...</div><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '" loading="eager" referrerpolicy="no-referrer"><div class="nx-image-error">The image was created, but the preview could not load here. Use Open image to view it.</div></div><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div>' + sizeLine + '<div class="nx-image-result-prompt">Prompt used: ' + escapeHtml(promptUsed) + '</div>' + original + '<div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit prompt</button></div></div></div>';
+    const result = msg.querySelector(".nx-image-result");
+    const preview = msg.querySelector("img");
+    if(preview){
+      preview.onload = () => {
+        if(result){
+          result.classList.add("image-loaded");
+          result.classList.remove("image-error");
+        }
+      };
+      preview.onerror = () => {
+        if(result){
+          result.classList.remove("image-loaded");
+          result.classList.add("image-error");
+        }
+      };
+    }
     const editBtn = msg.querySelector(".nx-edit-image-prompt");
     if(editBtn) editBtn.onclick = () => openImageCreator(editBtn.dataset.prompt || "");
     box.appendChild(msg);
