@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.16.0-standalone-code-page"
+APP_VERSION = "8.17.0-empty-reply-search-fallback"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1443,7 +1443,7 @@ def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = 
     with POLLINATIONS_LOCK:
         for attempt in range(2):
             try:
-                return call_openai_compatible_chat(
+                reply = call_openai_compatible_chat(
                     "pollinations",
                     POLLINATIONS_URL,
                     None,
@@ -1451,13 +1451,19 @@ def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = 
                     messages,
                     response_mode,
                 )
+                if clean_text(reply):
+                    return reply
+                errors.append("pollinations chat returned an empty reply")
             except Exception as error:
                 errors.append(str(error))
-                if attempt == 0:
-                    time.sleep(0.5)
+            if attempt == 0:
+                time.sleep(0.5)
 
         try:
-            return call_pollinations_simple(messages, response_mode)
+            reply = call_pollinations_simple(messages, response_mode)
+            if clean_text(reply):
+                return reply
+            errors.append("pollinations text endpoint returned an empty reply")
         except Exception as error:
             errors.append(str(error))
 
@@ -1518,7 +1524,10 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
     for provider in providers:
         try:
             if provider == "pollinations":
-                return call_pollinations_chat(messages, response_mode), f"pollinations:{POLLINATIONS_MODEL}:{response_mode}"
+                reply = call_pollinations_chat(messages, response_mode)
+                if not clean_text(reply):
+                    raise RuntimeError("empty response")
+                return reply, f"pollinations:{POLLINATIONS_MODEL}:{response_mode}"
             if provider == "groq":
                 reply = call_openai_compatible_chat(
                     "groq",
@@ -1528,9 +1537,14 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
                     messages,
                     response_mode,
                 )
+                if not clean_text(reply):
+                    raise RuntimeError("empty response")
                 return reply, f"groq:{GROQ_MODEL}:{response_mode}"
             if provider == "gemini":
-                return call_gemini_chat(messages, response_mode), f"gemini:{GEMINI_MODEL}:{response_mode}"
+                reply = call_gemini_chat(messages, response_mode)
+                if not clean_text(reply):
+                    raise RuntimeError("empty response")
+                return reply, f"gemini:{GEMINI_MODEL}:{response_mode}"
             if provider == "openrouter":
                 reply = call_openai_compatible_chat(
                     "openrouter",
@@ -1540,6 +1554,8 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
                     messages,
                     response_mode,
                 )
+                if not clean_text(reply):
+                    raise RuntimeError("empty response")
                 return reply, f"openrouter:{OPENROUTER_MODEL}:{response_mode}"
             if provider == "huggingface":
                 reply = call_openai_compatible_chat(
@@ -1550,6 +1566,8 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
                     messages,
                     response_mode,
                 )
+                if not clean_text(reply):
+                    raise RuntimeError("empty response")
                 return reply, f"huggingface:{HF_MODEL}:{response_mode}"
         except Exception as error:
             provider_errors.append(f"{provider}: {error}")
@@ -1683,7 +1701,9 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
         "latest", "today", "current", "recent", "news", "live", "now", "2026", "2025",
         "stock", "share", "market", "price", "ceo", "president", "prime minister",
         "winner", "score", "weather", "schedule", "election", "filing", "contract",
-        "order", "announcement", "released", "updated",
+        "order", "announcement", "released", "updated", "crude oil", "oil crisis",
+        "petrol", "diesel", "fuel price", "energy crisis", "inflation", "rupee",
+        "import bill", "sanctions", "war", "conflict",
     ]
     return any(keyword in text for keyword in keywords)
 
@@ -1847,6 +1867,16 @@ def clean_reply(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     return polish_grammar_and_punctuation(text).strip()
+
+
+def is_bad_generated_reply(text: str) -> bool:
+    stripped = clean_text(text).lower()
+    return not stripped or stripped in {
+        "nexora could not generate a proper answer.",
+        "nexora could not generate a proper answer",
+        "no reply came from backend.",
+        "no reply came from backend",
+    }
 
 
 def strip_model_source_dump(text: str) -> str:
@@ -2418,11 +2448,23 @@ def chat(req: ChatRequest) -> ChatResponse:
                 model_used = "offline"
                 reply = setup_error_message(str(error))
 
+    if is_bad_generated_reply(reply) and verified_sources:
+        model_used = "realtime_search_fallback"
+        reply = search_evidence_fallback_reply(original_user_message, verified_sources)
+        tools_used.append("empty_reply_search_fallback")
+
     final_reply = clean_reply(reply)
+    if is_bad_generated_reply(final_reply) and not model_failed:
+        model_failed = True
+        model_used = model_used or "empty_reply"
+        final_reply = (
+            "I could not get a valid answer from the text model for that request. "
+            "Please retry once, or ask with realtime search enabled."
+        )
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message)
-    if not model_failed:
+    if not model_failed and not is_bad_generated_reply(final_reply):
         set_cached_response(response_cache_key, final_reply, model_used, verified_sources)
     return ChatResponse(
         reply=final_reply,

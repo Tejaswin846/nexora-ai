@@ -10068,7 +10068,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(/^(hi|hello|hey|yo|hii|hlo|ok|okay|thanks|thank you)$/i.test(q)) return q;
     const lower = q.toLowerCase();
     const writingMode = /\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|apology|invitation|complaint|request|proposal|draft)\b/.test(lower);
-    const searchMode = /\b(latest|current|today|news|search|searcch|look up|find online|real[- ]?time|realtime|price|weather|score|president|market)\b/.test(lower);
+    const searchMode = /\b(latest|current|today|news|search|searcch|look up|find online|real[- ]?time|realtime|price|weather|score|president|market|crude oil|oil crisis|petrol|diesel|fuel price|energy crisis|inflation|rupee|import bill|sanctions|war|conflict)\b/.test(lower);
     const chatMode = !writingMode && !searchMode;
     return [
       "Answer the user's real question, not the prompt instructions.",
