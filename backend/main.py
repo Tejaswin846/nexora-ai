@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.24.0-free-ai-setup"
+APP_VERSION = "8.25.0-free-club-mode"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -92,6 +92,11 @@ SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "12"))
 MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "850"))
 INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "30"))
 THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "45"))
+FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
+FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
+FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "2600"))
+FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
+FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "24"))
 MAX_HISTORY_MESSAGES = 5
 MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
@@ -1161,6 +1166,7 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "- Use this section order for research answers: 'Answer:', 'Key evidence:', 'Context:', then 'Bottom line:'.",
         "- Keep simple direct questions to 1-3 short paragraphs with no headings unless a heading makes the answer easier to scan.",
         "- Use a table only when comparing items across features, pros/cons, options, prices, specs, timelines, or tradeoffs.",
+        "- Do not add current prices, dates, percentages, exact counts, or technical numbers unless the user asks for them or evidence/context supports them.",
         "- Use a chart-style text summary only for rankings, trends, quantities, or progress. Keep it readable in plain text.",
         "- Use a diagram or flow only for processes, cycles, systems, architecture, or cause-and-effect relationships.",
         "- Put exactly one blank line between major sections. Avoid giant text blocks and avoid bullet dumping.",
@@ -1459,7 +1465,13 @@ def free_provider_status() -> Dict[str, Any]:
         "configured": configured_free_providers(),
         "priority": configured_free_providers(),
         "no_key_default": "pollinations",
-        "message": "Add a free-tier key for Groq, Gemini, OpenRouter, or Hugging Face to use it before the no-key Pollinations fallback.",
+        "club_mode": FREE_CLUB_MODE,
+        "club_layers": [
+            "pollinations_base",
+            "duckduckgo_realtime_context",
+            "pollinations_review_for_complex_answers",
+        ],
+        "message": "Pollinations stays as the no-key base. Club mode adds realtime context and a review pass for harder answers.",
         "available": {
             "pollinations": True,
             "groq": bool(GROQ_API_KEY),
@@ -1935,6 +1947,7 @@ def build_research_context(sources: List[SourceItem], question: str, confidence:
         "Verified research context:",
         "Use only the evidence below for current, latest, news, finance, company, schedule, score, or market claims.",
         "If the evidence is missing or weak, say that you do not have verified evidence instead of guessing.",
+        "If a source says there is no shortage or no immediate crisis, do not rewrite that as a shortage claim.",
         f"Question: {question}",
         f"Research confidence: {confidence}",
         f"Research rounds: {rounds}",
@@ -1947,6 +1960,177 @@ def build_research_context(sources: List[SourceItem], question: str, confidence:
             f"Evidence: {source.snippet}"
         )
     return "\n\n".join(lines)
+
+
+def free_club_mode_enabled() -> bool:
+    return FREE_CLUB_MODE not in {"off", "false", "0", "disabled", "none"}
+
+
+def should_use_free_club(
+    message: str,
+    use_research: bool,
+    response_mode: str,
+    response_lane: str,
+    presentation_style: str,
+) -> bool:
+    if not free_club_mode_enabled():
+        return False
+    if FREE_CLUB_MODE in {"on", "true", "1", "always"}:
+        return True
+
+    text = clean_text(message).lower()
+    if use_research or response_mode == "thinking":
+        return True
+    if response_lane in {"writing", "learning"} and len(text) >= 18:
+        return True
+    if presentation_style in {
+        "table",
+        "chart",
+        "diagram",
+        "long",
+        "teaching_structure",
+        "implementation_summary",
+        "answer_with_evidence",
+        "finished_draft",
+    }:
+        return True
+    if len(text) >= FREE_CLUB_MIN_QUERY_CHARS and re.search(
+        r"\b(explain|compare|why|how|cause|effect|history|science|analyze|steps?|table|diagram|current|latest|research)\b",
+        text,
+    ):
+        return True
+    return False
+
+
+def should_add_free_club_search(
+    message: str,
+    use_research: bool,
+    response_lane: str,
+    presentation_style: str,
+) -> bool:
+    if use_research:
+        return False
+    text = clean_text(message).lower()
+    if presentation_style in {"table", "chart", "diagram", "long", "teaching_structure", "answer_with_evidence"}:
+        return True
+    if response_lane == "learning" and re.search(
+        r"\b(history|science|geography|economy|politics|war|crisis|cause|effect|compare|difference|explain)\b",
+        text,
+    ):
+        return True
+    if len(text) >= FREE_CLUB_MIN_QUERY_CHARS and re.search(
+        r"\b(what|who|when|where|which|why|how|explain|compare|cause|effect)\b",
+        text,
+    ):
+        return True
+    return False
+
+
+def build_free_club_search_context(question: str) -> Tuple[str, List[SourceItem], str]:
+    try:
+        raw_sources = duckduckgo_search(question, max_results=min(3, MAX_SEARCH_RESULTS))
+        sources = convert_sources(raw_sources)
+    except Exception as error:
+        return "", [], f"search_unavailable:{type(error).__name__}"
+
+    if not sources:
+        return "", [], "search_empty"
+
+    lines = [
+        "Free club realtime context:",
+        "Use this as supporting context. Do not force citations unless these sources materially improve the answer.",
+        "For historical or general questions, combine this context with stable knowledge. For current claims, cite evidence or state uncertainty.",
+        f"Question: {question}",
+    ]
+    for source in sources:
+        lines.append(
+            f"[{source.id}] Title: {source.title}\n"
+            f"URL: {source.url}\n"
+            f"Domain: {source.domain}\n"
+            f"Evidence: {source.snippet}"
+        )
+    context = "\n\n".join(lines)
+    return context[:FREE_CLUB_CONTEXT_MAX_CHARS], sources, "duckduckgo_context"
+
+
+def should_review_free_club_reply(
+    raw_reply: str,
+    cleaned_preview: str,
+    use_research: bool,
+    response_mode: str,
+    response_lane: str,
+    presentation_style: str,
+) -> bool:
+    if use_research or response_lane == "writing":
+        return True
+    if re.search(r"(?is)^\s*\*\*[^*\n]{1,100}\.\s*\n-\s*[^*\n]{1,100}\*\*", cleaned_preview or ""):
+        return True
+    if re.search(r"(?m)^-\s+\*\*[^*]{2,70}\*\*\.?\s*$", cleaned_preview or ""):
+        return True
+    if re.search(r"\u00e2|\u00c2", f"{raw_reply or ''}\n{cleaned_preview or ''}"):
+        return True
+    if presentation_style in {"table", "chart"} and re.search(
+        r"(?i)(?:\$|~\s*\$|\b\d+(?:\.\d+)?\s*(?:%|ha|mw|kwh|months?|days?|years?|barrels?|litres?|liters?)\b)",
+        cleaned_preview or raw_reply or "",
+    ):
+        return True
+    if response_mode == "thinking" and presentation_style in {
+        "long",
+        "diagram",
+        "teaching_structure",
+        "answer_with_evidence",
+        "finished_draft",
+    }:
+        return True
+    return False
+
+
+def free_club_review_reply(
+    question: str,
+    draft: str,
+    support_context: str,
+    response_lane: str,
+    presentation_style: str,
+) -> Optional[str]:
+    clean_draft = clean_text(draft)
+    if not clean_draft or is_bad_generated_reply(clean_draft):
+        return None
+
+    review_prompt = (
+        "You are Nexora's free club reviewer. Improve the draft into the final answer.\n"
+        "Keep the meaning, but make it clearer, cleaner, and more human.\n"
+        "Use ChatGPT-like structure: answer first, then compact sections only when useful.\n"
+        "Use smooth writing for emails, letters, and normal chat.\n"
+        "Use tables, charts, or text diagrams only when the user's question benefits from them.\n"
+        "Do not add unsupported facts. If evidence is weak, say so plainly.\n"
+        "Remove unsourced current dates, prices, percentages, exact counts, and technical numbers unless the supporting context provides them.\n"
+        "Do not use decorative titles, bold-wrapper headings, or heading-only lines before the actual answer.\n"
+        "Do not split a bullet label and its explanation into two bullets; combine them as 'Label: explanation.'\n"
+        "Keep punctuation polished and paragraphs short. Return only the final answer."
+    )
+    user_prompt = (
+        f"Question:\n{question[:1200]}\n\n"
+        f"Response lane: {response_lane}\n"
+        f"Presentation style: {presentation_style}\n\n"
+        f"Supporting context:\n{(support_context or 'No extra context.').strip()[:FREE_CLUB_CONTEXT_MAX_CHARS]}\n\n"
+        f"Draft answer:\n{draft[:FREE_CLUB_REVIEW_MAX_CHARS]}\n\n"
+        "Final improved answer:"
+    )
+    try:
+        reviewed = call_pollinations_chat(
+            [
+                {"role": "system", "content": review_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "instant",
+        )
+    except Exception:
+        return None
+
+    reviewed = clean_reply(reviewed)
+    if is_bad_generated_reply(reviewed):
+        return None
+    return reviewed
 
 
 SYSTEM_PROMPT = """
@@ -2203,6 +2387,36 @@ def normalize_section_heading_text(line: str) -> Optional[str]:
     return capitalize_first_letter(raw) + ":"
 
 
+def merge_label_only_bullets(text: str) -> str:
+    lines = text.splitlines()
+    output = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        current_match = re.match(
+            r"^(\s*)[-*]\s+(?:\*\*)?([^*:\n]{2,70})(?:\*\*)?\.?(?:\s*(\[\d+\]))?\s*$",
+            line,
+        )
+        next_match = re.match(r"^\s*[-*]\s+(.+)$", lines[index + 1].strip()) if index + 1 < len(lines) else None
+        if current_match and next_match:
+            label = clean_text(current_match.group(2)).strip(" .")
+            word_count = len(label.split())
+            is_probable_label = "**" in stripped or word_count <= 5
+            if is_probable_label:
+                citation = current_match.group(3) or ""
+                detail = next_match.group(1).strip()
+                detail = re.sub(r"^\*\*(.*?)\*\*\.?\s*", r"\1 ", detail).strip()
+                if citation and not re.search(r"\[\d+\]", detail):
+                    detail = f"{detail} {citation}"
+                output.append(f"{current_match.group(1)}- {label}: {detail}")
+                index += 2
+                continue
+        output.append(line)
+        index += 1
+    return "\n".join(output)
+
+
 def structure_answer_text(text: str) -> str:
     section_names = (
         r"Short answer|Quick answer|Direct answer|Answer|Main idea|Key points?|Key details?|"
@@ -2210,6 +2424,16 @@ def structure_answer_text(text: str) -> str:
         r"How it works|How to think about it|Impact|Details|Context|Examples?|Goal|Steps|"
         r"Check|Comparison|Pros|Cons|Recommendation|Summary|Quick summary|Result|Bottom line|"
         r"Takeaway|Next steps?"
+    )
+    text = re.sub(
+        r"(?is)^\s*\*\*([^*\n]{1,100})\.\s*\n-\s*([^*\n]{1,100})\*\*\.?\s*",
+        lambda match: f"{match.group(1).strip()} - {match.group(2).strip()}:\n\n",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^\*\*([^*\n]{1,100})\*\*\.?\s*$",
+        lambda match: f"{match.group(1).strip().rstrip('.')}:",
+        text,
     )
     text = re.sub(
         rf"(?i)(?<![A-Za-z])\s+\*\*({section_names})\*\*\.?\s*",
@@ -2226,9 +2450,10 @@ def structure_answer_text(text: str) -> str:
         lambda match: f"{match.group(1)}:\n{match.group(2)}",
         text,
     )
-    text = re.sub(r"(?<!\n)\s+-\s+", "\n- ", text)
+    text = re.sub(r"(?m):\s+-\s+", ":\n- ", text)
     text = re.sub(r"\bWestBengal\b", "West Bengal", text)
     text = re.sub(r"\b(\d+)(seat|seats|member|members|year|years)\b", r"\1 \2", text, flags=re.IGNORECASE)
+    text = merge_label_only_bullets(text)
     normalized_lines = []
     for line in text.splitlines():
         heading = normalize_section_heading_text(line)
@@ -2251,8 +2476,8 @@ def repair_answer_encoding(text: str) -> str:
         "\u00e2\u0080\u0090": "-",
         "\u00e2\u0080\u0091": "-",
         "\u00e2\u0080\u0092": "-",
-        "\u00e2\u0080\u0093": "-",
-        "\u00e2\u0080\u0094": "-",
+        "\u00e2\u0080\u0093": " - ",
+        "\u00e2\u0080\u0094": " - ",
         "\u00e2\u0080\u0098": "'",
         "\u00e2\u0080\u0099": "'",
         "\u00e2\u0080\u009c": '"',
@@ -2262,11 +2487,14 @@ def repair_answer_encoding(text: str) -> str:
         "\u00e2\u0080\u00af": " ",
         "\u00c2\u00a0": " ",
         "\u00c2": "",
+        "\u00e2\u0082\u00b9": "Rs ",
+        "\u00e2\u201a\u00b9": "Rs ",
+        "\u20b9": "Rs ",
         "\u2010": "-",
         "\u2011": "-",
         "\u2012": "-",
-        "\u2013": "-",
-        "\u2014": "-",
+        "\u2013": " - ",
+        "\u2014": " - ",
         "\u2018": "'",
         "\u2019": "'",
         "\u201c": '"',
@@ -2385,6 +2613,10 @@ def polish_inline_punctuation(text: str, capitalize: bool) -> str:
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
     text = re.sub(r"([,;:!?])([A-Za-z0-9])", r"\1 \2", text)
     text = re.sub(r"(?<=[a-z0-9])\.([A-Z])", r". \1", text)
+    text = re.sub(r"\bmulti-faced\b", "multifaceted", text, flags=re.IGNORECASE)
+    text = re.sub(r"(\d)\s+%", r"\1%", text)
+    text = re.sub(r"\bRs\s+(\d+)-per-", r"Rs \1 per ", text)
+    text = re.sub(r"\bRs\s+(\d)", r"Rs \1", text)
     text = re.sub(r"([!?]){2,}", r"\1", text)
     text = re.sub(r"\.{3,}", "...", text)
     text = re.sub(r"\s{2,}", " ", text)
@@ -2729,7 +2961,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         session_id,
         original_user_message,
         req.mode,
-        f"{req.model or 'auto'}:{response_mode}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}",
+        f"{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}",
     )
     cached = get_cached_response(response_cache_key)
     if cached:
@@ -2784,7 +3016,6 @@ def chat(req: ChatRequest) -> ChatResponse:
                 created_at=now_iso(),
             )
 
-    research_context = build_research_context(verified_sources, original_user_message, confidence, rounds) if verified_sources else ""
     file_context = build_file_context(session_id)
     if file_context:
         tools_used.append("file_context")
@@ -2801,10 +3032,30 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"response_lane:{response_lane}")
     tools_used.append(f"presentation:{presentation_style}")
 
+    research_context = build_research_context(verified_sources, original_user_message, confidence, rounds) if verified_sources else ""
+    free_club_context = ""
+    free_club_sources: List[SourceItem] = []
+    use_free_club = should_use_free_club(
+        original_user_message,
+        use_research,
+        response_mode,
+        response_lane,
+        presentation_style,
+    )
+    if use_free_club:
+        tools_used.append(f"free_club:{FREE_CLUB_MODE}")
+        if should_add_free_club_search(original_user_message, use_research, response_lane, presentation_style):
+            free_club_context, free_club_sources, club_status = build_free_club_search_context(original_user_message)
+            tools_used.append(f"free_club:{club_status}")
+
+    combined_research_context = "\n\n".join(
+        part for part in [research_context, free_club_context] if part
+    )
+
     messages = build_messages(
         user_message=user_message,
         history=history,
-        research_context=research_context,
+        research_context=combined_research_context,
         file_context=file_context,
         memory_context=memory_context,
         persona_context=persona_context,
@@ -2818,6 +3069,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     model_used = ""
     model_failed = False
     free_providers = configured_free_providers()
+    generation_started = time.time()
     try:
         if free_providers:
             reply, model_used = free_api_chat(messages, req.model, response_mode)
@@ -2857,9 +3109,38 @@ def chat(req: ChatRequest) -> ChatResponse:
         reply = search_evidence_fallback_reply(original_user_message, verified_sources)
         tools_used.append("empty_reply_search_fallback")
 
+    generation_seconds = time.time() - generation_started
+    cleaned_preview = clean_reply(reply) if not is_bad_generated_reply(reply) else ""
+    if (
+        use_free_club
+        and not model_failed
+        and model_used != "realtime_search_fallback"
+        and not is_bad_generated_reply(reply)
+        and generation_seconds <= FREE_CLUB_REVIEW_BUDGET_SECONDS
+        and should_review_free_club_reply(
+            reply,
+            cleaned_preview,
+            use_research,
+            response_mode,
+            response_lane,
+            presentation_style,
+        )
+    ):
+        reviewed_reply = free_club_review_reply(
+            original_user_message,
+            reply,
+            combined_research_context,
+            response_lane,
+            presentation_style,
+        )
+        if reviewed_reply:
+            reply = reviewed_reply
+            tools_used.append("free_club:review")
+
     final_reply = clean_reply(reply)
     if verified_sources:
         final_reply = ensure_inline_citations(final_reply, verified_sources)
+    response_sources = verified_sources if verified_sources else free_club_sources
     if is_bad_generated_reply(final_reply) and not model_failed:
         model_failed = True
         model_used = model_used or "empty_reply"
@@ -2871,13 +3152,13 @@ def chat(req: ChatRequest) -> ChatResponse:
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message)
     if not model_failed and not is_bad_generated_reply(final_reply):
-        set_cached_response(response_cache_key, final_reply, model_used, verified_sources)
+        set_cached_response(response_cache_key, final_reply, model_used, response_sources)
     return ChatResponse(
         reply=final_reply,
         session_id=session_id,
         mode=req.mode or "agent",
         model_used=model_used,
-        sources=[] if model_failed else verified_sources,
+        sources=[] if model_failed else response_sources,
         tools_used=tools_used,
         created_at=now_iso(),
     )
