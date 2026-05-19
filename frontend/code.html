@@ -499,7 +499,7 @@
     <canvas id="nexoraCodeScene" aria-hidden="true"></canvas>
 
     <nav class="nav" aria-label="Nexora Code navigation">
-      <a class="brand" href="#" onclick="goHome(); return false;" aria-label="Back to Nexora">
+      <a class="brand" href="#overview" aria-label="Nexora Code home">
         <span class="brand-icon" aria-hidden="true">
           <svg viewBox="0 0 64 64">
             <defs>
@@ -527,8 +527,8 @@
       </div>
 
       <div class="nav-actions">
-        <a class="pill" href="#" onclick="goHome(); return false;">Back to Nexora</a>
-        <a class="pill primary" href="#" onclick="openWorkspace(); return false;">Open workspace</a>
+        <a class="pill" href="#workflow">View workflow</a>
+        <a class="pill primary" href="#download" onclick="showDownloadNote(); return false;">Download for Windows</a>
       </div>
     </nav>
 
@@ -559,7 +559,7 @@
         <h1>Nexora Code</h1>
         <p class="subtitle">Your AI assistant for building, debugging, and shipping work.</p>
         <div class="hero-actions">
-          <a class="pill primary" href="#" onclick="openWorkspace(); return false;">Open Code Workspace</a>
+          <a class="pill primary" href="#download" onclick="showDownloadNote(); return false;">Download for Windows</a>
           <a class="pill" href="#features">Explore features</a>
         </div>
       </div>
@@ -629,26 +629,29 @@
     </section>
 
     <section class="final-cta" id="download">
-      <h2>Open your code workspace.</h2>
-      <p>Launch Nexora in code mode and keep building from there.</p>
-      <a class="pill primary" href="#" onclick="openWorkspace(); return false;">Open Code Workspace</a>
+      <h2>Get the standalone code page.</h2>
+      <p>The desktop package is not bundled yet. This page is already running as its own local website.</p>
+      <a class="pill primary" href="#download" onclick="showDownloadNote(); return false;">Download for Windows</a>
     </section>
   </main>
 
   <script>
-    function appUrl(){
-      if(location.protocol === "file:") return "index.html";
-      if(location.hostname === "127.0.0.1" || location.hostname === "localhost") return "/app";
-      return "index.html";
-    }
-
-    function goHome(){
-      window.location.href = appUrl();
-    }
-
-    function openWorkspace(){
-      try{ localStorage.setItem("nexora_launch_code_workspace", "1"); }catch(error){}
-      window.location.href = appUrl();
+    function showDownloadNote(){
+      let note = document.getElementById("downloadNote");
+      if(!note){
+        note = document.createElement("div");
+        note.id = "downloadNote";
+        note.style.cssText = "position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);z-index:20;background:#050508;color:#fff;border-radius:999px;padding:11px 16px;font-size:14px;font-weight:650;box-shadow:0 18px 50px rgba(0,0,0,.28);opacity:0;transition:.18s ease;pointer-events:none;";
+        document.body.appendChild(note);
+      }
+      note.textContent = "Windows package is not bundled yet. This standalone page is live at /code.";
+      note.style.opacity = "1";
+      note.style.transform = "translateX(-50%) translateY(0)";
+      clearTimeout(note._timer);
+      note._timer = setTimeout(() => {
+        note.style.opacity = "0";
+        note.style.transform = "translateX(-50%) translateY(8px)";
+      }, 2400);
     }
 
     const canvas = document.getElementById("nexoraCodeScene");
