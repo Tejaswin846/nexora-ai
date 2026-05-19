@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.26.0-image-boost"
+APP_VERSION = "8.27.0-user-workflows"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -44,6 +44,8 @@ PERSONA_FILE = DATA_DIR / "persona.json"
 BEHAVIOR_FILE = DATA_DIR / "behavior.json"
 PROJECTS_FILE = DATA_DIR / "projects.json"
 ARTIFACTS_FILE = DATA_DIR / "artifacts.json"
+USERS_FILE = DATA_DIR / "users.json"
+IMAGE_MEMORY_FILE = DATA_DIR / "image_memory.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
 CODE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "code.html"
 
@@ -102,6 +104,7 @@ MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
 MAX_MEMORY_ITEMS = 80
+MAX_IMAGE_MEMORY_ITEMS = 160
 MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = 180
@@ -152,6 +155,7 @@ class SourceItem(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     original_message: Optional[str] = None
+    user_id: Optional[str] = None
     session_id: Optional[str] = None
     mode: Optional[str] = "agent"
     model: Optional[str] = None
@@ -181,6 +185,7 @@ class UploadResponse(BaseModel):
 
 class FeedbackRequest(BaseModel):
     rating: str = Field("good", max_length=30)
+    user_id: Optional[str] = None
     session_id: Optional[str] = None
     question: Optional[str] = None
     answer: Optional[str] = None
@@ -189,6 +194,7 @@ class FeedbackRequest(BaseModel):
 
 class ProjectRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
+    user_id: Optional[str] = None
     session_id: Optional[str] = None
 
 
@@ -198,11 +204,13 @@ class ArtifactRequest(BaseModel):
     content: str = ""
     url: str = ""
     prompt: str = ""
+    user_id: Optional[str] = None
     session_id: Optional[str] = None
 
 
 class ImageRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=900)
+    user_id: Optional[str] = None
     size: Optional[str] = "1024x1024"
     style: Optional[str] = ""
     negative_prompt: Optional[str] = ""
@@ -228,6 +236,9 @@ class ImageResponse(BaseModel):
     size: str = "1024x1024"
     width: int = 1024
     height: int = 1024
+    cached: bool = False
+    user_id: str = "default"
+    workflow: Dict[str, Any] = {}
     created_at: str
 
 
@@ -250,6 +261,45 @@ def cache_key(session_id: str, message: str, mode: Optional[str], model: Optiona
         (mode or "agent").lower(),
         (model or "auto").lower(),
     ])
+
+
+def normalize_user_id(user_id: Optional[str]) -> str:
+    raw = clean_text(user_id or "")
+    if re.fullmatch(r"[a-zA-Z0-9_\-]{4,80}", raw):
+        return raw
+    return "default"
+
+
+def load_users() -> Dict[str, Any]:
+    raw = safe_read_json(USERS_FILE, {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def save_users(users: Dict[str, Any]) -> None:
+    safe_write_json(USERS_FILE, users)
+
+
+def register_user(user_id: Optional[str], session_id: Optional[str] = None) -> str:
+    normalized = normalize_user_id(user_id)
+    users = load_users()
+    user = users.get(normalized)
+    now = now_iso()
+    if not isinstance(user, dict):
+        user = {
+            "id": normalized,
+            "created_at": now,
+            "sessions": [],
+            "preferences": {},
+        }
+    user["updated_at"] = now
+    if session_id:
+        sessions = user.setdefault("sessions", [])
+        if session_id not in sessions:
+            sessions.append(session_id)
+        user["sessions"] = sessions[-60:]
+    users[normalized] = user
+    save_users(users)
+    return normalized
 
 
 def get_cached_response(key: str) -> Optional[Dict[str, Any]]:
@@ -555,6 +605,14 @@ def update_session(session_id: str, session: Dict[str, Any]) -> None:
     save_sessions(sessions)
 
 
+def bind_session_user(session_id: str, user_id: str) -> None:
+    session = get_session(session_id)
+    if session.get("user_id") == user_id:
+        return
+    session["user_id"] = user_id
+    update_session(session_id, session)
+
+
 def append_session_message(session_id: str, role: str, content: str) -> None:
     session = get_session(session_id)
     session.setdefault("messages", []).append(
@@ -565,7 +623,8 @@ def append_session_message(session_id: str, role: str, content: str) -> None:
 
 
 def load_memory() -> List[Dict[str, Any]]:
-    return safe_read_json(MEMORY_FILE, [])
+    raw = safe_read_json(MEMORY_FILE, [])
+    return raw if isinstance(raw, list) else []
 
 
 def save_memory(items: List[Dict[str, Any]]) -> None:
@@ -591,6 +650,7 @@ def load_projects() -> List[Dict[str, Any]]:
             item.setdefault("created_at", now_iso())
             item.setdefault("updated_at", item.get("created_at"))
             item.setdefault("sessions", [])
+            item.setdefault("user_id", "default")
             projects.append(item)
         elif isinstance(item, str) and item.strip():
             projects.append({
@@ -607,13 +667,14 @@ def save_projects(projects: List[Dict[str, Any]]) -> None:
     safe_write_json(PROJECTS_FILE, projects[:100])
 
 
-def upsert_project(name: str, session_id: Optional[str] = None) -> Dict[str, Any]:
+def upsert_project(name: str, session_id: Optional[str] = None, user_id: str = "default") -> Dict[str, Any]:
     clean_name = normalize_project_name(name)
     projects = load_projects()
     now = now_iso()
     for project in projects:
         if clean_text(str(project.get("name", ""))).lower() == clean_name.lower():
             project["updated_at"] = now
+            project["user_id"] = normalize_user_id(user_id)
             if session_id:
                 sessions = project.setdefault("sessions", [])
                 if session_id not in sessions:
@@ -626,6 +687,7 @@ def upsert_project(name: str, session_id: Optional[str] = None) -> Dict[str, Any
         "created_at": now,
         "updated_at": now,
         "sessions": [session_id] if session_id else [],
+        "user_id": normalize_user_id(user_id),
     }
     projects.insert(0, project)
     save_projects(projects)
@@ -648,6 +710,7 @@ def load_artifacts() -> List[Dict[str, Any]]:
         item.setdefault("content", "")
         item.setdefault("url", "")
         item.setdefault("prompt", "")
+        item.setdefault("user_id", "default")
         item.setdefault("created_at", now_iso())
         item.setdefault("updated_at", item.get("created_at"))
         artifacts.append(item)
@@ -664,6 +727,7 @@ def create_artifact(
     content: str = "",
     url: str = "",
     prompt: str = "",
+    user_id: str = "default",
     session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     now = now_iso()
@@ -674,6 +738,7 @@ def create_artifact(
         "content": content,
         "url": url,
         "prompt": prompt,
+        "user_id": normalize_user_id(user_id),
         "session_id": session_id,
         "created_at": now,
         "updated_at": now,
@@ -732,6 +797,16 @@ def normalize_image_style(style: Optional[str]) -> str:
 def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bool] = True) -> str:
     subject = strip_image_command(prompt)
     style_text = normalize_image_style(style)
+    style_only_subjects = {
+        "anime": "anime character portrait",
+        "realistic": "realistic portrait",
+        "cinematic": "cinematic character scene",
+        "poster": "modern poster design",
+        "logo": "minimal logo mark",
+        "3d": "3D character render",
+        "sketch": "concept sketch",
+    }
+    subject = style_only_subjects.get(subject.lower(), subject)
     if not (enhance if enhance is not None else IMAGE_PROMPT_ENHANCE):
         return clean_text(", ".join(part for part in [subject, style_text] if part))[:900]
 
@@ -767,10 +842,119 @@ def build_image_negative_prompt(negative_prompt: Optional[str]) -> str:
     return clean_text(", ".join(deduped))[:400]
 
 
-def build_image_url(prompt: str, size: Optional[str], negative_prompt: Optional[str] = "") -> Tuple[str, int, int]:
+def image_cache_key(user_id: str, prompt: str, size_label: str, negative_prompt: str) -> str:
+    packed = "|".join([
+        normalize_user_id(user_id),
+        compact_for_cache(prompt),
+        size_label,
+        compact_for_cache(negative_prompt),
+        IMAGE_MODEL or "provider_default",
+    ])
+    return str(abs(hash(packed)))
+
+
+def load_image_memory() -> Dict[str, Any]:
+    raw = safe_read_json(IMAGE_MEMORY_FILE, {})
+    if isinstance(raw, dict):
+        raw.setdefault("images", [])
+        raw.setdefault("preferences", {})
+        return raw
+    return {"images": [], "preferences": {}}
+
+
+def save_image_memory(memory: Dict[str, Any]) -> None:
+    images = memory.get("images", [])
+    if isinstance(images, list):
+        memory["images"] = images[:MAX_IMAGE_MEMORY_ITEMS]
+    safe_write_json(IMAGE_MEMORY_FILE, memory)
+
+
+def infer_image_style(prompt: str, requested_style: Optional[str], user_id: str) -> str:
+    style = clean_text(requested_style or "").lower()
+    if style and style != "auto":
+        return style
+    text = clean_text(prompt).lower()
+    style_patterns = [
+        ("anime", r"\b(anime|manga|sasuke|naruto|kakashi|gojo|luffy)\b"),
+        ("realistic", r"\b(realistic|real life|photo|photoreal|photorealistic)\b"),
+        ("cinematic", r"\b(cinematic|movie|dramatic|film)\b"),
+        ("poster", r"\b(poster|cover|flyer|banner)\b"),
+        ("logo", r"\b(logo|icon|brand mark)\b"),
+        ("3d", r"\b(3d|render|blender)\b"),
+        ("sketch", r"\b(sketch|drawing|line art)\b"),
+    ]
+    for candidate, pattern in style_patterns:
+        if re.search(pattern, text):
+            return candidate
+    memory = load_image_memory()
+    prefs = memory.get("preferences", {}).get(normalize_user_id(user_id), {})
+    if isinstance(prefs, dict):
+        favorite = clean_text(str(prefs.get("last_style", ""))).lower()
+        if favorite:
+            return favorite
+    return "auto"
+
+
+def remember_image_workflow(
+    user_id: str,
+    original_prompt: str,
+    enhanced_prompt: str,
+    style: str,
+    size_label: str,
+    negative_prompt: str,
+    url: str,
+    artifact_id: str,
+    cached: bool = False,
+) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    memory = load_image_memory()
+    prefs = memory.setdefault("preferences", {})
+    user_prefs = prefs.get(normalized) if isinstance(prefs.get(normalized), dict) else {}
+    user_prefs["last_style"] = style or user_prefs.get("last_style", "auto")
+    user_prefs["last_size"] = size_label
+    user_prefs["last_negative_prompt"] = negative_prompt
+    user_prefs["total_images"] = int(user_prefs.get("total_images", 0)) + (0 if cached else 1)
+    user_prefs["updated_at"] = now_iso()
+    prefs[normalized] = user_prefs
+
+    images = memory.setdefault("images", [])
+    key = image_cache_key(normalized, enhanced_prompt, size_label, negative_prompt)
+    existing = next((item for item in images if isinstance(item, dict) and item.get("cache_key") == key), None)
+    if existing:
+        existing["last_used_at"] = now_iso()
+        existing["uses"] = int(existing.get("uses", 0)) + 1
+        existing["artifact_id"] = existing.get("artifact_id") or artifact_id
+    else:
+        images.insert(0, {
+            "cache_key": key,
+            "user_id": normalized,
+            "original_prompt": original_prompt,
+            "enhanced_prompt": enhanced_prompt,
+            "style": style,
+            "size": size_label,
+            "negative_prompt": negative_prompt,
+            "url": url,
+            "artifact_id": artifact_id,
+            "uses": 1,
+            "created_at": now_iso(),
+            "last_used_at": now_iso(),
+        })
+    save_image_memory(memory)
+    return user_prefs
+
+
+def find_cached_image(user_id: str, enhanced_prompt: str, size_label: str, negative_prompt: str) -> Optional[Dict[str, Any]]:
+    key = image_cache_key(user_id, enhanced_prompt, size_label, negative_prompt)
+    for item in load_image_memory().get("images", []):
+        if isinstance(item, dict) and item.get("cache_key") == key and item.get("url"):
+            return item
+    return None
+
+
+def build_image_url(prompt: str, size: Optional[str], negative_prompt: Optional[str] = "", user_id: str = "default") -> Tuple[str, int, int]:
     width, height = parse_image_size(size)
     clean_prompt = clean_text(prompt)
-    seed = abs(hash(f"{clean_prompt}|{width}x{height}|{int(time.time() // 60)}")) % 1000000
+    seed = abs(hash(f"{normalize_user_id(user_id)}|{clean_prompt}|{width}x{height}|{clean_text(negative_prompt or '')}")) % 1000000
     encoded_prompt = quote(clean_prompt[:900])
     params = {
         "width": width,
@@ -857,11 +1041,16 @@ def learn_persona_from_message(user_message: str) -> Tuple[Dict[str, Any], List[
     changes: List[str] = []
 
     style_intent = any(phrase in lower for phrase in [
-        "from now on", "always", "remember", "talk", "speak", "respond",
+        "talk", "speak", "respond",
         "reply", "answer", "be more", "be less", "change your style",
         "change the way you speak", "your personality", "independent ai",
         "act more independent", "call me",
     ])
+    if not style_intent and any(phrase in lower for phrase in ["from now on", "always", "remember"]):
+        style_intent = bool(re.search(
+            r"\b(talk|speak|respond|reply|answer|style|tone|emoji|emojis|short|brief|detailed|call me|professional|casual|formal|friendly)\b",
+            lower,
+        ))
     if not style_intent:
         return profile, changes
 
@@ -1341,7 +1530,7 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
     return "\n".join(base)
 
 
-def maybe_store_memory(user_message: str) -> None:
+def maybe_store_memory(user_message: str, user_id: str = "default") -> None:
     text = user_message.strip()
     lower = text.lower()
     triggers = [
@@ -1357,12 +1546,16 @@ def maybe_store_memory(user_message: str) -> None:
     if not any(trigger in lower for trigger in triggers):
         return
     items = load_memory()
-    items.append({"content": text[:1200], "created_at": now_iso()})
+    items.append({"content": text[:1200], "user_id": normalize_user_id(user_id), "created_at": now_iso()})
     save_memory(items)
 
 
-def build_memory_context() -> str:
-    items = load_memory()[-6:]
+def build_memory_context(user_id: str = "default") -> str:
+    normalized = normalize_user_id(user_id)
+    items = [
+        item for item in load_memory()
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ][-6:]
     lines = []
     for index, item in enumerate(items, start=1):
         content = clean_text(str(item.get("content", "")))
@@ -2860,6 +3053,8 @@ def health() -> Dict[str, Any]:
             "mode": "remote_url_lightweight",
             "prompt_enhancement": IMAGE_PROMPT_ENHANCE,
             "model": IMAGE_MODEL or "provider_default",
+            "workflow_memory": True,
+            "per_user_cache": True,
         },
         "strict_verification": True,
         "performance": performance,
@@ -2928,11 +3123,43 @@ def read_system_profile() -> Dict[str, Any]:
     return {"ok": True, "profile": system_profile()}
 
 
+@app.get("/workflow/user")
+def read_user_workflow(user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    users = load_users()
+    image_memory = load_image_memory()
+    memories = [
+        item for item in load_memory()
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ]
+    images = [
+        item for item in image_memory.get("images", [])
+        if isinstance(item, dict) and normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ]
+    return {
+        "ok": True,
+        "user_id": normalized,
+        "user": users.get(normalized, {"id": normalized}),
+        "memory_items": len(memories),
+        "image_items": len(images),
+        "image_preferences": image_memory.get("preferences", {}).get(normalized, {}),
+        "workflow": {
+            "sessions": "per browser user id",
+            "chat_memory": "per user",
+            "image_memory": "per user prompt/style/size cache",
+            "artifacts": "filterable by user",
+        },
+    }
+
+
 @app.get("/sessions")
-def list_sessions() -> Dict[str, Any]:
+def list_sessions(user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
     sessions = load_sessions()
     rows = []
     for session_id, session in sessions.items():
+        if user_id and normalize_user_id(str(session.get("user_id", "default"))) != normalized:
+            continue
         messages = session.get("messages", []) if isinstance(session, dict) else []
         first_user = next(
             (m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"),
@@ -2946,33 +3173,52 @@ def list_sessions() -> Dict[str, Any]:
             "updated_at": session.get("updated_at") if isinstance(session, dict) else "",
         })
     rows.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
-    return {"ok": True, "sessions": rows[:100]}
+    return {"ok": True, "user_id": normalized, "sessions": rows[:100]}
 
 
 @app.get("/projects")
-def projects() -> Dict[str, Any]:
-    return {"ok": True, "projects": load_projects()}
+def projects(user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    rows = load_projects()
+    if user_id:
+        rows = [
+            project for project in rows
+            if normalize_user_id(str(project.get("user_id", "default"))) == normalized
+        ]
+    return {"ok": True, "user_id": normalized, "projects": rows}
 
 
 @app.post("/projects/create")
 def create_project(req: ProjectRequest) -> Dict[str, Any]:
-    project = upsert_project(req.name, req.session_id)
+    user_id = register_user(req.user_id, req.session_id)
+    if req.session_id:
+        bind_session_user(ensure_session(req.session_id), user_id)
+    project = upsert_project(req.name, req.session_id, user_id)
     return {"ok": True, "project": project, "name": project["name"]}
 
 
 @app.get("/artifacts")
-def artifacts() -> Dict[str, Any]:
-    return {"ok": True, "artifacts": load_artifacts()}
+def artifacts(user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    items = load_artifacts()
+    if user_id:
+        items = [
+            item for item in items
+            if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+        ]
+    return {"ok": True, "user_id": normalized, "artifacts": items}
 
 
 @app.post("/artifacts/save")
 def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
     artifact = create_artifact(
         title=req.title,
         artifact_type=req.type,
         content=req.content,
         url=req.url,
         prompt=req.prompt,
+        user_id=user_id,
         session_id=req.session_id,
     )
     return {"ok": True, "artifact": artifact}
@@ -2980,10 +3226,46 @@ def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
 
 @app.post("/image/generate", response_model=ImageResponse)
 def generate_image(req: ImageRequest) -> ImageResponse:
+    user_id = register_user(req.user_id, req.session_id)
+    if req.session_id:
+        bind_session_user(ensure_session(req.session_id), user_id)
     original_prompt = strip_image_command(req.prompt)
-    style = clean_text(req.style or "")
+    style = infer_image_style(original_prompt, req.style, user_id)
     enhanced_prompt = enhance_image_prompt(original_prompt, style, req.enhance)
-    url, width, height = build_image_url(enhanced_prompt, req.size, req.negative_prompt)
+    negative_prompt = build_image_negative_prompt(req.negative_prompt)
+    width, height = parse_image_size(req.size)
+    size_label = f"{width}x{height}"
+    cached_item = find_cached_image(user_id, enhanced_prompt, size_label, negative_prompt)
+    if cached_item:
+        remember_image_workflow(
+            user_id=user_id,
+            original_prompt=original_prompt,
+            enhanced_prompt=enhanced_prompt,
+            style=style,
+            size_label=size_label,
+            negative_prompt=negative_prompt,
+            url=str(cached_item.get("url", "")),
+            artifact_id=str(cached_item.get("artifact_id", "")),
+            cached=True,
+        )
+        return ImageResponse(
+            ok=True,
+            prompt=enhanced_prompt,
+            original_prompt=original_prompt,
+            enhanced_prompt=enhanced_prompt,
+            url=str(cached_item.get("url", "")),
+            artifact_id=str(cached_item.get("artifact_id", "")),
+            provider=IMAGE_PROVIDER,
+            size=size_label,
+            width=width,
+            height=height,
+            cached=True,
+            user_id=user_id,
+            workflow={"memory": "hit", "style": style, "saved_to_artifacts": True},
+            created_at=str(cached_item.get("created_at") or now_iso()),
+        )
+
+    url, width, height = build_image_url(enhanced_prompt, req.size, negative_prompt, user_id)
     size_label = f"{width}x{height}"
     artifact = create_artifact(
         title=original_prompt[:70] or "Generated image",
@@ -2991,7 +3273,18 @@ def generate_image(req: ImageRequest) -> ImageResponse:
         content=f"Original prompt: {original_prompt}\nEnhanced prompt: {enhanced_prompt}",
         url=url,
         prompt=enhanced_prompt,
+        user_id=user_id,
         session_id=req.session_id,
+    )
+    workflow = remember_image_workflow(
+        user_id=user_id,
+        original_prompt=original_prompt,
+        enhanced_prompt=enhanced_prompt,
+        style=style,
+        size_label=size_label,
+        negative_prompt=negative_prompt,
+        url=url,
+        artifact_id=artifact["id"],
     )
     return ImageResponse(
         ok=True,
@@ -3004,6 +3297,9 @@ def generate_image(req: ImageRequest) -> ImageResponse:
         size=size_label,
         width=width,
         height=height,
+        cached=False,
+        user_id=user_id,
+        workflow={"memory": "saved", "style": style, "saved_to_artifacts": True, "preferences": workflow},
         created_at=artifact["created_at"],
     )
 
@@ -3013,6 +3309,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     user_message = req.message.strip()
     original_user_message = (req.original_message or user_message).strip()
     session_id = ensure_session(req.session_id)
+    user_id = register_user(req.user_id, session_id)
+    bind_session_user(session_id, user_id)
     session = get_session(session_id)
     behavior_profile, behavior_signals = learn_behavior_from_message(original_user_message)
     persona_profile, persona_changes = learn_persona_from_message(original_user_message)
@@ -3020,7 +3318,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         reply = persona_update_reply(persona_changes, persona_profile)
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", reply)
-        maybe_store_memory(original_user_message)
+        maybe_store_memory(original_user_message, user_id)
         return ChatResponse(
             reply=reply,
             session_id=session_id,
@@ -3107,7 +3405,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     file_context = build_file_context(session_id)
     if file_context:
         tools_used.append("file_context")
-    memory_context = build_memory_context()
+    memory_context = build_memory_context(user_id)
     if memory_context and not use_research:
         tools_used.append("memory")
     persona_context = build_persona_context(persona_profile)
@@ -3238,7 +3536,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         )
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
-    maybe_store_memory(original_user_message)
+    maybe_store_memory(original_user_message, user_id)
     if not model_failed and not is_bad_generated_reply(final_reply):
         set_cached_response(response_cache_key, final_reply, model_used, response_sources)
     return ChatResponse(
@@ -3328,14 +3626,28 @@ def delete_session(session_id: str) -> Dict[str, Any]:
 
 
 @app.get("/memory")
-def read_memory() -> Dict[str, Any]:
-    return {"items": load_memory()}
+def read_memory(user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    items = load_memory()
+    if user_id:
+        items = [
+            item for item in items
+            if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+        ]
+    return {"user_id": normalized, "items": items}
 
 
 @app.post("/memory/clear")
-def clear_memory() -> Dict[str, Any]:
+def clear_memory(user_id: Optional[str] = None) -> Dict[str, Any]:
+    if user_id:
+        normalized = normalize_user_id(user_id)
+        save_memory([
+            item for item in load_memory()
+            if normalize_user_id(str(item.get("user_id", "default"))) != normalized
+        ])
+        return {"ok": True, "user_id": normalized, "message": "Nexora memory cleared for this user."}
     save_memory([])
-    return {"ok": True, "message": "Nexora memory cleared."}
+    return {"ok": True, "user_id": "all", "message": "Nexora memory cleared."}
 
 
 @app.get("/persona")

@@ -3138,6 +3138,7 @@ body.chat-mode .top-right {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
+            user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
             session_id: sessionId,
             message: userText,
             chat_history: historyForBackend,
@@ -9426,6 +9427,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({
+          user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
           session_id: typeof sessionId !== "undefined" ? sessionId : null,
           message: buildCleanPrompt(userText),
           original_message: userText,
@@ -10350,6 +10352,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
+          user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
           session_id: typeof sessionId !== "undefined" ? sessionId : null,
           message: buildAgentPrompt(userText),
           original_message: userText,
@@ -11111,6 +11114,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   const IMAGE_KEY = "nexora_images_v1";
   const CHAT_KEY = "nexora_chat_snapshots_v1";
   const PROJECT_KEY = "nexora_projects_v2";
+  const USER_KEY = "nexoraUserId";
 
   const icon = {
     search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>',
@@ -11125,6 +11129,18 @@ document.addEventListener("DOMContentLoaded",()=>{
   };
 
   function $(id){ return document.getElementById(id); }
+
+  function getNexoraUserId(){
+    let id = localStorage.getItem(USER_KEY) || "";
+    if(!/^[a-zA-Z0-9_-]{4,80}$/.test(id)){
+      id = "user_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+      localStorage.setItem(USER_KEY, id);
+    }
+    window.nexoraUserId = id;
+    return id;
+  }
+
+  window.getNexoraUserId = getNexoraUserId;
 
   function escapeHtml(value){
     const div = document.createElement("div");
@@ -11255,7 +11271,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   async function fetchProjects(){
     const local = getProjectsLocal();
     try{
-      const res = await fetch(API + "/projects");
+      const res = await fetch(API + "/projects?user_id=" + encodeURIComponent(getNexoraUserId()));
       if(res.ok){
         const data = await res.json();
         const backend = Array.isArray(data.projects) ? data.projects.map(p => typeof p === "string" ? p : p.name).filter(Boolean) : [];
@@ -11273,7 +11289,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       await fetch(API + "/projects/create", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:clean, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+        body:JSON.stringify({name:clean, user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
       });
     }catch(e){}
     renderSidebar();
@@ -11308,7 +11324,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const local = readList(CHAT_KEY);
       let backend = [];
       try{
-        const res = await fetch(API + "/sessions");
+        const res = await fetch(API + "/sessions?user_id=" + encodeURIComponent(getNexoraUserId()));
         if(res.ok){
           const data = await res.json();
           backend = Array.isArray(data.sessions) ? data.sessions : [];
@@ -11381,7 +11397,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const images = readList(IMAGE_KEY);
     let backend = [];
     try{
-      const res = await fetch(API + "/artifacts");
+      const res = await fetch(API + "/artifacts?user_id=" + encodeURIComponent(getNexoraUserId()));
       if(res.ok){
         const data = await res.json();
         backend = Array.isArray(data.artifacts) ? data.artifacts : [];
@@ -11514,12 +11530,13 @@ document.addEventListener("DOMContentLoaded",()=>{
     const promptUsed = data.enhanced_prompt || data.prompt || "";
     const original = data.original_prompt && data.original_prompt !== promptUsed ? '<div class="nx-image-result-prompt">Original: ' + escapeHtml(data.original_prompt) + '</div>' : "";
     const sizeLine = data.size ? '<div class="nx-tool-card-meta">Size: ' + escapeHtml(data.size) + '</div>' : "";
+    const workflowLine = '<div class="nx-tool-card-meta">' + (data.cached ? 'Loaded from your image memory' : 'Saved to your image memory') + '</div>';
     const msg = document.createElement("div");
     msg.className = "message ai-message nx-image-message";
     msg.dataset.nxImageMessage = "true";
     msg.dataset.nxV2Formatted = "true";
     msg.dataset.nxFinalFormatted = "true";
-    msg.innerHTML = '<div class="nx-image-result"><div class="nx-image-result-media"><div class="nx-image-loading">Creating image preview...</div><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '" loading="eager" referrerpolicy="no-referrer"><div class="nx-image-error">The image was created, but the preview could not load here. Use Open image to view it.</div></div><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div>' + sizeLine + '<div class="nx-image-result-prompt">Prompt used: ' + escapeHtml(promptUsed) + '</div>' + original + '<div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit prompt</button></div></div></div>';
+    msg.innerHTML = '<div class="nx-image-result"><div class="nx-image-result-media"><div class="nx-image-loading">Creating image preview...</div><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '" loading="eager" referrerpolicy="no-referrer"><div class="nx-image-error">The image was created, but the preview could not load here. Use Open image to view it.</div></div><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div>' + sizeLine + workflowLine + '<div class="nx-image-result-prompt">Prompt used: ' + escapeHtml(promptUsed) + '</div>' + original + '<div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit prompt</button></div></div></div>';
     const result = msg.querySelector(".nx-image-result");
     const preview = msg.querySelector("img");
     if(preview){
@@ -11567,7 +11584,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const res = await fetch(API + "/image/generate", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({prompt:clean, size:size || "1024x1024", style:style || "auto", negative_prompt:negativePrompt || "", enhance:enhance !== false, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+        body:JSON.stringify({prompt:clean, user_id:getNexoraUserId(), size:size || "1024x1024", style:style || "auto", negative_prompt:negativePrompt || "", enhance:enhance !== false, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
       });
       const typing = $(typingId);
       if(typing) typing.remove();
