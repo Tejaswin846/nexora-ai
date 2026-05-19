@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.20.0-rhythm-clarity"
+APP_VERSION = "8.21.0-history-search-fix"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -285,6 +285,23 @@ def local_fast_reply(message: str) -> Optional[str]:
         return "Anytime. Send me the next thing and I will help you move it forward."
     if text in {"who are you", "who are you?", "what are you", "what are you?"}:
         return "I am Nexora, your AI assistant for clear answers, coding help, research-aware reasoning, files, and project work."
+    if re.search(r"\b(second world war|world war ii|world war 2|ww2)\b", text) and re.search(
+        r"\b(cause|caused|reason|start|started|begin|began|behind|person|responsible|who)\b",
+        text,
+    ):
+        return (
+            "The Second World War was caused by a mix of unresolved problems after World War I, "
+            "economic instability, aggressive expansion by fascist powers, and weak international response.\n\n"
+            "Key points:\n"
+            "- Germany was angry about the Treaty of Versailles, which punished it heavily after World War I.\n"
+            "- The Great Depression made many countries unstable and helped extremist leaders gain support.\n"
+            "- Adolf Hitler and the Nazi government rebuilt Germany's military and expanded into nearby territories.\n"
+            "- Britain and France tried appeasement at first, which delayed direct confrontation.\n"
+            "- The immediate trigger was Germany's invasion of Poland on September 1, 1939.\n\n"
+            "Bottom line:\n"
+            "Adolf Hitler was the main person behind the outbreak of the war, but the deeper causes were political, "
+            "economic, and diplomatic failures across Europe."
+        )
     return None
 
 
@@ -1710,7 +1727,10 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
         "winner", "score", "weather", "schedule", "election", "filing", "contract",
         "order", "announcement", "released", "updated", "crude oil", "oil crisis",
         "petrol", "diesel", "fuel price", "energy crisis", "inflation", "rupee",
-        "import bill", "sanctions", "war", "conflict",
+        "import bill", "sanctions", "current war", "latest war", "ongoing war",
+        "war today", "war news", "current conflict", "latest conflict", "ongoing conflict",
+        "conflict today", "conflict news", "russia ukraine", "ukraine war",
+        "israel hamas", "gaza war", "iran israel", "middle east conflict",
     ]
     return any(keyword in text for keyword in keywords)
 
