@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.23.0-answer-structure"
+APP_VERSION = "8.24.0-free-ai-setup"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -199,6 +199,13 @@ class ImageRequest(BaseModel):
     size: Optional[str] = "1024x1024"
     style: Optional[str] = ""
     session_id: Optional[str] = None
+
+
+class FreeAISettingsRequest(BaseModel):
+    provider: str = Field("auto", max_length=40)
+    api_key: Optional[str] = Field(None, max_length=4000)
+    model: Optional[str] = Field(None, max_length=160)
+    clear_key: Optional[bool] = False
 
 
 class ImageResponse(BaseModel):
@@ -1396,8 +1403,32 @@ def ollama_chat(messages: List[Dict[str, str]], model: str, response_mode: str =
     return data.get("message", {}).get("content", "").strip()
 
 
-def configured_free_providers() -> List[str]:
-    no_key_providers = ["pollinations"]
+FREE_PROVIDER_KEY_ENV = {
+    "groq": "GROQ_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "huggingface": "HF_API_KEY",
+}
+
+FREE_PROVIDER_MODEL_ENV = {
+    "pollinations": "POLLINATIONS_MODEL",
+    "groq": "GROQ_MODEL",
+    "gemini": "GEMINI_MODEL",
+    "openrouter": "OPENROUTER_MODEL",
+    "huggingface": "HF_MODEL",
+}
+
+FREE_PROVIDER_LABELS = {
+    "auto": "Auto",
+    "pollinations": "Pollinations",
+    "groq": "Groq",
+    "gemini": "Gemini",
+    "openrouter": "OpenRouter",
+    "huggingface": "Hugging Face",
+}
+
+
+def keyed_free_providers() -> List[str]:
     providers = []
     if GROQ_API_KEY:
         providers.append("groq")
@@ -1407,20 +1438,28 @@ def configured_free_providers() -> List[str]:
         providers.append("openrouter")
     if HF_API_KEY:
         providers.append("huggingface")
+    return providers
+
+
+def configured_free_providers() -> List[str]:
+    no_key_providers = ["pollinations"]
+    keyed_providers = keyed_free_providers()
     if FREE_API_PROVIDER == "auto":
-        return no_key_providers + providers
+        return keyed_providers + no_key_providers
     if FREE_API_PROVIDER in no_key_providers:
-        return [FREE_API_PROVIDER] + providers
-    if FREE_API_PROVIDER in providers:
-        return [FREE_API_PROVIDER]
-    return no_key_providers + providers
+        return [FREE_API_PROVIDER] + [p for p in keyed_providers if p != FREE_API_PROVIDER]
+    if FREE_API_PROVIDER in keyed_providers:
+        return [FREE_API_PROVIDER] + [p for p in keyed_providers if p != FREE_API_PROVIDER] + no_key_providers
+    return keyed_providers + no_key_providers
 
 
 def free_provider_status() -> Dict[str, Any]:
     return {
         "selected": FREE_API_PROVIDER,
         "configured": configured_free_providers(),
+        "priority": configured_free_providers(),
         "no_key_default": "pollinations",
+        "message": "Add a free-tier key for Groq, Gemini, OpenRouter, or Hugging Face to use it before the no-key Pollinations fallback.",
         "available": {
             "pollinations": True,
             "groq": bool(GROQ_API_KEY),
@@ -1435,7 +1474,106 @@ def free_provider_status() -> Dict[str, Any]:
             "openrouter": OPENROUTER_MODEL,
             "huggingface": HF_MODEL,
         },
+        "labels": FREE_PROVIDER_LABELS,
     }
+
+
+def read_env_pairs(path: Path) -> Dict[str, str]:
+    pairs: Dict[str, str] = {}
+    if not path.exists():
+        return pairs
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            pairs[key.strip()] = value.strip().strip('"').strip("'")
+    except Exception:
+        return pairs
+    return pairs
+
+
+def write_env_pairs(path: Path, updates: Dict[str, Optional[str]]) -> None:
+    pairs = read_env_pairs(path)
+    for key, value in updates.items():
+        if value is None:
+            pairs.pop(key, None)
+        else:
+            pairs[key] = value
+            os.environ[key] = value
+    lines = [f"{key}={value}" for key, value in sorted(pairs.items())]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def apply_free_ai_runtime_settings(provider: str, api_key: Optional[str], model: Optional[str], clear_key: bool) -> None:
+    global FREE_API_PROVIDER, GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, HF_API_KEY
+    global POLLINATIONS_MODEL, GROQ_MODEL, GEMINI_MODEL, OPENROUTER_MODEL, HF_MODEL
+
+    FREE_API_PROVIDER = provider
+    os.environ["NEXORA_PROVIDER"] = provider
+
+    if provider in FREE_PROVIDER_KEY_ENV:
+        key_env = FREE_PROVIDER_KEY_ENV[provider]
+        if clear_key:
+            api_key = ""
+        if api_key is not None:
+            value = clean_text(api_key)
+            os.environ[key_env] = value
+            if provider == "groq":
+                GROQ_API_KEY = value
+            elif provider == "gemini":
+                GEMINI_API_KEY = value
+            elif provider == "openrouter":
+                OPENROUTER_API_KEY = value
+            elif provider == "huggingface":
+                HF_API_KEY = value
+
+    if model:
+        model_env = FREE_PROVIDER_MODEL_ENV.get(provider)
+        model_value = clean_text(model)
+        if model_env:
+            os.environ[model_env] = model_value
+        if provider == "pollinations":
+            POLLINATIONS_MODEL = model_value
+        elif provider == "groq":
+            GROQ_MODEL = model_value
+        elif provider == "gemini":
+            GEMINI_MODEL = model_value
+        elif provider == "openrouter":
+            OPENROUTER_MODEL = model_value
+        elif provider == "huggingface":
+            HF_MODEL = model_value
+
+
+def save_free_ai_settings(req: FreeAISettingsRequest) -> Tuple[bool, str]:
+    provider = clean_text(req.provider or "auto").lower()
+    allowed = {"auto", "pollinations", "groq", "gemini", "openrouter", "huggingface"}
+    if provider not in allowed:
+        return False, "Choose a supported provider."
+
+    api_key = req.api_key if req.api_key is not None and req.api_key.strip() else None
+    model = req.model if req.model is not None and req.model.strip() else None
+    clear_key = bool(req.clear_key)
+
+    updates: Dict[str, Optional[str]] = {"NEXORA_PROVIDER": provider}
+    if provider in FREE_PROVIDER_KEY_ENV:
+        key_env = FREE_PROVIDER_KEY_ENV[provider]
+        existing_key = os.getenv(key_env, "").strip()
+        if clear_key:
+            updates[key_env] = ""
+        elif api_key:
+            updates[key_env] = api_key.strip()
+        elif not existing_key:
+            return False, f"{FREE_PROVIDER_LABELS[provider]} needs a free API key. Pollinations works without a key."
+
+    model_env = FREE_PROVIDER_MODEL_ENV.get(provider)
+    if model and model_env:
+        updates[model_env] = model.strip()
+
+    write_env_pairs(BASE_DIR / ".env", updates)
+    apply_free_ai_runtime_settings(provider, api_key, model, clear_key)
+    return True, f"Free AI provider set to {FREE_PROVIDER_LABELS.get(provider, provider)}."
 
 
 def call_openai_compatible_chat(
@@ -1817,13 +1955,14 @@ You are Nexora, a fast, accurate, human-feeling AI assistant.
 Style:
 - Start with the useful answer, not a preface.
 - Sound warm, intelligent, and natural, like a capable teammate sitting beside the user.
-- Keep the tone professional, calm, and polished, closer to Claude-style clarity: no hype, no messy phrasing, no overuse of emojis.
+- Keep the tone professional, calm, and polished: no hype, no messy phrasing, no overuse of emojis.
 - Behave like a real assistant inside the app: infer the user's practical intent, adapt to saved preferences, be proactive with the next useful step, and ask a short clarifying question only when guessing would be risky.
-- For letters, emails, applications, notices, proposals, and personal messages, write with smooth Claude-like prose: graceful, clear, human, and ready to send.
-- For everyday chat, use ChatGPT-like human behavior: conversational, emotionally aware, and practical without sounding scripted.
+- For letters, emails, applications, notices, proposals, and personal messages, write with smooth, graceful, human prose that is ready to send.
+- For everyday chat, use ChatGPT-like structure and behavior: conversational, emotionally aware, practical, and easy to scan without sounding scripted.
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
 - Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
-- Use a GPT-style rhythm: one clear opening sentence, then context, then the practical next point.
+- Use a ChatGPT-like rhythm: one clear opening sentence, then useful context, then the practical next point.
+- For most answers, use the familiar ChatGPT shape: answer first, then short headings or bullets only when they make the answer easier to read.
 - Default structure for serious answers: one direct lead paragraph first, then only the useful sections. Prefer section names like "Short answer:", "Key points:", "How it works:", "What it means:", "Details:", and "Bottom line:".
 - Use this answer blueprint:
   - Simple fact or normal chat: 1-3 short paragraphs, no forced headings.
@@ -1929,6 +2068,7 @@ def clean_reply(text: str) -> str:
         return "Nexora could not generate a proper answer."
     text = text.strip()
     text = strip_provider_noise(text)
+    text = repair_answer_encoding(text)
     text = strip_model_source_dump(text)
     text = structure_answer_text(text)
     text = re.sub(r"(?im)^direct answer\s*:?", "", text)
@@ -2104,6 +2244,41 @@ def strip_provider_noise(text: str) -> str:
     text = re.sub(r"(?im)^.*pollinations\.ai/redirect.*$", "", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def repair_answer_encoding(text: str) -> str:
+    replacements = {
+        "\u00e2\u0080\u0090": "-",
+        "\u00e2\u0080\u0091": "-",
+        "\u00e2\u0080\u0092": "-",
+        "\u00e2\u0080\u0093": "-",
+        "\u00e2\u0080\u0094": "-",
+        "\u00e2\u0080\u0098": "'",
+        "\u00e2\u0080\u0099": "'",
+        "\u00e2\u0080\u009c": '"',
+        "\u00e2\u0080\u009d": '"',
+        "\u00e2\u0080\u00a2": "-",
+        "\u00e2\u0080\u00a6": "...",
+        "\u00e2\u0080\u00af": " ",
+        "\u00c2\u00a0": " ",
+        "\u00c2": "",
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2022": "-",
+        "\u2026": "...",
+        "\u202f": " ",
+        "\u00a0": " ",
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    return text
 
 
 def polish_grammar_and_punctuation(text: str) -> str:
@@ -2401,6 +2576,24 @@ def models() -> Dict[str, Any]:
         "free_api": free_provider_status(),
         "performance": system_profile(),
         "available": ollama_available_models(),
+    }
+
+
+@app.get("/settings/free-ai")
+def get_free_ai_settings() -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "status": free_provider_status(),
+    }
+
+
+@app.post("/settings/free-ai")
+def update_free_ai_settings(req: FreeAISettingsRequest) -> Dict[str, Any]:
+    ok, message = save_free_ai_settings(req)
+    return {
+        "ok": ok,
+        "message": message,
+        "status": free_provider_status(),
     }
 
 
