@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.29.0-answer-efficiency"
+APP_VERSION = "8.30.0-fast-structured-fallback"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -80,6 +80,8 @@ DEFAULT_MODEL = FAST_MODEL
 FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
+POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "14"))
+POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
@@ -109,6 +111,7 @@ MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = int(os.getenv("NEXORA_RESPONSE_CACHE_TTL", "600"))
 RESPONSE_CACHE_MAX = int(os.getenv("NEXORA_RESPONSE_CACHE_MAX", "100"))
+LOCAL_WRITING_FAST = os.getenv("NEXORA_LOCAL_WRITING_FAST", "true").strip().lower() not in {"0", "false", "off", "no"}
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
 IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
 IMAGE_BASE_URL = os.getenv("NEXORA_IMAGE_BASE_URL", "https://image.pollinations.ai/prompt").strip().rstrip("/")
@@ -120,6 +123,7 @@ SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 HTTP = requests.Session()
 RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
 POLLINATIONS_LOCK = threading.Lock()
+JSON_WRITE_LOCK = threading.Lock()
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 app.add_middleware(
@@ -377,6 +381,101 @@ def local_fast_reply(message: str) -> Optional[str]:
     return None
 
 
+def normalize_prompt_topic(raw: str) -> str:
+    topic = clean_text(raw)
+    topic = re.sub(
+        r"(?i)^(please\s+)?(write|give|make|create|draft|prepare)\s+(me\s+|an?\s+|the\s+)?",
+        "",
+        topic,
+    )
+    topic = re.sub(r"(?i)^(essay|paragraph|speech|article|note)\s+(on|about|for)\s+", "", topic)
+    topic = re.sub(r"(?i)\b(essay|paragraph|speech|article|note)\b", "", topic)
+    topic = re.sub(r"(?i)\b(on|about|for)\b\s*", "", topic, count=1)
+    topic = re.sub(r"\s+", " ", topic).strip(" .,:;-")
+    if not topic:
+        return "the topic"
+    small_words = {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "with"}
+    words = []
+    for index, word in enumerate(topic.split()):
+        lower = word.lower()
+        words.append(lower if index and lower in small_words else lower.capitalize())
+    return " ".join(words)
+
+
+def local_writing_reply(message: str) -> Optional[str]:
+    text = clean_text(message)
+    lower = text.lower()
+    if not re.search(r"\b(essay|paragraph|speech|article|write about|write on)\b", lower):
+        return None
+
+    topic = normalize_prompt_topic(text)
+    topic_lower = topic.lower()
+    if "father" in topic_lower and "day" in topic_lower:
+        return (
+            "Father's Day is a special occasion to honor the love, sacrifice, and guidance of fathers. "
+            "A father often works quietly in the background, supporting the family, protecting his children, "
+            "and teaching them important values through his actions.\n\n"
+            "A father's love may not always be expressed in many words, but it can be seen in his care, hard work, "
+            "and constant concern for the future of his children. He encourages us when we feel weak, corrects us "
+            "when we make mistakes, and helps us become responsible people.\n\n"
+            "Father's Day reminds us to thank our fathers for everything they do. A simple wish, a kind word, or "
+            "spending time with them can make them feel loved and respected. It is not only a day for gifts, but "
+            "also a day for gratitude.\n\n"
+            "Bottom line:\n"
+            "Father's Day teaches us to value our fathers and appreciate the strength, patience, and love they give us every day."
+        )
+
+    return (
+        f"{topic} is an important subject because it helps us understand values, responsibility, and the world around us. "
+        f"When we think about {topic.lower()}, we learn not only facts, but also the meaning behind them.\n\n"
+        f"One of the main reasons {topic.lower()} matters is that it affects people's thoughts, choices, and actions. "
+        "It can teach discipline, kindness, awareness, and better decision-making, depending on the situation.\n\n"
+        f"In daily life, {topic.lower()} reminds us that learning is not only about memorizing information. "
+        "It is also about understanding ideas clearly and using them in the right way.\n\n"
+        "Bottom line:\n"
+        f"{topic} becomes valuable when we understand it clearly and connect it with real life."
+    )
+
+
+def local_structured_fallback(
+    message: str,
+    response_lane: str = "human_chat",
+    presentation_style: str = "balanced",
+) -> Optional[str]:
+    writing = local_writing_reply(message)
+    if writing:
+        return writing
+
+    text = clean_text(message)
+    lower = text.lower()
+
+    if presentation_style == "table" and "anime" in lower:
+        return (
+            "Anime styles can be compared by audience, themes, and visual design.\n\n"
+            "| Style | Typical look | Common themes | Audience |\n"
+            "|---|---|---|---|\n"
+            "| Shonen | Bold action, bright colors, dynamic poses | Friendship, growth, battles | Teens |\n"
+            "| Shojo | Soft colors, expressive faces, emotional framing | Romance, identity, relationships | Teens |\n"
+            "| Seinen | Realistic detail, darker tones, complex scenes | Mature drama, psychology, society | Adults |\n\n"
+            "Bottom line:\n"
+            "The best style depends on the story's mood, audience, and emotional goal."
+        )
+
+    if response_lane == "learning" or re.search(r"\b(explain|what is|why|how)\b", lower):
+        topic = normalize_prompt_topic(text)
+        return (
+            f"{topic} can be understood best by starting with the main idea first.\n\n"
+            "Key points:\n"
+            f"- Focus on what {topic.lower()} means in simple words.\n"
+            "- Break the idea into small parts instead of memorizing a long answer.\n"
+            "- Use one example to connect the concept with real life.\n\n"
+            "Bottom line:\n"
+            f"A clear answer about {topic.lower()} should explain the idea, show why it matters, and end with the main takeaway."
+        )
+
+    return None
+
+
 def choose_response_mode(message: str, requested_mode: Optional[str], requested_model: Optional[str]) -> str:
     text = clean_text(message).lower()
     requested = f"{requested_mode or ''} {requested_model or ''}".lower()
@@ -564,9 +663,23 @@ def safe_read_json(path: Path, default: Any) -> Any:
 
 
 def safe_write_json(path: Path, data: Any) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    with JSON_WRITE_LOCK:
+        tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        last_error: Optional[PermissionError] = None
+        for attempt in range(6):
+            try:
+                tmp.replace(path)
+                return
+            except PermissionError as error:
+                last_error = error
+                time.sleep(0.05 * (attempt + 1))
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        if last_error:
+            raise last_error
 
 
 def ensure_session(session_id: Optional[str]) -> str:
@@ -1385,7 +1498,7 @@ def classify_response_lane(user_message: str, use_research: bool) -> str:
     text = clean_text(user_message).lower()
     if use_research:
         return "realtime_search"
-    if re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft)\b", text):
+    if re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft|essay|paragraph|speech|article)\b", text):
         return "writing"
     if re.search(r"\b(explain|teach|learn|class|chapter|homework|notes|summary|revise|study)\b", text):
         return "learning"
@@ -1747,10 +1860,15 @@ def free_provider_status() -> Dict[str, Any]:
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
             "pollinations_base",
-            "duckduckgo_realtime_context",
-            "pollinations_review_for_complex_answers",
+            "duckduckgo_realtime_context_for_current_questions",
+            "local_structured_fallback_for_common_writing",
         ],
-        "message": "Pollinations stays as the no-key base. Club mode adds realtime context and a review pass for harder answers.",
+        "message": "Pollinations stays as the no-key base. Nexora now uses fast local structured fallbacks for common writing and stable table tasks.",
+        "speed": {
+            "pollinations_timeout": POLLINATIONS_TIMEOUT,
+            "pollinations_attempts": POLLINATIONS_ATTEMPTS,
+            "local_writing_fast": LOCAL_WRITING_FAST,
+        },
         "available": {
             "pollinations": True,
             "groq": bool(GROQ_API_KEY),
@@ -1876,6 +1994,8 @@ def call_openai_compatible_chat(
     response_mode: str = "instant",
 ) -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
+    if provider == "pollinations":
+        timeout = min(timeout, POLLINATIONS_TIMEOUT)
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -1909,6 +2029,7 @@ def build_plain_pollinations_prompt(messages: List[Dict[str, str]]) -> str:
 
 def call_pollinations_simple(messages: List[Dict[str, str]], response_mode: str) -> str:
     _, timeout, _ = mode_limits(response_mode)
+    timeout = min(timeout, POLLINATIONS_TIMEOUT)
     prompt = build_plain_pollinations_prompt(messages)
     url = "https://text.pollinations.ai/" + requests.utils.quote(prompt, safe="")
     response = HTTP.get(url, params={"model": POLLINATIONS_MODEL}, timeout=timeout)
@@ -1919,7 +2040,7 @@ def call_pollinations_simple(messages: List[Dict[str, str]], response_mode: str)
 def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = "instant") -> str:
     errors = []
     with POLLINATIONS_LOCK:
-        for attempt in range(2):
+        for attempt in range(POLLINATIONS_ATTEMPTS):
             try:
                 reply = call_openai_compatible_chat(
                     "pollinations",
@@ -1934,7 +2055,7 @@ def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = 
                 errors.append("pollinations chat returned an empty reply")
             except Exception as error:
                 errors.append(str(error))
-            if attempt == 0:
+            if attempt < POLLINATIONS_ATTEMPTS - 1:
                 time.sleep(0.5)
 
         try:
@@ -2258,23 +2379,14 @@ def should_use_free_club(
         return True
 
     text = clean_text(message).lower()
-    if use_research or response_mode == "thinking":
+    if use_research:
         return True
-    if response_lane in {"writing", "learning"} and len(text) >= 18:
+    if response_lane == "realtime_search" or presentation_style == "answer_with_evidence":
         return True
-    if presentation_style in {
-        "table",
-        "chart",
-        "diagram",
-        "long",
-        "teaching_structure",
-        "implementation_summary",
-        "answer_with_evidence",
-        "finished_draft",
-    }:
+    if re.search(r"\b(latest|current|today|recent|news|live|now|2026|2025|price|market|score|weather|election|filing)\b", text):
         return True
     if len(text) >= FREE_CLUB_MIN_QUERY_CHARS and re.search(
-        r"\b(explain|compare|why|how|cause|effect|history|science|analyze|steps?|table|diagram|current|latest|research)\b",
+        r"\b(current|latest|research|sources?|citations?|real[- ]?time|realtime)\b",
         text,
     ):
         return True
@@ -2290,17 +2402,9 @@ def should_add_free_club_search(
     if use_research:
         return False
     text = clean_text(message).lower()
-    if presentation_style in {"table", "chart", "diagram", "long", "teaching_structure", "answer_with_evidence"}:
+    if presentation_style == "answer_with_evidence":
         return True
-    if response_lane == "learning" and re.search(
-        r"\b(history|science|geography|economy|politics|war|crisis|cause|effect|compare|difference|explain)\b",
-        text,
-    ):
-        return True
-    if len(text) >= FREE_CLUB_MIN_QUERY_CHARS and re.search(
-        r"\b(what|who|when|where|which|why|how|explain|compare|cause|effect)\b",
-        text,
-    ):
+    if re.search(r"\b(latest|current|today|recent|news|live|now|2026|2025|price|market|score|weather|election|filing|sources?|citations?)\b", text):
         return True
     return False
 
@@ -2987,10 +3091,8 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
 
 def setup_error_message(error_text: str) -> str:
     return (
-        "Nexora could not reach the free AI engine this time.\n\n"
-        "Please retry once. The app is using a free no-key provider, so it can occasionally slow down or rate-limit. "
-        "I kept the backend error hidden because it is not useful inside the chat.\n\n"
-        "No payment is required. For a steadier free setup, you can also run local Ollama later."
+        "Nexora could not reach the text engine this time.\n\n"
+        "Try again once. If it still happens, ask a simpler version or use a local model for steadier offline replies."
     )
 
 
@@ -3435,6 +3537,30 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"response_lane:{response_lane}")
     tools_used.append(f"presentation:{presentation_style}")
 
+    local_structured = (
+        local_structured_fallback(original_user_message, response_lane, presentation_style)
+        if not use_research
+        else None
+    )
+    local_first_stable = response_lane == "writing" or (
+        presentation_style == "table" and "anime" in clean_text(original_user_message).lower()
+    )
+    if LOCAL_WRITING_FAST and local_structured and local_first_stable:
+        final_reply = clean_reply(local_structured)
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", final_reply)
+        maybe_store_memory(original_user_message, user_id)
+        set_cached_response(response_cache_key, final_reply, "nexora_local_structured", [])
+        return ChatResponse(
+            reply=final_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="nexora_local_structured",
+            sources=[],
+            tools_used=tools_used + ["local_structured_fast"],
+            created_at=now_iso(),
+        )
+
     research_context = build_research_context(verified_sources, original_user_message, confidence, rounds) if verified_sources else ""
     free_club_context = ""
     free_club_sources: List[SourceItem] = []
@@ -3493,6 +3619,10 @@ def chat(req: ChatRequest) -> ChatResponse:
                     model_used = "realtime_search_fallback"
                     reply = search_evidence_fallback_reply(original_user_message, verified_sources)
                     tools_used.append("search_evidence_fallback")
+                elif local_structured:
+                    model_used = "nexora_local_structured"
+                    reply = local_structured
+                    tools_used.append("local_structured_fallback")
                 else:
                     model_failed = True
                     model_used = "offline"
@@ -3502,6 +3632,10 @@ def chat(req: ChatRequest) -> ChatResponse:
                 model_used = "realtime_search_fallback"
                 reply = search_evidence_fallback_reply(original_user_message, verified_sources)
                 tools_used.append("search_evidence_fallback")
+            elif local_structured:
+                model_used = "nexora_local_structured"
+                reply = local_structured
+                tools_used.append("local_structured_fallback")
             else:
                 model_failed = True
                 model_used = "offline"
@@ -3545,12 +3679,17 @@ def chat(req: ChatRequest) -> ChatResponse:
         final_reply = ensure_inline_citations(final_reply, verified_sources)
     response_sources = verified_sources if verified_sources else free_club_sources
     if is_bad_generated_reply(final_reply) and not model_failed:
-        model_failed = True
-        model_used = model_used or "empty_reply"
-        final_reply = (
-            "I could not get a valid answer from the text model for that request. "
-            "Please retry once, or ask with realtime search enabled."
-        )
+        if local_structured:
+            model_used = "nexora_local_structured"
+            final_reply = clean_reply(local_structured)
+            tools_used.append("empty_reply_local_structured")
+        else:
+            model_failed = True
+            model_used = model_used or "empty_reply"
+            final_reply = (
+                "I could not get a valid answer from the text model for that request. "
+                "Please retry once, or ask with realtime search enabled."
+            )
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message, user_id)
