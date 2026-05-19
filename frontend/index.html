@@ -11523,14 +11523,27 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   function isImageRequest(text){
-    const t = String(text || "").toLowerCase();
-    return /\b(create|generate|make|draw)\b[\s\S]{0,60}\b(image|picture|photo|art|poster|logo|wallpaper)\b/.test(t) || /\b(image|picture|photo)\b[\s\S]{0,40}\b(of|for)\b/.test(t);
+    const t = String(text || "").toLowerCase().trim();
+    const media = "(image|picture|photo|art|poster|logo|wallpaper)";
+    if(!t) return false;
+    if(new RegExp("\\b(create|generate|make|draw|give|show|send|get)\\b[\\s\\S]{0,80}\\b" + media + "\\b").test(t)) return true;
+    if(new RegExp("\\b(i want|i need|can you|could you|please)\\b[\\s\\S]{0,80}\\b" + media + "\\b").test(t)) return true;
+    if(new RegExp("\\b" + media + "\\b[\\s\\S]{0,40}\\b(of|for)\\b").test(t)) return true;
+    if(/^[a-z0-9 ,.'"-]{2,90}\s+(image|picture|photo|poster|logo|wallpaper|art)$/.test(t) && !/\b(explain|what is|meaning|definition|how|why)\b/.test(t)) return true;
+    return false;
   }
 
   function stripImagePrompt(text){
-    return String(text || "")
-      .replace(/^\s*(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*/i, "")
-      .trim() || String(text || "").trim();
+    const original = String(text || "").trim();
+    let prompt = original
+      .replace(/^\s*(please\s+)?(can you\s+|could you\s+)?(create|generate|make|draw|give|show|send|get)\s+(me\s+)?/i, "")
+      .replace(/^\s*(i want|i need)\s+(an?\s+)?/i, "")
+      .replace(/^\s*(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*/i, "")
+      .replace(/\b(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)\s*/i, "")
+      .replace(/\s+(image|picture|photo|art|poster|logo|wallpaper)\s*$/i, "")
+      .replace(/^\s*an?\s+/i, "")
+      .trim();
+    return prompt || original;
   }
 
   function installImageSendInterceptor(){
