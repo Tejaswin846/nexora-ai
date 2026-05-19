@@ -33,7 +33,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.25.0-free-club-mode"
+APP_VERSION = "8.26.0-image-boost"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -109,6 +109,8 @@ RESPONSE_CACHE_MAX = 60
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
 IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
 IMAGE_BASE_URL = os.getenv("NEXORA_IMAGE_BASE_URL", "https://image.pollinations.ai/prompt").strip().rstrip("/")
+IMAGE_MODEL = os.getenv("NEXORA_IMAGE_MODEL", "").strip()
+IMAGE_PROMPT_ENHANCE = os.getenv("NEXORA_IMAGE_PROMPT_ENHANCE", "true").strip().lower() not in {"0", "false", "off", "no"}
 SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 
 HTTP = requests.Session()
@@ -203,6 +205,8 @@ class ImageRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=900)
     size: Optional[str] = "1024x1024"
     style: Optional[str] = ""
+    negative_prompt: Optional[str] = ""
+    enhance: Optional[bool] = True
     session_id: Optional[str] = None
 
 
@@ -216,9 +220,14 @@ class FreeAISettingsRequest(BaseModel):
 class ImageResponse(BaseModel):
     ok: bool
     prompt: str
+    original_prompt: str = ""
+    enhanced_prompt: str = ""
     url: str
     artifact_id: str
     provider: str
+    size: str = "1024x1024"
+    width: int = 1024
+    height: int = 1024
     created_at: str
 
 
@@ -693,18 +702,88 @@ def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
     return 1024, 1024
 
 
-def build_image_url(prompt: str, size: Optional[str], style: Optional[str]) -> str:
+def strip_image_command(prompt: str) -> str:
+    text = clean_text(prompt)
+    text = re.sub(
+        r"^(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return clean_text(text) or clean_text(prompt)
+
+
+def normalize_image_style(style: Optional[str]) -> str:
+    raw = clean_text(style or "").lower()
+    presets = {
+        "": "",
+        "auto": "",
+        "realistic": "realistic, natural lighting, detailed, high quality",
+        "cinematic": "cinematic lighting, dramatic composition, high detail",
+        "anime": "anime illustration, clean line art, vibrant colors",
+        "poster": "poster design, strong composition, bold readable layout",
+        "logo": "simple logo mark, clean vector-like design, centered, minimal background",
+        "3d": "3D render, smooth materials, studio lighting",
+        "sketch": "clean concept sketch, expressive lines, clear subject",
+    }
+    return presets.get(raw, clean_text(style or ""))
+
+
+def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bool] = True) -> str:
+    subject = strip_image_command(prompt)
+    style_text = normalize_image_style(style)
+    if not (enhance if enhance is not None else IMAGE_PROMPT_ENHANCE):
+        return clean_text(", ".join(part for part in [subject, style_text] if part))[:900]
+
+    lower = f"{subject}, {style_text}".lower()
+    additions = []
+    if style_text:
+        additions.append(style_text)
+    if not re.search(r"\b(close[- ]?up|wide shot|portrait|landscape|top view|isometric|centered|composition)\b", lower):
+        additions.append("clear composition")
+    if not re.search(r"\b(light|lighting|sunset|night|daylight|studio|cinematic)\b", lower):
+        additions.append("balanced lighting")
+    if not re.search(r"\b(detail|detailed|minimal|simple|clean)\b", lower):
+        additions.append("high detail")
+    if not re.search(r"\b(blurry|low quality|bad quality)\b", lower):
+        additions.append("sharp focus")
+
+    final_prompt = ", ".join(part for part in [subject] + additions if part)
+    return clean_text(final_prompt)[:900]
+
+
+def build_image_negative_prompt(negative_prompt: Optional[str]) -> str:
+    base_items = ["blurry", "low quality", "distorted", "extra fingers", "bad anatomy", "messy text", "watermark"]
+    extra = clean_text(negative_prompt or "")
+    items = base_items + [item.strip() for item in extra.split(",") if item.strip()]
+    deduped = []
+    seen = set()
+    for item in items:
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return clean_text(", ".join(deduped))[:400]
+
+
+def build_image_url(prompt: str, size: Optional[str], negative_prompt: Optional[str] = "") -> Tuple[str, int, int]:
     width, height = parse_image_size(size)
     clean_prompt = clean_text(prompt)
-    style_text = clean_text(style or "")
-    if style_text:
-        clean_prompt = f"{clean_prompt}, {style_text}"
     seed = abs(hash(f"{clean_prompt}|{width}x{height}|{int(time.time() // 60)}")) % 1000000
     encoded_prompt = quote(clean_prompt[:900])
-    return (
-        f"{IMAGE_BASE_URL}/{encoded_prompt}"
-        f"?width={width}&height={height}&seed={seed}&nologo=true&enhance=true"
-    )
+    params = {
+        "width": width,
+        "height": height,
+        "seed": seed,
+        "nologo": "true",
+        "enhance": "true",
+        "negative": build_image_negative_prompt(negative_prompt),
+    }
+    if IMAGE_MODEL:
+        params["model"] = IMAGE_MODEL
+    query = "&".join(f"{key}={quote(str(value))}" for key, value in params.items() if str(value))
+    return f"{IMAGE_BASE_URL}/{encoded_prompt}?{query}", width, height
 
 
 def default_persona_profile() -> Dict[str, Any]:
@@ -2779,6 +2858,8 @@ def health() -> Dict[str, Any]:
             "enabled": True,
             "provider": IMAGE_PROVIDER,
             "mode": "remote_url_lightweight",
+            "prompt_enhancement": IMAGE_PROMPT_ENHANCE,
+            "model": IMAGE_MODEL or "provider_default",
         },
         "strict_verification": True,
         "performance": performance,
@@ -2899,23 +2980,30 @@ def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
 
 @app.post("/image/generate", response_model=ImageResponse)
 def generate_image(req: ImageRequest) -> ImageResponse:
-    clean_prompt = clean_text(req.prompt)
+    original_prompt = strip_image_command(req.prompt)
     style = clean_text(req.style or "")
-    url = build_image_url(clean_prompt, req.size, style)
+    enhanced_prompt = enhance_image_prompt(original_prompt, style, req.enhance)
+    url, width, height = build_image_url(enhanced_prompt, req.size, req.negative_prompt)
+    size_label = f"{width}x{height}"
     artifact = create_artifact(
-        title=clean_prompt[:70] or "Generated image",
+        title=original_prompt[:70] or "Generated image",
         artifact_type="Image",
-        content="",
+        content=f"Original prompt: {original_prompt}\nEnhanced prompt: {enhanced_prompt}",
         url=url,
-        prompt=clean_prompt,
+        prompt=enhanced_prompt,
         session_id=req.session_id,
     )
     return ImageResponse(
         ok=True,
-        prompt=clean_prompt,
+        prompt=enhanced_prompt,
+        original_prompt=original_prompt,
+        enhanced_prompt=enhanced_prompt,
         url=url,
         artifact_id=artifact["id"],
         provider=IMAGE_PROVIDER,
+        size=size_label,
+        width=width,
+        height=height,
         created_at=artifact["created_at"],
     )
 

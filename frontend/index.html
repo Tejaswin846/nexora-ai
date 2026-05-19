@@ -11028,6 +11028,32 @@ document.addEventListener("DOMContentLoaded",()=>{
     cursor:pointer;
   }
 
+  .nx-image-options{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:12px;
+  }
+
+  .nx-image-toggle{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#d4d4d8;
+    font-size:13px;
+    margin-top:12px;
+  }
+
+  .nx-image-toggle input{
+    accent-color:#60a5fa;
+  }
+
+  @media (max-width:720px){
+    .nx-image-options{
+      grid-template-columns:1fr;
+    }
+  }
+
   .nx-chatgpt-sidebar .nx-cgpt-item svg{
     flex:0 0 auto;
   }
@@ -11408,13 +11434,13 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   function openImageCreator(initialPrompt){
-    openToolModal("Create image", "Describe the picture you want. Nexora will generate it in the chat and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: a futuristic study room at night, cinematic lighting, realistic, high detail"></textarea><div class="nx-tool-row" style="margin-top:12px;"><select class="nx-tool-select" id="nxImageSize"><option value="1024x1024">Square</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><input class="nx-tool-input" id="nxImageStyle" placeholder="Optional style, like realistic, anime, logo, poster"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate</button></div>', function(){
+    openToolModal("Create image", "Describe the picture you want. Nexora will enhance the prompt, generate it, and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: a futuristic study room at night, cinematic lighting, realistic, high detail"></textarea><div class="nx-image-options"><select class="nx-tool-select" id="nxImageSize"><option value="1024x1024">Square</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><select class="nx-tool-select" id="nxImageStyle"><option value="auto">Auto style</option><option value="realistic">Realistic</option><option value="cinematic">Cinematic</option><option value="anime">Anime</option><option value="poster">Poster</option><option value="logo">Logo</option><option value="3d">3D render</option><option value="sketch">Sketch</option></select></div><input class="nx-tool-input" id="nxImageNegative" style="margin-top:10px;" placeholder="Optional: things to avoid, like blurry text or extra objects"><label class="nx-image-toggle"><input type="checkbox" id="nxImageEnhance" checked> Enhance prompt automatically</label><div class="nx-tool-row" style="margin-top:12px;"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate image</button></div>', function(){
       const box = $("nxImagePromptBox");
       if(box) box.value = initialPrompt || "";
-      $("nxImageGenerateBtn").onclick = () => createImage(($("nxImagePromptBox").value || "").trim(), $("nxImageSize").value, $("nxImageStyle").value);
+      $("nxImageGenerateBtn").onclick = () => createImage(($("nxImagePromptBox").value || "").trim(), $("nxImageSize").value, $("nxImageStyle").value, $("nxImageNegative").value, $("nxImageEnhance").checked);
       if(box){
         box.onkeydown = e => {
-          if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) createImage(box.value.trim(), $("nxImageSize").value, $("nxImageStyle").value);
+          if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) createImage(box.value.trim(), $("nxImageSize").value, $("nxImageStyle").value, $("nxImageNegative").value, $("nxImageEnhance").checked);
         };
         setTimeout(() => box.focus(), 50);
       }
@@ -11423,12 +11449,15 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function saveImageLocal(data){
     const list = readList(IMAGE_KEY);
+    const prompt = data.enhanced_prompt || data.prompt || data.original_prompt || "Generated image";
     list.unshift({
       id:data.artifact_id || ("image_" + Date.now().toString(36)),
       type:"Image",
-      title:(data.prompt || "Generated image").slice(0, 80),
-      prompt:data.prompt || "",
+      title:(data.original_prompt || prompt).slice(0, 80),
+      prompt:prompt,
+      originalPrompt:data.original_prompt || "",
       url:data.url || "",
+      size:data.size || "",
       createdAt:new Date().toLocaleString()
     });
     writeList(IMAGE_KEY, list, 80);
@@ -11437,18 +11466,21 @@ document.addEventListener("DOMContentLoaded",()=>{
   function renderImageResult(data){
     const box = $("chatBox");
     if(!box) return;
+    const promptUsed = data.enhanced_prompt || data.prompt || "";
+    const original = data.original_prompt && data.original_prompt !== promptUsed ? '<div class="nx-image-result-prompt">Original: ' + escapeHtml(data.original_prompt) + '</div>' : "";
+    const sizeLine = data.size ? '<div class="nx-tool-card-meta">Size: ' + escapeHtml(data.size) + '</div>' : "";
     const msg = document.createElement("div");
     msg.className = "message ai-message nx-image-message";
-    msg.innerHTML = '<div class="nx-image-result"><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(data.prompt) + '"><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div><div class="nx-image-result-prompt">' + escapeHtml(data.prompt) + '</div><div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.prompt || "") + '">Edit prompt</button></div></div></div>';
+    msg.innerHTML = '<div class="nx-image-result"><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '"><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div>' + sizeLine + '<div class="nx-image-result-prompt">Prompt used: ' + escapeHtml(promptUsed) + '</div>' + original + '<div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit prompt</button></div></div></div>';
     const editBtn = msg.querySelector(".nx-edit-image-prompt");
     if(editBtn) editBtn.onclick = () => openImageCreator(editBtn.dataset.prompt || "");
     box.appendChild(msg);
     box.scrollTop = box.scrollHeight;
     window.chatHistory = window.chatHistory || [];
-    window.chatHistory.push({role:"assistant", className:"ai-message", text:"Generated image: " + (data.prompt || ""), content:"Generated image: " + (data.prompt || ""), sources:[], meta:{image:data.url}});
+    window.chatHistory.push({role:"assistant", className:"ai-message", text:"Generated image: " + promptUsed, content:"Generated image: " + promptUsed, sources:[], meta:{image:data.url}});
   }
 
-  async function createImage(prompt, size, style){
+  async function createImage(prompt, size, style, negativePrompt, enhance){
     const clean = String(prompt || "").trim();
     if(!clean){ toast("Describe the image first"); return; }
     closeToolModal();
@@ -11471,7 +11503,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const res = await fetch(API + "/image/generate", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({prompt:clean, size:size || "1024x1024", style:style || "", session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+        body:JSON.stringify({prompt:clean, size:size || "1024x1024", style:style || "auto", negative_prompt:negativePrompt || "", enhance:enhance !== false, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
       });
       const typing = $(typingId);
       if(typing) typing.remove();
