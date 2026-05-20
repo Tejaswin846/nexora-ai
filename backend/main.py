@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.37.0-agent-actions"
+APP_VERSION = "8.38.0-problem-understanding"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -473,6 +473,11 @@ TITLE_ACRONYMS = {
     "ias", "isro", "jee", "js", "ml", "nasa", "neet", "ram", "rom", "sat",
     "ssd", "ui", "url", "usb", "ux", "www",
 }
+TITLE_SPECIAL_WORDS = {
+    "chatgpt": "ChatGPT",
+    "youtube": "YouTube",
+    "youtuber": "YouTuber",
+}
 
 
 def title_case_topic(topic: str) -> str:
@@ -483,7 +488,9 @@ def title_case_topic(topic: str) -> str:
     words = []
     for index, word in enumerate(topic.split()):
         lower = word.lower()
-        if lower in TITLE_ACRONYMS:
+        if lower in TITLE_SPECIAL_WORDS:
+            words.append(TITLE_SPECIAL_WORDS[lower])
+        elif lower in TITLE_ACRONYMS:
             words.append(lower.upper())
         else:
             words.append(lower if index and lower in small_words else lower.capitalize())
@@ -895,22 +902,138 @@ def local_pros_cons_reply(message: str) -> Optional[str]:
     )
 
 
+def extract_goal_topic(message: str) -> str:
+    text = clean_text(message)
+    text = re.sub(r"(?i)^user question:\s*", "", text).strip()
+    text = re.sub(r"(?i)^(please\s+)?(can you|could you|help me|tell me|show me)\s+", "", text)
+    text = re.sub(r"(?i)^(how to|steps to|how can i|how do i|i want to|i need to|i have to|i wanna|i am trying to|i'm trying to|i make|i want|i need)\s+", "", text)
+    text = re.sub(r"(?i)^(make|create|build|start|open|launch|set up|setup|plan|grow)\s+(an?\s+|my\s+)?", "", text)
+    text = re.sub(r"(?i)^(an?\s+|my\s+|the\s+)+", "", text)
+    text = re.sub(r"(?i)\b(step by step|full guide|complete guide|properly|from scratch|for beginners|beginner)\b", " ", text)
+    text = re.sub(r"\?+$", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" .,:;-")
+    return title_case_topic(text or clean_learning_topic(message))
+
+
+def is_goal_or_problem_request(message: str) -> bool:
+    lower = clean_text(message).lower()
+    if re.fullmatch(r"(make|fix|improve|change|remove|add)\s+(it|this|that|them|those)(\s+(better|more|again|now))?[.! ]*", lower):
+        return False
+    return bool(
+        re.search(r"\b(how to|steps to|how can i|how do i|i want to|i need to|i have to|i am trying to|i'm trying to|make|create|build|start|launch|set up|setup|grow|plan)\b", lower)
+        and not re.search(r"\b(image|picture|photo|art|poster|logo|wallpaper|email|letter|essay|application|speech)\b", lower)
+    )
+
+
+def youtube_channel_plan(topic: str) -> str:
+    return (
+        "Short answer:\n"
+        "To make a YouTube channel, do not start with only the channel name. Start with the audience, topic, and first 5 videos. That makes the channel easier to grow.\n\n"
+        "Step-by-step plan:\n"
+        "1. Choose one clear niche.\n"
+        "Pick a topic you can make videos about every week, such as gaming, study tips, tech, anime edits, facts, tutorials, or vlogs.\n\n"
+        "2. Define the viewer.\n"
+        "Write one sentence: \"My channel helps ___ people do/learn/enjoy ___.\" This keeps your videos focused.\n\n"
+        "3. Create the channel basics.\n"
+        "Use a short channel name, a clean profile picture, a simple banner, and a description that tells viewers what they will get.\n\n"
+        "4. Plan your first 5 videos.\n"
+        "Do not wait for perfect equipment. Plan simple videos you can actually finish.\n\n"
+        "| Video | Purpose |\n"
+        "|---|---|\n"
+        "| 1 | Introduce the topic and promise of the channel |\n"
+        "| 2 | Solve one common beginner problem |\n"
+        "| 3 | Share a useful list, guide, or tutorial |\n"
+        "| 4 | React to or explain something popular in your niche |\n"
+        "| 5 | Make a stronger version of the video that performed best |\n\n"
+        "5. Upload consistently.\n"
+        "Start with 1-2 videos per week. Improve the title, thumbnail, and first 10 seconds every time.\n\n"
+        "Best first setup:\n"
+        "- Phone camera or screen recorder with clear voice or captions.\n"
+        "- Good lighting if your face is shown.\n"
+        "- Simple editing with CapCut, Clipchamp, or any basic editor.\n"
+        "- Thumbnail with 2-4 words, not too much text.\n\n"
+        "7-day starter workflow:\n"
+        "1. Day 1: Choose niche and channel name.\n"
+        "2. Day 2: Make logo, banner, and description.\n"
+        "3. Day 3: Write 5 video ideas.\n"
+        "4. Day 4: Record video 1.\n"
+        "5. Day 5: Edit video 1.\n"
+        "6. Day 6: Make thumbnail and title.\n"
+        "7. Day 7: Upload, then note what to improve next.\n\n"
+        "Bottom line:\n"
+        "A good YouTube channel grows from consistency, useful videos, clear titles, and improving one thing every upload."
+    )
+
+
+def website_goal_plan(topic: str) -> str:
+    return (
+        "Short answer:\n"
+        "Build the website around the user's main action first, then design the pages around that action.\n\n"
+        "Plan:\n"
+        "1. Decide the purpose: portfolio, business, product, blog, school project, or tool.\n"
+        "2. Choose the main action: contact, buy, read, sign up, download, or try the app.\n"
+        "3. Create the core pages: home, about, work/services, contact, and one proof section.\n"
+        "4. Keep the design simple: readable text, strong spacing, clear navigation, and fast loading.\n"
+        "5. Test it on mobile before sharing it.\n\n"
+        "Bottom line:\n"
+        "A website feels professional when the visitor instantly understands what it is, why it matters, and what to do next."
+    )
+
+
+def business_goal_plan(topic: str) -> str:
+    return (
+        "Short answer:\n"
+        "Start small: validate the idea before spending too much time or money.\n\n"
+        "Plan:\n"
+        "1. Define the customer and the exact problem.\n"
+        "2. Offer one simple solution, not many things at once.\n"
+        "3. Check whether people already pay for similar solutions.\n"
+        "4. Build a small first version or service package.\n"
+        "5. Talk to real users, improve, then repeat.\n\n"
+        "Bottom line:\n"
+        "A strong business starts with a real problem, a clear customer, and a small solution that people actually want."
+    )
+
+
+def generic_goal_plan(topic: str) -> str:
+    topic_lower = topic.lower()
+    return (
+        "Short answer:\n"
+        f"To work on {topic_lower}, start by defining the exact result, then turn it into small actions you can finish.\n\n"
+        "Plan:\n"
+        f"1. Define the result: what should {topic_lower} look like when it is done?\n"
+        "2. Find the first obstacle: skill, time, tools, money, confidence, or information.\n"
+        "3. Make the smallest useful version first.\n"
+        "4. Test it with a real example or real user.\n"
+        "5. Improve one thing at a time instead of changing everything together.\n\n"
+        "Check:\n"
+        "- Is the goal clear enough to start today?\n"
+        "- Is the first step small enough to finish in one sitting?\n"
+        "- Do you know how you will measure progress?\n\n"
+        "Bottom line:\n"
+        "A good plan turns a big idea into the next clear action."
+    )
+
+
+def local_goal_plan_reply(message: str) -> Optional[str]:
+    if not is_goal_or_problem_request(message):
+        return None
+    lower = clean_text(message).lower()
+    topic = extract_goal_topic(message)
+    if re.search(r"\b(youtube|yt|channel|creator|video channel)\b", lower):
+        return youtube_channel_plan(topic)
+    if re.search(r"\b(website|web site|webpage|landing page|portfolio site)\b", lower):
+        return website_goal_plan(topic)
+    if re.search(r"\b(business|startup|shop|brand|sell|selling|product)\b", lower):
+        return business_goal_plan(topic)
+    return generic_goal_plan(topic)
+
+
 def local_step_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
     if not re.search(r"\b(how to|steps to|how can i|how do i)\b", lower):
         return None
-    topic = clean_learning_topic(message)
-    return (
-        f"Goal:\n{topic}\n\n"
-        "Steps:\n"
-        "1. Start with the exact outcome you want.\n"
-        "2. Break it into small actions.\n"
-        "3. Do the first action and check the result.\n"
-        "4. Fix one problem at a time.\n"
-        "5. Repeat until the result works.\n\n"
-        "Bottom line:\n"
-        "Small clear steps work better than trying to solve everything at once."
-    )
+    return local_goal_plan_reply(message)
 
 
 def local_semantic_reply(
@@ -921,6 +1044,7 @@ def local_semantic_reply(
     return (
         local_comparison_reply(message)
         or local_pros_cons_reply(message)
+        or local_goal_plan_reply(message)
         or local_step_reply(message)
         or local_knowledge_reply(message, presentation_style)
     )
@@ -982,6 +1106,8 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
         _, card = find_knowledge_card(clean_learning_topic(message))
         if card is not None:
             return True
+    if is_goal_or_problem_request(message):
+        return True
     if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
         return True
     if re.search(r"\b(email|e-mail|mail)\b", lower) and re.search(r"\b(write|draft|compose|make|create|ask|request)\b", lower):
@@ -1150,20 +1276,56 @@ def local_continuation_reply(message: str, focus: Dict[str, Any]) -> Optional[st
     )
 
 
+def local_vague_improvement_reply(message: str, focus: Dict[str, Any]) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.fullmatch(r"(make|fix|improve|change|remove|add)\s+(it|this|that|them|those)(\s+(better|more|again|now|cleaner|stronger|more powerful))?[.! ]*", lower):
+        return None
+    previous_user = clean_text(str(focus.get("previous_user", "")))
+    previous_assistant = clean_text(str(focus.get("previous_assistant", "")))
+    if not previous_user and not previous_assistant:
+        return (
+            "What should I improve?\n\n"
+            "Send the answer, page, image, or idea you mean, and I will make it clearer, stronger, and more useful."
+        )
+    improved = (
+        local_goal_plan_reply(previous_user)
+        or local_semantic_reply(previous_user, "planning", "implementation_summary")
+        or local_writing_reply(previous_user)
+    )
+    if improved:
+        return "Better version:\n\n" + improved
+    target = previous_user or extract_topic_from_recent_focus(focus)
+    if len(target) > 120:
+        target = target[:117].rstrip() + "..."
+    return (
+        "I understand. You want the previous thing improved, not a generic answer.\n\n"
+        f"Target:\n{target}\n\n"
+        "What I would improve:\n"
+        "1. Make the main point clear in the first line.\n"
+        "2. Replace vague steps with specific actions.\n"
+        "3. Add useful structure only where it helps.\n"
+        "4. Remove filler and weak wording.\n"
+        "5. End with a practical next step.\n\n"
+        "Bottom line:\n"
+        "Send the exact part you want changed, or say the style you want, and I will rewrite it directly."
+    )
+
+
 def local_capability_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
-    if not re.search(r"\b(powerful|capability|understand|understanding|know everything|100 questions|hundred questions)\b", lower):
+    if not re.search(r"\b(powerful|capability|understand|understanding|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b", lower):
         return None
     return (
-        "Yes. Nexora should stay useful for long chats, not break after a few questions.\n\n"
-        "What I am optimizing for:\n"
-        "- Understand messy typing and infer the real request.\n"
-        "- Remember the current task and follow-ups like 'a bit more' or 'make it better'.\n"
-        "- Keep answering even if the free online model times out.\n"
-        "- Use real-time search for current facts instead of guessing.\n"
-        "- Keep long sessions stable by storing more chat turns and using compact context.\n\n"
+        "Yes. Nexora should behave more like a real problem-solving assistant, not a keyword template.\n\n"
+        "What this level means:\n"
+        "- Understand the real goal behind messy wording.\n"
+        "- Use the previous chat when the user says 'it', 'this', or 'make it better'.\n"
+        "- Give domain-specific plans instead of generic steps.\n"
+        "- Remember repeated preferences through local memory and behavior learning.\n"
+        "- Use real-time search for current facts and local fallbacks for stable questions.\n"
+        "- Keep working when the free online model is slow or unavailable.\n\n"
         "Important truth:\n"
-        "It cannot literally know everything offline, but it can combine saved memory, recent chat context, local fallbacks, and web search to behave much more reliably."
+        "It still is not GPT-4/5-level unless you connect a stronger paid or local model, but this build can now combine memory, intent understanding, action tools, image/file context, search, and structured fallbacks to feel much more capable on your computer."
     )
 
 
@@ -1199,6 +1361,9 @@ def local_resilient_reply(
     continuation = local_continuation_reply(message, focus)
     if continuation:
         return continuation
+    vague_improvement = local_vague_improvement_reply(message, focus)
+    if vague_improvement:
+        return vague_improvement
     capability = local_capability_reply(message)
     if capability:
         return capability
@@ -2607,14 +2772,14 @@ def detect_behavior_signals(user_message: str) -> Dict[str, Any]:
         "needs_simpler": False,
         "task_type": "general",
     }
-    if re.search(r"\b(wrong|bad|not good|wasn'?t supposed|not supposed|fix|again|still|doesn'?t|didn'?t|problem|issue)\b", lower):
+    if re.search(r"\b(wrong|bad|not good|wasn'?t supposed|not supposed|fix|again|still|doesn'?t|didn'?t|problem|issue|generic|template|not useful)\b", lower):
         signals["frustration"] = 1
         signals["correction"] = True
     if re.search(r"\b(confused|don'?t understand|explain|what is this|why|how)\b", lower):
         signals["confusion"] = 1
     if re.search(r"\b(now|quick|fast|urgent|asap|immediately)\b", lower):
         signals["urgency"] = 1
-    if re.search(r"\b(structured|structure|clean|professional|claude|punctuation|punctuations|format|organized)\b", lower):
+    if re.search(r"\b(structured|structure|clean|professional|claude|chatgpt|punctuation|punctuations|format|organized)\b", lower):
         signals["needs_structure"] = True
         signals["needs_polish"] = True
     if re.search(r"\b(simple|simpler|easy|class 8|beginner|like a teacher)\b", lower):
@@ -2746,6 +2911,10 @@ TYPO_NORMALIZATIONS = {
     "strcutre": "structure",
     "strucute": "structure",
     "mimin": "mimic",
+    "chat gpt": "ChatGPT",
+    "chatgpt": "ChatGPT",
+    "youtube": "YouTube",
+    "youtuber": "YouTuber",
     "searcch": "search",
     "realtime": "real-time",
     "real time": "real-time",
@@ -2895,6 +3064,8 @@ def classify_response_lane(user_message: str, use_research: bool) -> str:
         return "realtime_search"
     if analyze_writing_request(user_message).get("is_writing") or re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft)\b", text):
         return "writing"
+    if is_goal_or_problem_request(user_message):
+        return "planning"
     if re.search(r"\b(explain|teach|learn|class|chapter|homework|notes|summary|revise|study)\b", text):
         return "learning"
     if re.search(r"\b(code|bug|debug|frontend|backend|api|html|css|javascript|python|github|deploy|website)\b", text):
@@ -2912,6 +3083,10 @@ def classify_presentation_style(user_message: str, response_lane: str, use_resea
         return "table"
     if re.search(r"\b(one line|short|brief|quick|concise|just tell|only answer|simple answer)\b", text):
         return "short"
+    if response_lane == "planning":
+        if re.search(r"\b(compare|option|which|best|pros and cons|advantages and disadvantages)\b", text):
+            return "table"
+        return "implementation_summary"
     if response_lane == "learning":
         if re.search(r"\b(cycle|process|system|working|mechanism|pathway|flow|stages)\b", text):
             return "diagram"
@@ -2925,7 +3100,7 @@ def classify_presentation_style(user_message: str, response_lane: str, use_resea
         return "answer_with_evidence"
     if response_lane == "learning":
         return "teaching_structure"
-    if response_lane == "build":
+    if response_lane in {"build", "planning"}:
         return "implementation_summary"
     if len(text) < 90 and re.search(r"\b(what|who|when|where|which|can|should|is|are)\b", text):
         return "short"
@@ -2941,7 +3116,7 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "- Open with the answer itself. Do not open with meta phrases like 'Here is' or 'Based on your question'.",
         "- Default serious-answer blueprint: one compact lead paragraph, then short sections only if they help.",
         "- Use this section order for explainers: 'Short answer:', 'Key points:', 'Why it matters:' or 'How it works:', then 'Bottom line:'.",
-        "- Use this section order for how-to tasks: 'Goal:', 'Steps:', 'Check:', then 'Bottom line:'.",
+        "- Use this section order for how-to/planning tasks: 'Short answer:', concrete steps or workflow, optional checklist, then 'Bottom line:'.",
         "- Use this section order for research answers: 'Answer:', 'Key evidence:', 'Context:', then 'Bottom line:'.",
         "- Never put a colon on its own line. Keep labels as 'Key points:' on one line.",
         "- Keep simple direct questions to 1-3 short paragraphs with no headings unless a heading makes the answer easier to scan.",
@@ -2975,6 +3150,12 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         lines.extend([
             "- Keep the answer to 1-3 short paragraphs or up to 3 bullets.",
             "- Skip headings unless they add clarity.",
+        ])
+    elif style == "implementation_summary" and response_lane == "planning":
+        lines.extend([
+            "- Give a specific plan, not a generic process template.",
+            "- Include a simple timeline or checklist when it helps the user start immediately.",
+            "- Name the likely first action clearly.",
         ])
     elif style == "long":
         lines.extend([
@@ -3030,6 +3211,14 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
             "- Keep normal chat natural and concise. Use headings only when the answer has more than one clear part.",
             "- Notice the user's intent and emotion; be steady, not dramatic.",
         ])
+    elif lane == "planning":
+        base.extend([
+            "- Understand the user's real goal, then turn it into a practical action plan.",
+            "- Avoid generic templates like 'break it into small steps' unless followed by domain-specific steps.",
+            "- Start with the best first move, then give a concrete workflow, checklist, or timeline.",
+            "- If the request is vague but still answerable, make a reasonable assumption and state it briefly.",
+            "- Ask a question only when the missing detail changes the entire plan.",
+        ])
     elif lane == "learning":
         base.extend([
             "- Teach clearly: simple explanation first, then key points, then a short recap if useful.",
@@ -3060,6 +3249,8 @@ def analyze_user_intent(
         goal = "produce polished writing the user can use directly"
     elif response_lane == "build":
         goal = "solve or implement the requested app/code change"
+    elif response_lane == "planning":
+        goal = "understand the user's practical goal and turn it into a useful plan"
     elif response_lane == "learning":
         goal = "explain the concept clearly and make it easy to study"
     elif response_lane == "realtime_search" or use_research:
@@ -3229,6 +3420,8 @@ def learn_long_term_memory_from_chat(
         (r"\b(structure|structured|clean|professional|beautiful|format|punctuation|organized)\b", "User prefers clean, structured, professional answers.", "preference"),
         (r"\b(understand|intent|what the user wants|question properly|human behavior)\b", "User wants Nexora to infer intent from informal wording and respond to the real need.", "preference"),
         (r"\b(powerful|capability|know everything|you know everything|understanding chatbot|understanding ai)\b", "User wants Nexora to combine context understanding, memory, and realtime search instead of literal keyword matching.", "preference"),
+        (r"\b(ChatGPT|chatgpt|working level|real problem|understand a problem|actual problem)\b", "User wants ChatGPT-level problem understanding: infer the real goal, answer with a specific useful plan, and avoid canned templates.", "preference"),
+        (r"\b(generic|template|canned|not useful|too basic)\b", "Avoid generic template answers; use domain-specific reasoning, concrete next steps, and a useful checklist.", "preference"),
         (r"\b(doesn'?t understand|dont understand|didn'?t understand|missing topic|ask for the topic)\b", "When a writing request is incomplete, ask for the missing topic instead of guessing.", "preference"),
         (r"\b(long[- ]?term memory|remember chat|memory of the chat|remember our chat)\b", "User wants long-term chat memory used for future replies.", "preference"),
         (r"\b(short|brief|concise)\b", "User sometimes asks for concise answers; keep simple requests short.", "preference"),
@@ -5950,6 +6143,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         focus_for_local = recent_session_focus(get_session(session_id), original_user_message)
         local_context_reply = (
             local_continuation_reply(understanding_message, focus_for_local)
+            or local_vague_improvement_reply(understanding_message, focus_for_local)
             or local_capability_reply(understanding_message)
         )
     if local_context_reply:
