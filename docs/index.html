@@ -11872,5 +11872,393 @@ document.addEventListener("DOMContentLoaded",()=>{
 })();
 </script>
 
+<style id="nx-image-attachment-style">
+  .input-wrapper.nx-has-attachments{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:8px !important;
+  }
+
+  .nx-attachment-tray{
+    display:none;
+    align-items:center;
+    gap:8px;
+    max-width:100%;
+    overflow-x:auto;
+    padding:0 6px;
+  }
+
+  .input-wrapper.nx-has-attachments .nx-attachment-tray{
+    display:flex;
+  }
+
+  .nx-attach-chip{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex:0 0 auto;
+    max-width:220px;
+    height:48px;
+    padding:5px 8px 5px 5px;
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:14px;
+    background:#242424;
+    color:#ececec;
+    box-shadow:0 8px 22px rgba(0,0,0,.22);
+  }
+
+  .nx-attach-chip img{
+    width:38px;
+    height:38px;
+    border-radius:10px;
+    object-fit:cover;
+    background:#111;
+  }
+
+  .nx-attach-name{
+    min-width:0;
+    max-width:130px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:12px;
+    font-weight:700;
+  }
+
+  .nx-attach-remove{
+    width:24px;
+    height:24px;
+    border:0;
+    border-radius:50%;
+    background:rgba(255,255,255,.1);
+    color:#fff;
+    cursor:pointer;
+    line-height:1;
+    font-size:16px;
+  }
+
+  .nx-attach-remove:hover{
+    background:rgba(255,255,255,.18);
+  }
+
+  .input-box.nx-drop-active{
+    border-color:rgba(96,165,250,.65) !important;
+    background:#1f2937 !important;
+  }
+
+  .message.user-message.nx-user-image-message{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:10px !important;
+  }
+
+  .nx-user-attachments{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(92px, 120px));
+    gap:8px;
+    max-width:380px;
+  }
+
+  .nx-user-attachments img{
+    width:100%;
+    aspect-ratio:1;
+    object-fit:cover;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,.13);
+    background:#111;
+  }
+</style>
+
+<script id="nx-image-attachment-script">
+(function(){
+  const API = window.API_BASE || "http://127.0.0.1:8000";
+  const MAX_IMAGES = 6;
+  let attachments = [];
+
+  function $(id){ return document.getElementById(id); }
+
+  function escapeHtml(value){
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function toast(message){
+    if(typeof window.nxFinalToast === "function") window.nxFinalToast(message);
+    else if(typeof window.addMessage === "function") window.addMessage(message, "system-message");
+  }
+
+  function ensureTray(){
+    const wrapper = document.querySelector(".input-wrapper");
+    const inputBox = document.querySelector(".input-box");
+    if(!wrapper || !inputBox) return null;
+    let tray = $("nxAttachmentTray");
+    if(!tray){
+      tray = document.createElement("div");
+      tray.id = "nxAttachmentTray";
+      tray.className = "nx-attachment-tray";
+      wrapper.insertBefore(tray, inputBox);
+    }
+    return tray;
+  }
+
+  function renderTray(){
+    const tray = ensureTray();
+    const wrapper = document.querySelector(".input-wrapper");
+    if(!tray || !wrapper) return;
+    wrapper.classList.toggle("nx-has-attachments", attachments.length > 0);
+    tray.innerHTML = attachments.map((item, index) => `
+      <div class="nx-attach-chip" title="${escapeHtml(item.name)}">
+        <img src="${escapeHtml(item.url)}" alt="">
+        <div class="nx-attach-name">${escapeHtml(item.name)}</div>
+        <button class="nx-attach-remove" type="button" data-attach-index="${index}" title="Remove image">&times;</button>
+      </div>
+    `).join("");
+    tray.querySelectorAll("[data-attach-index]").forEach(button => {
+      button.onclick = function(){
+        const index = Number(button.dataset.attachIndex);
+        const item = attachments[index];
+        if(item && item.url) URL.revokeObjectURL(item.url);
+        attachments.splice(index, 1);
+        renderTray();
+      };
+    });
+  }
+
+  function addImageFiles(files){
+    const incoming = Array.from(files || []).filter(file => file && /^image\//i.test(file.type || ""));
+    if(!incoming.length) return false;
+    incoming.slice(0, Math.max(0, MAX_IMAGES - attachments.length)).forEach(file => {
+      attachments.push({
+        file,
+        name:file.name || "pasted-image.png",
+        url:URL.createObjectURL(file)
+      });
+    });
+    renderTray();
+    toast(attachments.length === 1 ? "Image attached" : attachments.length + " images attached");
+    return true;
+  }
+
+  async function uploadRegularFiles(files){
+    const docs = Array.from(files || []).filter(file => file && !/^image\//i.test(file.type || ""));
+    if(!docs.length) return;
+    if(typeof ensureSessionId === "function") ensureSessionId();
+    for(const file of docs){
+      try{
+        if(typeof window.addMessage === "function") window.addMessage("Uploading file: " + file.name, "system-message");
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("session_id", window.sessionId || localStorage.getItem("nexoraSessionId") || "");
+        const response = await fetch(API + "/upload", {method:"POST", body:formData});
+        const data = await response.json();
+        if(typeof window.addMessage === "function") window.addMessage(data.message || ("Uploaded: " + file.name), "system-message");
+      }catch(error){
+        if(typeof window.addMessage === "function") window.addMessage("Upload failed: " + file.name, "system-message");
+      }
+    }
+  }
+
+  async function uploadAttachedImages(){
+    const ids = [];
+    if(typeof ensureSessionId === "function") ensureSessionId();
+    for(const item of attachments){
+      const formData = new FormData();
+      formData.append("file", item.file, item.name || "image.png");
+      formData.append("session_id", window.sessionId || localStorage.getItem("nexoraSessionId") || "");
+      if(typeof window.getNexoraUserId === "function") formData.append("user_id", window.getNexoraUserId());
+      const response = await fetch(API + "/image/upload", {method:"POST", body:formData});
+      if(!response.ok) throw new Error("Image upload failed");
+      const data = await response.json();
+      if(data && data.image && data.image.id) ids.push(data.image.id);
+    }
+    return ids;
+  }
+
+  function clearAttachments(){
+    attachments.forEach(item => { if(item.url) URL.revokeObjectURL(item.url); });
+    attachments = [];
+    renderTray();
+  }
+
+  function renderUserImageMessage(text, items){
+    const box = $("chatBox");
+    if(!box) return;
+    const msg = document.createElement("div");
+    msg.className = "message user-message nx-user-image-message";
+    msg.innerHTML = `
+      <div>${escapeHtml(text).replace(/\n/g, "<br>")}</div>
+      <div class="nx-user-attachments">
+        ${items.map(item => `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}">`).join("")}
+      </div>
+    `;
+    box.appendChild(msg);
+    box.scrollTop = box.scrollHeight;
+    try{
+      window.chatHistory = window.chatHistory || [];
+      window.chatHistory.push({role:"user", className:"user-message", text:String(text || ""), content:String(text || ""), meta:{images:items.map(item => item.name)}});
+    }catch(error){}
+  }
+
+  function renderAssistantReply(text, sources){
+    const box = $("chatBox");
+    if(!box) return;
+    if(typeof window.nxFormatHumanAnswer === "function"){
+      const msg = document.createElement("div");
+      msg.className = "message ai-message";
+      msg.dataset.nxV2Formatted = "true";
+      msg.dataset.nxFinalFormatted = "true";
+      msg.innerHTML = window.nxFormatHumanAnswer(text, sources || []);
+      box.appendChild(msg);
+      box.scrollTop = box.scrollHeight;
+      try{
+        window.chatHistory = window.chatHistory || [];
+        window.chatHistory.push({role:"assistant", className:"ai-message", text:String(text || ""), content:String(text || ""), sources:sources || []});
+      }catch(error){}
+      return;
+    }
+    if(typeof window.addMessage === "function") window.addMessage(text, "ai-message", "assistant", sources || []);
+  }
+
+  async function sendWithImages(messageOverride){
+    const input = $("userInput");
+    const text = (messageOverride !== undefined && messageOverride !== null ? String(messageOverride) : (input ? input.value : "")).trim();
+    if(!attachments.length){
+      const base = window.nxAttachmentBaseSend;
+      if(typeof base === "function") return base(messageOverride);
+      return;
+    }
+    const userText = text || "Analyze this image.";
+    if(typeof ensureSessionId === "function") ensureSessionId();
+    if(typeof window.openChat === "function") window.openChat(false);
+    document.body.classList.add("chat-mode");
+    renderUserImageMessage(userText, attachments);
+    if(input){
+      input.value = "";
+      input.placeholder = "Add a follow-up...";
+    }
+    try{ window.lastSentMessage = userText; }catch(error){}
+    const typingId = "typing-image-input-" + Date.now();
+    try{ if(typeof window.addTypingDots === "function") window.addTypingDots(typingId); }catch(error){}
+    try{ if(typeof window.setSendLoading === "function") window.setSendLoading(true); }catch(error){}
+    const localCopy = attachments.slice();
+    try{
+      const imageIds = await uploadAttachedImages();
+      clearAttachments();
+      const history = (window.chatHistory || [])
+        .filter(item => item && (item.role === "user" || item.role === "assistant"))
+        .map(item => ({role:item.role, content:item.text || item.content || ""}));
+      const response = await fetch(API + "/chat", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
+          session_id: window.sessionId || localStorage.getItem("nexoraSessionId") || null,
+          message:userText,
+          original_message:userText,
+          chat_history:history,
+          image_ids:imageIds,
+          mode:typeof getBackendModeForRequest === "function" ? getBackendModeForRequest() : "thinking",
+          model:null
+        })
+      });
+      const typing = $(typingId);
+      if(typing) typing.remove();
+      if(!response.ok) throw new Error("Backend error " + response.status);
+      const data = await response.json();
+      renderAssistantReply(data.reply || "I received the image.", Array.isArray(data.sources) ? data.sources : []);
+    }catch(error){
+      attachments = localCopy;
+      renderTray();
+      const typing = $(typingId);
+      if(typing) typing.remove();
+      renderAssistantReply("I could not upload that image yet. Try a smaller PNG or JPG, then send it again.", []);
+    }finally{
+      if(input && input.value.trim() === "") input.placeholder = "Ask anything...";
+      try{ if(typeof window.setSendLoading === "function") window.setSendLoading(false); }catch(error){}
+    }
+  }
+
+  function installHooks(){
+    const input = $("userInput");
+    const file = $("fileInput");
+    const inputBox = document.querySelector(".input-box");
+    ensureTray();
+    if(file){
+      file.setAttribute("accept", "image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.html,.css,.doc,.docx");
+      if(file.dataset.nxImageAttachHooked !== "true"){
+        file.dataset.nxImageAttachHooked = "true";
+        file.addEventListener("change", function(event){
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          const files = Array.from(file.files || []);
+          addImageFiles(files);
+          uploadRegularFiles(files);
+          file.value = "";
+        }, true);
+      }
+    }
+    if(input && input.dataset.nxPasteImageHooked !== "true"){
+      input.dataset.nxPasteImageHooked = "true";
+      input.addEventListener("paste", function(event){
+        const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
+        const imageFiles = items
+          .filter(item => item.kind === "file" && /^image\//i.test(item.type || ""))
+          .map(item => item.getAsFile())
+          .filter(Boolean);
+        if(imageFiles.length){
+          event.preventDefault();
+          addImageFiles(imageFiles);
+        }
+      });
+    }
+    if(inputBox && inputBox.dataset.nxDropImageHooked !== "true"){
+      inputBox.dataset.nxDropImageHooked = "true";
+      ["dragenter", "dragover"].forEach(name => inputBox.addEventListener(name, function(event){
+        event.preventDefault();
+        inputBox.classList.add("nx-drop-active");
+      }));
+      ["dragleave", "drop"].forEach(name => inputBox.addEventListener(name, function(event){
+        inputBox.classList.remove("nx-drop-active");
+      }));
+      inputBox.addEventListener("drop", function(event){
+        event.preventDefault();
+        const files = Array.from((event.dataTransfer && event.dataTransfer.files) || []);
+        addImageFiles(files);
+        uploadRegularFiles(files);
+      });
+    }
+    const current = window.nxFinalSendMessage || window.sendMessage;
+    if(current && current !== window.nxImageAttachmentSend) window.nxAttachmentBaseSend = current;
+    window.nxImageAttachmentSend = sendWithImages;
+    window.nxFinalSendMessage = sendWithImages;
+    window.sendMessage = sendWithImages;
+    const send = $("sendBtn");
+    if(send && send.dataset.nxImageAttachSend !== "true"){
+      const clone = send.cloneNode(true);
+      clone.dataset.nxImageAttachSend = "true";
+      send.parentNode.replaceChild(clone, send);
+      clone.addEventListener("click", function(event){
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const text = input ? input.value.trim() : "";
+        if(!text && !attachments.length && typeof window.openNexoraAssistantPage === "function"){
+          window.openNexoraAssistantPage();
+          return;
+        }
+        sendWithImages();
+      }, true);
+    }
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", installHooks);
+  else installHooks();
+  [300, 1200, 2600, 5600, 7000].forEach(delay => setTimeout(installHooks, delay));
+})();
+</script>
+
 </body>
 </html>

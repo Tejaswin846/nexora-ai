@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import requests
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -171,6 +171,7 @@ class ChatRequest(BaseModel):
     mode: Optional[str] = "agent"
     model: Optional[str] = None
     chat_history: Optional[List[ChatMessage]] = None
+    image_ids: Optional[List[str]] = None
     use_web: Optional[bool] = None
     stream: Optional[bool] = False
 
@@ -191,6 +192,13 @@ class UploadResponse(BaseModel):
     filename: str
     saved_as: str
     extracted_chars: int
+    message: str
+
+
+class ImageUploadResponse(BaseModel):
+    ok: bool
+    session_id: str
+    image: Dict[str, Any]
     message: str
 
 
@@ -736,6 +744,27 @@ LOCAL_KNOWLEDGE_CARDS: Dict[str, Dict[str, Any]] = {
         ],
         "bottom": "Climate change is a long-term environmental challenge driven strongly by greenhouse gases.",
     },
+    "adolf hitler": {
+        "answer": "Adolf Hitler was the dictator of Nazi Germany from 1933 to 1945 and one of the central figures behind the Second World War and the Holocaust.",
+        "points": [
+            "He led the Nazi Party and became chancellor of Germany in 1933.",
+            "He built a totalitarian dictatorship based on extreme nationalism, racism, antisemitism, and militarism.",
+            "His invasion of Poland on September 1, 1939, helped start the Second World War in Europe.",
+            "His regime carried out the Holocaust, murdering about six million Jews and millions of other victims.",
+            "He died by suicide in Berlin on April 30, 1945, as Nazi Germany was collapsing.",
+        ],
+        "bottom": "Hitler is remembered as a brutal dictator whose ideology and actions caused catastrophic war, genocide, and human suffering.",
+    },
+    "second world war": {
+        "answer": "The Second World War was a global war fought from 1939 to 1945 between the Axis powers and the Allies.",
+        "points": [
+            "Major causes included unresolved tensions after World War I, economic crisis, aggressive expansion, and the rise of fascist dictatorships.",
+            "Germany's invasion of Poland on September 1, 1939, triggered Britain and France to declare war.",
+            "Adolf Hitler and Nazi Germany were central to the war in Europe, but the war had many causes and actors.",
+            "The war ended in 1945 after Germany surrendered in May and Japan surrendered in September.",
+        ],
+        "bottom": "World War II was not caused by one person alone, but Hitler's Nazi Germany played a major role in starting and escalating it in Europe.",
+    },
     "water cycle": {
         "answer": "The water cycle is the continuous movement of water between Earth's surface and the atmosphere.",
         "points": [
@@ -753,7 +782,7 @@ def clean_learning_topic(message: str) -> str:
     text = clean_text(message)
     text = re.sub(r"(?i)\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\s+(of|for|about)?\s*", "", text)
     text = re.sub(r"(?i)\b(difference between|compare)\s+", "", text)
-    text = re.sub(r"(?i)^(please\s+)?(explain|define|describe|tell me about|teach me|what is|what are|who is|who are|why is|why are|how does|how do|how is|meaning of)\s+", "", text)
+    text = re.sub(r"(?i)^(please\s+)?(explain|define|describe|tell me about|teach me|what is|what are|who is|who are|who was|who were|why is|why are|how does|how do|how is|meaning of)\s+", "", text)
     text = re.sub(r"(?i)\b(in simple words|simply|for class \d+|briefly|short answer|long answer|with example|examples?)\b", " ", text)
     text = re.sub(r"\?+$", "", text)
     text = re.sub(r"\s+", " ", text).strip(" .,:;-")
@@ -773,6 +802,8 @@ def find_knowledge_card(topic: str) -> Tuple[str, Optional[Dict[str, Any]]]:
         "ww2": "second world war",
         "world war ii": "second world war",
         "world war 2": "second world war",
+        "hitler": "adolf hitler",
+        "nazi germany": "adolf hitler",
     }
     for alias, key in aliases.items():
         if re.search(rf"\b{re.escape(alias)}\b", lower):
@@ -782,7 +813,7 @@ def find_knowledge_card(topic: str) -> Tuple[str, Optional[Dict[str, Any]]]:
 
 def local_knowledge_reply(message: str, presentation_style: str = "balanced") -> Optional[str]:
     lower = clean_text(message).lower()
-    if not re.search(r"\b(what is|what are|explain|define|describe|meaning of|teach me|how does|why does|why is|how is)\b", lower):
+    if not re.search(r"\b(what is|what are|who is|who are|who was|who were|explain|define|describe|meaning of|teach me|how does|why does|why is|how is)\b", lower):
         return None
     topic = clean_learning_topic(message)
     key, card = find_knowledge_card(topic)
@@ -947,6 +978,10 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
     lower = clean_text(message).lower()
     if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
         return True
+    if re.search(r"\b(who is|who are|who was|who were|what is|what are|explain|define|describe|meaning of|teach me)\b", lower):
+        _, card = find_knowledge_card(clean_learning_topic(message))
+        if card is not None:
+            return True
     if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
         return True
     if re.search(r"\b(email|e-mail|mail)\b", lower) and re.search(r"\b(write|draft|compose|make|create|ask|request)\b", lower):
@@ -957,7 +992,7 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
         return True
     if re.search(r"\b(how to|steps to|how can i|how do i)\b", lower):
         return True
-    if re.search(r"\b(what is|what are|explain|define|describe|meaning of|teach me)\b", lower):
+    if re.search(r"\b(what is|what are|who is|who are|who was|who were|explain|define|describe|meaning of|teach me)\b", lower):
         _, card = find_knowledge_card(clean_learning_topic(message))
         return card is not None
     return False
@@ -1000,7 +1035,7 @@ def local_structured_fallback(
             "The best style depends on the story's mood, audience, and emotional goal."
         )
 
-    if response_lane == "learning" or re.search(r"\b(explain|what is|why|how)\b", lower):
+    if response_lane == "learning" or re.search(r"\b(explain|what is|who is|who was|why|how)\b", lower):
         topic = normalize_prompt_topic(text)
         return (
             f"{topic} can be understood best by starting with the main idea first.\n\n"
@@ -3228,6 +3263,8 @@ TEXT_EXTENSIONS = {
     ".ts", ".tsx", ".jsx", ".xml", ".yaml", ".yml", ".log",
 }
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+
 
 def extract_pdf_text(path: Path) -> str:
     try:
@@ -3278,6 +3315,165 @@ def basic_extract_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
+
+
+def detect_image_size_from_bytes(content: bytes, suffix: str = "") -> Tuple[int, int]:
+    try:
+        from PIL import Image  # type: ignore
+        import io
+
+        with Image.open(io.BytesIO(content)) as img:
+            return int(img.width), int(img.height)
+    except Exception:
+        pass
+
+    try:
+        if content.startswith(b"\x89PNG\r\n\x1a\n") and len(content) >= 24:
+            return int.from_bytes(content[16:20], "big"), int.from_bytes(content[20:24], "big")
+        if content[:6] in {b"GIF87a", b"GIF89a"} and len(content) >= 10:
+            return int.from_bytes(content[6:8], "little"), int.from_bytes(content[8:10], "little")
+        if content.startswith(b"\xff\xd8"):
+            index = 2
+            while index + 9 < len(content):
+                if content[index] != 0xFF:
+                    index += 1
+                    continue
+                marker = content[index + 1]
+                index += 2
+                if marker in {0xD8, 0xD9}:
+                    continue
+                length = int.from_bytes(content[index:index + 2], "big")
+                if marker in {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}:
+                    height = int.from_bytes(content[index + 3:index + 5], "big")
+                    width = int.from_bytes(content[index + 5:index + 7], "big")
+                    return width, height
+                index += max(length, 2)
+        if content.startswith(b"RIFF") and content[8:12] == b"WEBP" and len(content) >= 30:
+            if content[12:16] == b"VP8X":
+                width = 1 + int.from_bytes(content[24:27], "little")
+                height = 1 + int.from_bytes(content[27:30], "little")
+                return width, height
+    except Exception:
+        return 0, 0
+    return 0, 0
+
+
+def analyze_image_bytes(content: bytes, filename: str, content_type: str = "") -> Dict[str, Any]:
+    suffix = Path(filename).suffix.lower()
+    width, height = detect_image_size_from_bytes(content, suffix)
+    size_bytes = len(content)
+    orientation = "unknown"
+    if width and height:
+        if width > height * 1.15:
+            orientation = "landscape"
+        elif height > width * 1.15:
+            orientation = "portrait"
+        else:
+            orientation = "square"
+    kind = "image"
+    lower_name = filename.lower()
+    if "screenshot" in lower_name or (suffix == ".png" and width >= 900 and height >= 500):
+        kind = "screenshot or UI image"
+    elif suffix in {".jpg", ".jpeg", ".webp"}:
+        kind = "photo or generated artwork"
+
+    color_note = ""
+    try:
+        from PIL import Image, ImageStat  # type: ignore
+        import io
+
+        with Image.open(io.BytesIO(content)) as img:
+            thumb = img.convert("RGB")
+            thumb.thumbnail((96, 96))
+            stat = ImageStat.Stat(thumb)
+            avg = [round(value, 1) for value in stat.mean[:3]]
+            brightness = round(sum(avg) / 3, 1)
+            if brightness < 85:
+                color_note = "dark overall"
+            elif brightness > 180:
+                color_note = "bright overall"
+            else:
+                color_note = "balanced brightness"
+    except Exception:
+        color_note = ""
+
+    return {
+        "width": width,
+        "height": height,
+        "orientation": orientation,
+        "kind": kind,
+        "size_bytes": size_bytes,
+        "content_type": content_type,
+        "color_note": color_note,
+    }
+
+
+def summarize_image_record(image: Dict[str, Any]) -> str:
+    name = clean_text(str(image.get("filename", "image")))
+    width = int(image.get("width", 0) or 0)
+    height = int(image.get("height", 0) or 0)
+    size_bytes = int(image.get("size_bytes", 0) or 0)
+    size_label = f"{round(size_bytes / 1024, 1)} KB" if size_bytes else "unknown size"
+    dimensions = f"{width}x{height}" if width and height else "unknown dimensions"
+    details = [
+        f"{name}",
+        dimensions,
+        str(image.get("orientation", "unknown")),
+        str(image.get("kind", "image")),
+        size_label,
+    ]
+    color_note = clean_text(str(image.get("color_note", "")))
+    if color_note:
+        details.append(color_note)
+    return " - ".join(part for part in details if part)
+
+
+def selected_session_images(session_id: str, image_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    session = get_session(session_id)
+    images = session.get("images", [])
+    if not isinstance(images, list):
+        return []
+    clean_ids = {clean_text(str(item)) for item in (image_ids or []) if clean_text(str(item))}
+    if clean_ids:
+        return [item for item in images if clean_text(str(item.get("id", ""))) in clean_ids]
+    return images[-3:]
+
+
+def build_image_context(session_id: str, image_ids: Optional[List[str]] = None) -> str:
+    images = selected_session_images(session_id, image_ids)
+    if not images:
+        return ""
+    lines = ["Attached image context:"]
+    for index, image in enumerate(images, start=1):
+        lines.append(f"{index}. {summarize_image_record(image)}")
+    lines.append("Use this metadata and the user's wording. Do not pretend to see details that are not available.")
+    return "\n".join(lines)
+
+
+def local_image_attachment_reply(message: str, session_id: str, image_ids: Optional[List[str]] = None) -> Optional[str]:
+    lower = clean_text(message).lower()
+    images = selected_session_images(session_id, image_ids)
+    if not images:
+        return None
+    if image_ids or re.search(r"\b(image|photo|picture|screenshot|attached|uploaded|this)\b", lower):
+        lines = [
+            "I received the image attachment.",
+            "",
+            "What I can read locally:",
+        ]
+        lines.extend(f"- {summarize_image_record(image)}" for image in images)
+        lines.extend([
+            "",
+            "How I can use it:",
+            "- Keep it attached to this chat and remember it as context.",
+            "- Help you write prompts, captions, explanations, summaries, or edit instructions based on what you tell me to focus on.",
+            "- For exact object-level vision, connect a vision-capable model later; this lightweight build avoids heavy local vision so it stays fast on your computer.",
+            "",
+            "Bottom line:",
+            "Image upload and paste now work in the chat flow, and Nexora will use the attachment metadata without crashing or timing out.",
+        ])
+        return "\n".join(lines)
+    return None
 
 
 def split_sentences(text: str) -> List[str]:
@@ -5381,6 +5577,55 @@ def plan_automation(req: AutomationRequest) -> Dict[str, Any]:
     return {"ok": True, "plan": plan, "artifact": artifact}
 
 
+@app.post("/image/upload", response_model=ImageUploadResponse)
+async def upload_image(
+    file: UploadFile = File(...),
+    session_id: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+) -> ImageUploadResponse:
+    session_id = ensure_session(session_id)
+    user_id = register_user(user_id, session_id)
+    bind_session_user(session_id, user_id)
+    original_name = file.filename or "pasted_image.png"
+    suffix = Path(original_name).suffix.lower()
+    content_type = clean_text(file.content_type or "")
+    if suffix not in IMAGE_EXTENSIONS and not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image uploads are supported by this endpoint.")
+
+    safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", original_name)[:120] or "image.png"
+    saved_name = f"{session_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}_{safe_name}"
+    saved_path = UPLOAD_DIR / saved_name
+    content = await file.read()
+    saved_path.write_bytes(content)
+    analysis = analyze_image_bytes(content, original_name, content_type)
+    image_record = {
+        "id": f"image_{uuid.uuid4().hex[:12]}",
+        "filename": original_name,
+        "saved_as": saved_name,
+        "path": str(saved_path),
+        "uploaded_at": now_iso(),
+        "user_id": user_id,
+        "session_id": session_id,
+        **analysis,
+    }
+
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id) or new_session_record(session_id)
+        session.setdefault("images", []).append(image_record)
+        session["images"] = session["images"][-12:]
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
+    return ImageUploadResponse(
+        ok=True,
+        session_id=session_id,
+        image=image_record,
+        message=f"Image attached: {original_name}",
+    )
+
+
 @app.post("/image/generate", response_model=ImageResponse)
 def generate_image(req: ImageRequest) -> ImageResponse:
     user_id = register_user(req.user_id, req.session_id)
@@ -5530,6 +5775,29 @@ def chat(req: ChatRequest) -> ChatResponse:
             tools_used=["pending_intent_memory", "behavior_learning", f"performance:{system_profile()['level']}"],
             created_at=now_iso(),
         )
+    image_reply = local_image_attachment_reply(original_user_message, session_id, req.image_ids)
+    if image_reply:
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", image_reply)
+        maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            image_reply,
+            user_id,
+            session_id,
+            "image",
+            "attachment",
+            behavior_signals,
+        )
+        return ChatResponse(
+            reply=image_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="nexora_image_attachment",
+            sources=[],
+            tools_used=["image_upload", "image_context", "behavior_learning", f"performance:{system_profile()['level']}"],
+            created_at=now_iso(),
+        )
     agent_action = execute_agent_action_from_chat(original_user_message, session_id, user_id, behavior_signals)
     if agent_action:
         return agent_action
@@ -5651,8 +5919,13 @@ def chat(req: ChatRequest) -> ChatResponse:
             )
 
     file_context = build_file_context(session_id)
+    image_context = build_image_context(session_id, req.image_ids)
+    if image_context:
+        file_context = "\n\n".join(part for part in [file_context, image_context] if part)
     if file_context:
         tools_used.append("file_context")
+    if image_context:
+        tools_used.append("image_context")
     memory_context = build_memory_context(user_id, understanding_message)
     if memory_context and not use_research:
         tools_used.append("memory")
