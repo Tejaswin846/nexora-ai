@@ -34,7 +34,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.32.0-understanding-memory"
+APP_VERSION = "8.33.0-understanding-engine"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -952,6 +952,12 @@ def append_session_message(session_id: str, role: str, content: str) -> None:
         {"role": role, "content": content, "created_at": now_iso()}
     )
     session["messages"] = session["messages"][-60:]
+    clean_content = clean_text(content)
+    if role == "user" and clean_content:
+        session["last_user_message"] = clean_content[:700]
+        session["last_user_keywords"] = memory_keywords(clean_content)[:12]
+    elif role == "assistant" and clean_content:
+        session["last_assistant_summary"] = clean_content[:500]
     update_session(session_id, session)
 
 
@@ -1856,6 +1862,168 @@ def build_behavior_context(profile: Dict[str, Any], current_signals: Optional[Di
     return "\n".join(lines)
 
 
+TYPO_NORMALIZATIONS = {
+    "learing": "learning",
+    "leraning": "learning",
+    "self learing": "self-learning",
+    "selflearning": "self-learning",
+    "chtbot": "chatbot",
+    "chat bot": "chatbot",
+    "aii": "ai",
+    "evrything": "everything",
+    "everyhing": "everything",
+    "effecient": "efficient",
+    "efficeicny": "efficiency",
+    "effeicint": "efficient",
+    "proffestionl": "professional",
+    "proffessional": "professional",
+    "proffesionl": "professional",
+    "strcutre": "structure",
+    "strucute": "structure",
+    "mimin": "mimic",
+    "searcch": "search",
+    "realtime": "real-time",
+    "real time": "real-time",
+    "puntuctons": "punctuation",
+    "punctuctons": "punctuation",
+    "diappears": "disappears",
+    "licked": "clicked",
+    "controll": "control",
+    "controle": "control",
+}
+
+
+VAGUE_REFERENCE_RE = re.compile(
+    r"\b(it|this|that|these|those|there|same|before|previous|above|like this|do it|fix it|make it|make this|change it|improve it|better)\b",
+    re.IGNORECASE,
+)
+
+
+def normalize_user_language(text: str) -> Tuple[str, List[str]]:
+    normalized = clean_text(text)
+    changes: List[str] = []
+    for wrong, right in TYPO_NORMALIZATIONS.items():
+        pattern = re.compile(rf"\b{re.escape(wrong)}\b", re.IGNORECASE)
+        if pattern.search(normalized):
+            normalized = pattern.sub(right, normalized)
+            changes.append(f"{wrong} -> {right}")
+    normalized = re.sub(r"\ban long\b", "a long", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\ban short\b", "a short", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bi need an\b", "I need a", normalized, flags=re.IGNORECASE)
+    return clean_text(normalized), changes[:12]
+
+
+def is_vague_followup(message: str) -> bool:
+    text = clean_text(message)
+    lower = text.lower()
+    if VAGUE_REFERENCE_RE.search(lower):
+        return True
+    return len(text.split()) <= 7 and bool(re.search(
+        r"\b(better|powerful|stronger|cleaner|faster|smarter|improve|fix|change|remove|add|make)\b",
+        lower,
+    ))
+
+
+def recent_session_focus(session: Dict[str, Any], current_message: str = "") -> Dict[str, Any]:
+    current = clean_text(current_message)
+    messages = session.get("messages", [])
+    previous_user = ""
+    previous_assistant = ""
+    for item in reversed(messages):
+        role = item.get("role")
+        content = clean_text(str(item.get("content", "")))
+        if not content or content == current:
+            continue
+        if role == "user" and not previous_user:
+            previous_user = content
+        elif role == "assistant" and not previous_assistant:
+            previous_assistant = content
+        if previous_user and previous_assistant:
+            break
+    if not previous_user:
+        previous_user = clean_text(str(session.get("last_user_message", "")))
+    if not previous_assistant:
+        previous_assistant = clean_text(str(session.get("last_assistant_summary", "")))
+    focus_text = " ".join(part for part in [previous_user, previous_assistant[:220]] if part)
+    return {
+        "previous_user": previous_user[:500],
+        "previous_assistant": previous_assistant[:360],
+        "keywords": memory_keywords(focus_text)[:14],
+    }
+
+
+def infer_action_goal(message: str, response_lane: str, use_research: bool) -> str:
+    lower = clean_text(message).lower()
+    if use_research:
+        return "verify current facts with real-time search before answering"
+    if re.search(r"\b(make|improve|upgrade|stronger|powerful|better|fix|change|add|remove|build)\b", lower):
+        return "improve or change the referenced thing"
+    if re.search(r"\b(write|essay|letter|email|draft|paragraph|speech)\b", lower):
+        return "produce polished writing"
+    if re.search(r"\b(explain|teach|what|why|how|learn)\b", lower):
+        return "explain the concept clearly"
+    if response_lane == "build":
+        return "solve the implementation problem"
+    return "answer directly using the current context"
+
+
+def build_understanding_context(
+    session_id: str,
+    user_message: str,
+    response_lane: str,
+    use_research: bool,
+    writing_request: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, Dict[str, Any]]:
+    normalized, corrections = normalize_user_language(user_message)
+    session = get_session(session_id)
+    focus = recent_session_focus(session, user_message)
+    vague = is_vague_followup(user_message)
+    action_goal = infer_action_goal(normalized, response_lane, use_research)
+    words = clean_text(normalized).split()
+    missing: List[str] = []
+    if writing_request and writing_request.get("is_writing") and writing_request.get("missing_topic"):
+        missing.append("writing topic")
+    if vague and not focus.get("previous_user"):
+        missing.append("reference target")
+    knowledge_strategy = bool(re.search(r"\b(everything|know everything|all knowledge|you know everything)\b", normalized.lower()))
+
+    lines = [
+        "Understanding engine:",
+        f"- Normalized user wording: {normalized}",
+        f"- Likely action: {action_goal}.",
+        f"- Vague follow-up/reference detected: {'yes' if vague else 'no'}.",
+    ]
+    if corrections:
+        lines.append("- Typing corrections understood: " + "; ".join(corrections) + ".")
+    if focus.get("previous_user"):
+        lines.append(f"- Recent user focus: {focus['previous_user']}")
+    if focus.get("previous_assistant"):
+        lines.append(f"- Recent assistant context: {focus['previous_assistant']}")
+    if focus.get("keywords"):
+        lines.append("- Context keywords: " + ", ".join(focus["keywords"]) + ".")
+    if missing:
+        lines.append("- Missing/uncertain pieces: " + ", ".join(missing) + ".")
+    if knowledge_strategy:
+        lines.append("- Knowledge strategy: answer from model knowledge for stable facts, but use search/sources for current or uncertain facts.")
+    lines.extend([
+        "- If the user uses 'it', 'this', 'that', or says 'make it better', resolve the target from recent context before answering.",
+        "- If the target or required topic is still missing, ask one short clarifying question instead of inventing a topic.",
+        "- Do not claim to know everything. Use memory, chat context, files, and real-time search when facts may be current or uncertain.",
+        "- Interpret messy human wording by intent, not by literal grammar mistakes.",
+    ])
+    state = {
+        "normalized": normalized,
+        "corrections": corrections,
+        "vague_followup": vague,
+        "focus_keywords": focus.get("keywords", []),
+        "previous_user": focus.get("previous_user", ""),
+        "missing": missing,
+        "knowledge_strategy": knowledge_strategy,
+        "word_count": len(words),
+    }
+    return "\n".join(lines), state
+
+
 def classify_response_lane(user_message: str, use_research: bool) -> str:
     text = clean_text(user_message).lower()
     if use_research:
@@ -2056,6 +2224,8 @@ def analyze_user_intent(
         constraints.append("avoid extra UI/text and unnecessary endings")
     if re.search(r"\b(memory|remember|long[- ]?term)\b", lower):
         constraints.append("use and update long-term memory")
+    if re.search(r"\b(understand|understanding|intent|human|behavior|powerful|capability|everything)\b", lower):
+        constraints.append("infer the user's real intent from messy wording and recent context")
     if use_research:
         constraints.append("do not guess current facts without sources")
 
@@ -2193,6 +2363,7 @@ def learn_long_term_memory_from_chat(
         (r"\b(fast|faster|speed|efficient|efficiency|no timeout|timeouts?)\b", "User values fast, efficient answers with minimal waiting.", "workflow"),
         (r"\b(structure|structured|clean|professional|beautiful|format|punctuation|organized)\b", "User prefers clean, structured, professional answers.", "preference"),
         (r"\b(understand|intent|what the user wants|question properly|human behavior)\b", "User wants Nexora to infer intent from informal wording and respond to the real need.", "preference"),
+        (r"\b(powerful|capability|know everything|you know everything|understanding chatbot|understanding ai)\b", "User wants Nexora to combine context understanding, memory, and realtime search instead of literal keyword matching.", "preference"),
         (r"\b(doesn'?t understand|dont understand|didn'?t understand|missing topic|ask for the topic)\b", "When a writing request is incomplete, ask for the missing topic instead of guessing.", "preference"),
         (r"\b(long[- ]?term memory|remember chat|memory of the chat|remember our chat)\b", "User wants long-term chat memory used for future replies.", "preference"),
         (r"\b(short|brief|concise)\b", "User sometimes asks for concise answers; keep simple requests short.", "preference"),
@@ -3125,6 +3296,7 @@ def build_messages(
     behavior_context: str,
     response_lane_context: str,
     presentation_context: str,
+    understanding_context: str,
     intent_context: str,
     use_research: bool,
     response_mode: str,
@@ -3153,6 +3325,8 @@ def build_messages(
         messages.append({"role": "system", "content": persona_context})
     if behavior_context:
         messages.append({"role": "system", "content": behavior_context})
+    if understanding_context:
+        messages.append({"role": "system", "content": understanding_context})
     if intent_context:
         messages.append({"role": "system", "content": intent_context})
     if response_lane_context:
@@ -4033,23 +4207,32 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
 
-    use_research = should_use_research(original_user_message, req.mode, req.use_web)
-    response_lane = classify_response_lane(original_user_message, use_research)
-    presentation_style = classify_presentation_style(original_user_message, response_lane, use_research)
-    writing_request = analyze_writing_request(original_user_message)
+    normalized_user_message, _typing_corrections = normalize_user_language(original_user_message)
+    understanding_message = normalized_user_message or original_user_message
+    use_research = should_use_research(understanding_message, req.mode, req.use_web)
+    response_lane = classify_response_lane(understanding_message, use_research)
+    presentation_style = classify_presentation_style(understanding_message, response_lane, use_research)
+    writing_request = analyze_writing_request(understanding_message)
     intent = analyze_user_intent(
-        original_user_message,
+        understanding_message,
         response_lane,
         presentation_style,
         use_research,
         behavior_signals,
+    )
+    understanding_context, understanding_state = build_understanding_context(
+        session_id,
+        original_user_message,
+        response_lane,
+        use_research,
+        writing_request,
     )
     memory_sig = memory_signature_for_user(user_id)
     response_cache_key = cache_key(
         session_id,
         original_user_message,
         req.mode,
-        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{response_lane}:{presentation_style}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
+        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{response_lane}:{presentation_style}:{understanding_state.get('vague_followup')}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
     )
     skip_response_cache = bool(writing_request.get("is_writing") and writing_request.get("missing_topic"))
     cached = None if skip_response_cache else get_cached_response(response_cache_key)
@@ -4093,11 +4276,11 @@ def chat(req: ChatRequest) -> ChatResponse:
     rounds = 0
 
     if use_research:
-        research = research_with_realtime_fallback(original_user_message)
+        research = research_with_realtime_fallback(understanding_message)
         confidence = str(research.get("confidence", "none"))
         rounds = int(research.get("rounds", 0) or 0)
         sources = convert_sources(research.get("sources", []))
-        verified_sources = verified_sources_only(sources, original_user_message)
+        verified_sources = verified_sources_only(sources, understanding_message)
         provider = str(research.get("provider", "research_engine"))
         tools_used.append(f"{provider}:{confidence}:rounds_{rounds}")
         if not research.get("ok") or not verified_sources:
@@ -4129,20 +4312,22 @@ def chat(req: ChatRequest) -> ChatResponse:
     file_context = build_file_context(session_id)
     if file_context:
         tools_used.append("file_context")
-    memory_context = build_memory_context(user_id, original_user_message)
+    memory_context = build_memory_context(user_id, understanding_message)
     if memory_context and not use_research:
         tools_used.append("memory")
+    if understanding_context:
+        tools_used.append("context_understanding")
     persona_context = build_persona_context(persona_profile)
     tools_used.append("adaptive_persona")
     behavior_context = build_behavior_context(behavior_profile, behavior_signals)
-    response_lane_context = build_response_lane_context(original_user_message, use_research)
-    presentation_context = build_presentation_context(original_user_message, response_lane, use_research)
+    response_lane_context = build_response_lane_context(understanding_message, use_research)
+    presentation_context = build_presentation_context(understanding_message, response_lane, use_research)
     intent_context = build_intent_context(intent)
     tools_used.append(f"response_lane:{response_lane}")
     tools_used.append(f"presentation:{presentation_style}")
 
     local_structured = (
-        local_structured_fallback(original_user_message, response_lane, presentation_style, session_id=session_id)
+        local_structured_fallback(understanding_message, response_lane, presentation_style, session_id=session_id)
         if not use_research
         else None
     )
@@ -4175,11 +4360,11 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
 
-    research_context = build_research_context(verified_sources, original_user_message, confidence, rounds) if verified_sources else ""
+    research_context = build_research_context(verified_sources, understanding_message, confidence, rounds) if verified_sources else ""
     free_club_context = ""
     free_club_sources: List[SourceItem] = []
     use_free_club = should_use_free_club(
-        original_user_message,
+        understanding_message,
         use_research,
         response_mode,
         response_lane,
@@ -4187,8 +4372,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     )
     if use_free_club:
         tools_used.append(f"free_club:{FREE_CLUB_MODE}")
-        if should_add_free_club_search(original_user_message, use_research, response_lane, presentation_style):
-            free_club_context, free_club_sources, club_status = build_free_club_search_context(original_user_message)
+        if should_add_free_club_search(understanding_message, use_research, response_lane, presentation_style):
+            free_club_context, free_club_sources, club_status = build_free_club_search_context(understanding_message)
             tools_used.append(f"free_club:{club_status}")
 
     combined_research_context = "\n\n".join(
@@ -4205,6 +4390,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         behavior_context=behavior_context,
         response_lane_context=response_lane_context,
         presentation_context=presentation_context,
+        understanding_context=understanding_context,
         intent_context=intent_context,
         use_research=use_research,
         response_mode=response_mode,
