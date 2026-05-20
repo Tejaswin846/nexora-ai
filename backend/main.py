@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.36.0-power-stages"
+APP_VERSION = "8.37.0-agent-actions"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -129,7 +129,7 @@ SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 HTTP = requests.Session()
 RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
 POLLINATIONS_LOCK = threading.Lock()
-JSON_WRITE_LOCK = threading.Lock()
+JSON_WRITE_LOCK = threading.RLock()
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 app.add_middleware(
@@ -920,7 +920,7 @@ def local_study_plan_reply(message: str) -> Optional[str]:
 
 def local_file_summary_reply(message: str, session_id: Optional[str]) -> Optional[str]:
     lower = clean_text(message).lower()
-    if not session_id or not re.search(r"\b(summarize|summary|notes from|key points from)\b", lower) or not re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+    if not session_id or not re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) or not re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
         return None
     session = get_session(session_id)
     files = session.get("files", [])
@@ -945,7 +945,7 @@ def local_file_summary_reply(message: str, session_id: Optional[str]) -> Optiona
 
 def is_high_confidence_local_reply(message: str, presentation_style: str = "balanced") -> bool:
     lower = clean_text(message).lower()
-    if re.search(r"\b(summarize|summary|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
         return True
     if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
         return True
@@ -1389,7 +1389,74 @@ def mode_limits(response_mode: str) -> Tuple[int, int, float]:
     return min(MAX_MODEL_TOKENS, limits["instant_max_tokens"]), INSTANT_TIMEOUT, 0.16
 
 
+def json_lock_path(path: Path) -> Path:
+    return path.with_name(f"{path.name}.lock")
+
+
+def remove_stale_json_lock(lock_path: Path, stale_after: float = 30.0) -> bool:
+    try:
+        if lock_path.exists() and time.time() - lock_path.stat().st_mtime > stale_after:
+            lock_path.unlink(missing_ok=True)
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def wait_for_json_unlock(path: Path, timeout: float = 5.0) -> None:
+    lock_path = json_lock_path(path)
+    started = time.time()
+    while lock_path.exists():
+        if remove_stale_json_lock(lock_path):
+            break
+        if time.time() - started >= timeout:
+            break
+        time.sleep(0.025)
+
+
+def acquire_json_file_lock(path: Path, timeout: float = 5.0) -> Path:
+    lock_path = json_lock_path(path)
+    started = time.time()
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(f"{os.getpid()} {time.time()}")
+            return lock_path
+        except FileExistsError:
+            remove_stale_json_lock(lock_path)
+        except PermissionError:
+            pass
+        if time.time() - started >= timeout:
+            raise PermissionError(f"Timed out waiting for JSON data lock: {path.name}")
+        time.sleep(0.025)
+
+
+def release_json_file_lock(lock_path: Path) -> None:
+    try:
+        lock_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def safe_read_json(path: Path, default: Any) -> Any:
+    wait_for_json_unlock(path)
+    try:
+        if not path.exists():
+            return default
+        for attempt in range(8):
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except PermissionError:
+                time.sleep(0.05 * (attempt + 1))
+            except json.JSONDecodeError:
+                time.sleep(0.05 * (attempt + 1))
+        return default
+    except Exception:
+        return default
+
+
+def read_json_direct(path: Path, default: Any) -> Any:
     try:
         if not path.exists():
             return default
@@ -1398,24 +1465,47 @@ def safe_read_json(path: Path, default: Any) -> Any:
         return default
 
 
+def write_json_atomic(path: Path, data: Any) -> None:
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    last_error: Optional[PermissionError] = None
+    for attempt in range(30):
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError as error:
+            last_error = error
+            time.sleep(min(0.05 * (attempt + 1), 0.5))
+    try:
+        tmp.unlink(missing_ok=True)
+    except Exception:
+        pass
+    if last_error:
+        raise last_error
+
+
 def safe_write_json(path: Path, data: Any) -> None:
     with JSON_WRITE_LOCK:
-        tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        last_error: Optional[PermissionError] = None
-        for attempt in range(6):
-            try:
-                tmp.replace(path)
-                return
-            except PermissionError as error:
-                last_error = error
-                time.sleep(0.05 * (attempt + 1))
+        lock_path = acquire_json_file_lock(path)
         try:
-            tmp.unlink(missing_ok=True)
-        except Exception:
-            pass
-        if last_error:
-            raise last_error
+            write_json_atomic(path, data)
+        finally:
+            release_json_file_lock(lock_path)
+
+
+def update_json_dict(path: Path, default: Dict[str, Any], mutator: Any) -> Any:
+    with JSON_WRITE_LOCK:
+        lock_path = acquire_json_file_lock(path)
+        try:
+            data = read_json_direct(path, default.copy())
+            if not isinstance(data, dict):
+                data = default.copy()
+            result, changed = mutator(data)
+            if changed:
+                write_json_atomic(path, data)
+            return result
+        finally:
+            release_json_file_lock(lock_path)
 
 
 def ensure_session(session_id: Optional[str]) -> str:
@@ -1432,65 +1522,120 @@ def save_sessions(sessions: Dict[str, Any]) -> None:
     safe_write_json(SESSIONS_FILE, sessions)
 
 
+def new_session_record(session_id: str) -> Dict[str, Any]:
+    return {
+        "id": session_id,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "messages": [],
+        "files": [],
+    }
+
+
 def get_session(session_id: str) -> Dict[str, Any]:
-    sessions = load_sessions()
-    session = sessions.get(session_id)
-    if not session:
-        session = {
-            "id": session_id,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-            "messages": [],
-            "files": [],
-        }
-        sessions[session_id] = session
-        save_sessions(sessions)
-    return session
+    def mutate(sessions: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
+        session = sessions.get(session_id)
+        if not session:
+            session = new_session_record(session_id)
+            sessions[session_id] = session
+            return session, True
+        return session, False
+
+    return update_json_dict(SESSIONS_FILE, {}, mutate)
 
 
 def update_session(session_id: str, session: Dict[str, Any]) -> None:
-    sessions = load_sessions()
-    session["updated_at"] = now_iso()
-    sessions[session_id] = session
-    save_sessions(sessions)
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
 
 
 def bind_session_user(session_id: str, user_id: str) -> None:
-    session = get_session(session_id)
-    if session.get("user_id") == user_id:
-        return
-    session["user_id"] = user_id
-    update_session(session_id, session)
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id) or new_session_record(session_id)
+        if session.get("user_id") == user_id:
+            sessions[session_id] = session
+            return None, False
+        session["user_id"] = user_id
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
 
 
 def set_pending_task(session_id: str, task: Dict[str, Any]) -> None:
-    session = get_session(session_id)
     task["created_at"] = now_iso()
-    session["pending_task"] = task
-    update_session(session_id, session)
+
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id) or new_session_record(session_id)
+        session["pending_task"] = task
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
 
 
 def clear_pending_task(session_id: str) -> None:
-    session = get_session(session_id)
-    if "pending_task" in session:
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id)
+        if not isinstance(session, dict) or "pending_task" not in session:
+            return None, False
         session.pop("pending_task", None)
-        update_session(session_id, session)
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
+
+
+def set_session_value(session_id: str, key: str, value: Any) -> None:
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id) or new_session_record(session_id)
+        session[key] = value
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
+
+
+def pop_session_value(session_id: str, key: str) -> Any:
+    def mutate(sessions: Dict[str, Any]) -> Tuple[Any, bool]:
+        session = sessions.get(session_id)
+        if not isinstance(session, dict) or key not in session:
+            return None, False
+        value = session.pop(key, None)
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return value, True
+
+    return update_json_dict(SESSIONS_FILE, {}, mutate)
 
 
 def append_session_message(session_id: str, role: str, content: str) -> None:
-    session = get_session(session_id)
-    session.setdefault("messages", []).append(
-        {"role": role, "content": content, "created_at": now_iso()}
-    )
-    session["messages"] = session["messages"][-MAX_SESSION_MESSAGES:]
-    session["turn_count"] = int(session.get("turn_count", 0) or 0) + (1 if role == "user" else 0)
-    clean_content = clean_text(content)
-    if role == "user" and clean_content:
-        session["last_user_message"] = clean_content[:700]
-        session["last_user_keywords"] = memory_keywords(clean_content)[:12]
-    elif role == "assistant" and clean_content:
-        session["last_assistant_summary"] = clean_content[:500]
-    update_session(session_id, session)
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id) or new_session_record(session_id)
+        session.setdefault("messages", []).append(
+            {"role": role, "content": content, "created_at": now_iso()}
+        )
+        session["messages"] = session["messages"][-MAX_SESSION_MESSAGES:]
+        session["turn_count"] = int(session.get("turn_count", 0) or 0) + (1 if role == "user" else 0)
+        clean_content = clean_text(content)
+        if role == "user" and clean_content:
+            session["last_user_message"] = clean_content[:700]
+            session["last_user_keywords"] = memory_keywords(clean_content)[:12]
+        elif role == "assistant" and clean_content:
+            session["last_assistant_summary"] = clean_content[:500]
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
 
 
 def load_memory() -> List[Dict[str, Any]]:
@@ -4585,6 +4730,183 @@ def source_to_dict(source: SourceItem) -> Dict[str, Any]:
     return source.dict()
 
 
+def action_result_response(
+    reply: str,
+    session_id: str,
+    user_id: str,
+    model_used: str,
+    tools_used: List[str],
+    behavior_signals: Dict[str, Any],
+    lane: str = "action",
+    style: str = "action_result",
+) -> ChatResponse:
+    pending_user = clean_text(str(pop_session_value(session_id, "_pending_action_user") or ""))
+    if pending_user:
+        append_session_message(session_id, "user", pending_user)
+    append_session_message(session_id, "assistant", reply)
+    if pending_user:
+        maybe_store_memory(pending_user, user_id)
+        learn_long_term_memory_from_chat(
+            pending_user,
+            reply,
+            user_id,
+            session_id,
+            lane,
+            style,
+            behavior_signals,
+        )
+    return ChatResponse(
+        reply=reply,
+        session_id=session_id,
+        mode="agent",
+        model_used=model_used,
+        sources=[],
+        tools_used=tools_used,
+        created_at=now_iso(),
+    )
+
+
+def extract_after_action(message: str, pattern: str, fallback: str = "") -> str:
+    text = clean_text(message)
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    if match:
+        return clean_text(match.group(1)).strip(" .,:;-")
+    return fallback or text
+
+
+def parse_days_minutes(message: str) -> Tuple[int, int]:
+    lower = clean_text(message).lower()
+    days_match = re.search(r"\b(\d{1,2})\s*(day|days)\b", lower)
+    minutes_match = re.search(r"\b(\d{1,3})\s*(min|mins|minutes)\b", lower)
+    return (
+        int(days_match.group(1)) if days_match else 7,
+        int(minutes_match.group(1)) if minutes_match else 45,
+    )
+
+
+def execute_agent_action_from_chat(
+    message: str,
+    session_id: str,
+    user_id: str,
+    behavior_signals: Dict[str, Any],
+) -> Optional[ChatResponse]:
+    text = clean_text(message)
+    lower = text.lower()
+    set_session_value(session_id, "_pending_action_user", message)
+    base_tools = ["agent_action_router", "behavior_learning", f"performance:{system_profile()['level']}"]
+
+    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|key points from|notes from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+        reply = local_file_summary_reply(text, session_id) or "Upload a PDF or text file first, then ask me to summarize it."
+        return action_result_response(reply, session_id, user_id, "nexora_action_file_summary", base_tools + ["files:summarize"], behavior_signals, "files")
+
+    if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
+        topic_raw = re.sub(r"(?i)^(please\s+)?(make|create|generate|give me|prepare)\s+(a\s+)?", "", text)
+        topic_raw = re.sub(r"(?i)\b(study plan|study planner|revision plan|timetable|schedule for study)\b\s*(for|on|about)?\s*", "", topic_raw)
+        topic_raw = re.sub(r"(?i)\b(in|for)\s+\d{1,2}\s*(day|days|week|weeks)\b", "", topic_raw)
+        topic = title_case_topic(topic_raw.strip(" .,:;-") or "Study")
+        days, minutes = parse_days_minutes(text)
+        plan = make_study_plan(topic, days, minutes)
+        artifact = create_artifact(f"Study plan - {topic}", "Study Plan", plan, prompt=text, user_id=user_id, session_id=session_id)
+        reply = f"{plan}\n\nSaved as artifact: {artifact['title']}"
+        upsert_memory_item(f"User is studying {topic}.", user_id, "study", "agent_action", session_id)
+        return action_result_response(reply, session_id, user_id, "nexora_action_study_plan", base_tools + ["study:plan"], behavior_signals, "study")
+
+    if re.search(r"\b(create|generate|make|build)\b", lower) and re.search(r"\b(website|web page|landing page|html page)\b", lower):
+        prompt = extract_after_action(text, r"\b(?:website|web page|landing page|html page)\b\s*(?:for|about|on|:)?\s*(.+)$", text)
+        html = generate_website_html(prompt)
+        title = title_case_topic(prompt[:60] or "Website")
+        artifact = create_artifact(f"Website - {title}", "Website", html, prompt=prompt, user_id=user_id, session_id=session_id)
+        reply = (
+            f"Website created: {artifact['title']}\n\n"
+            "Saved to Artifacts as a single HTML file. Open Artifacts to view or reuse it."
+        )
+        return action_result_response(reply, session_id, user_id, "nexora_action_website", base_tools + ["website:generate"], behavior_signals, "website")
+
+    if re.search(r"\b(remind me|set\s+(?:a\s+)?reminder|create\s+(?:a\s+)?reminder|add\s+(?:a\s+)?reminder|make\s+(?:a\s+)?reminder)\b", lower):
+        title = extract_after_action(text, r"\b(?:remind me(?:\s+to|\s+about)?|set\s+(?:a\s+)?reminder(?:\s+to|\s+about)?|create\s+(?:a\s+)?reminder(?:\s+to|\s+about)?|add\s+(?:a\s+)?reminder(?:\s+to|\s+about)?|make\s+(?:a\s+)?reminder(?:\s+to|\s+about)?|reminder:?)\s*(.+)$", text)
+        due_match = re.search(r"\b(?:at|on|by)\s+(.+)$", title, flags=re.IGNORECASE)
+        due_at = clean_text(due_match.group(1)) if due_match else ""
+        if due_match:
+            title = clean_text(title[:due_match.start()]).strip(" .,:;-") or title
+        reminder = {
+            "id": f"reminder_{uuid.uuid4().hex[:12]}",
+            "title": title or "Reminder",
+            "due_at": due_at,
+            "notes": "",
+            "user_id": user_id,
+            "session_id": session_id,
+            "done": False,
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+        }
+        items = load_reminders()
+        items.insert(0, reminder)
+        save_reminders(items)
+        reply = f"Reminder saved: {reminder['title']}" + (f"\n\nDue: {due_at}" if due_at else "")
+        return action_result_response(reply, session_id, user_id, "nexora_action_reminder", base_tools + ["reminders:create"], behavior_signals, "reminder")
+
+    if re.search(r"\b(draft|write|compose|make)\b", lower) and re.search(r"\b(email|e-mail|mail)\b", lower):
+        purpose = extract_after_action(text, r"\b(?:email|e-mail|mail)\b\s*(?:to|for|about|:)?\s*(.+)$", text)
+        draft = draft_email_text(purpose or text)
+        artifact = create_artifact("Email draft", "Email", draft, prompt=text, user_id=user_id, session_id=session_id)
+        reply = f"{draft}\n\nSaved as artifact: {artifact['title']}"
+        return action_result_response(reply, session_id, user_id, "nexora_action_email", base_tools + ["email:draft"], behavior_signals, "email")
+
+    if re.search(r"\b(create|make|save|build)\b", lower) and re.search(r"\b(workflow|checklist|process)\b", lower):
+        name = extract_after_action(text, r"\b(?:workflow|checklist|process)\b\s*(?:for|about|:)?\s*(.+)$", "Workflow")
+        steps = [
+            "Clarify the goal.",
+            "Collect inputs.",
+            "Do the main work.",
+            "Check the output.",
+            "Save the result.",
+        ]
+        workflow = {
+            "id": f"workflow_{uuid.uuid4().hex[:12]}",
+            "name": title_case_topic(name),
+            "goal": clean_text(name),
+            "steps": steps,
+            "user_id": user_id,
+            "session_id": session_id,
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+        }
+        items = load_workflows()
+        items.insert(0, workflow)
+        save_workflows(items)
+        reply = "Workflow created:\n\n" + "\n".join(f"{index}. {step}" for index, step in enumerate(steps, start=1))
+        return action_result_response(reply, session_id, user_id, "nexora_action_workflow", base_tools + ["workflows:create"], behavior_signals, "workflow")
+
+    if re.search(r"\b(automation plan|automate|automation|browser action|browser task)\b", lower):
+        goal = extract_after_action(text, r"\b(?:automation plan|automate|automation|browser action|browser task)\b\s*(?:for|to|:)?\s*(.+)$", text)
+        plan = make_automation_plan(goal)
+        artifact = create_artifact(f"Automation plan - {title_case_topic(goal[:60])}", "Automation Plan", plan, prompt=text, user_id=user_id, session_id=session_id)
+        reply = f"{plan}\n\nSaved as artifact: {artifact['title']}"
+        return action_result_response(reply, session_id, user_id, "nexora_action_automation", base_tools + ["automation:plan"], behavior_signals, "automation")
+
+    if re.search(r"\b(create|generate|make|draw|give me)\b", lower) and re.search(r"\b(image|picture|photo|art|poster|logo|wallpaper)\b", lower):
+        prompt = strip_image_command(text)
+        style = infer_image_style(prompt, "auto", user_id)
+        enhanced = enhance_image_prompt(prompt, style, True)
+        negative = build_image_negative_prompt("", style)
+        url, width, height = build_image_url(enhanced, IMAGE_DEFAULT_SIZE, negative, user_id)
+        artifact = create_artifact(
+            title=prompt[:70] or "Generated image",
+            artifact_type="Image",
+            content=f"Original prompt: {prompt}\nEnhanced prompt: {enhanced}",
+            url=url,
+            prompt=enhanced,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        remember_image_workflow(user_id, prompt, enhanced, style, f"{width}x{height}", negative, url, artifact["id"])
+        reply = f"Image created.\n\nOpen image: {url}"
+        return action_result_response(reply, session_id, user_id, "nexora_action_image", base_tools + ["image:generate"], behavior_signals, "image")
+
+    pop_session_value(session_id, "_pending_action_user")
+    return None
+
+
 @app.get("/")
 def root() -> Dict[str, Any]:
     return {
@@ -5208,6 +5530,9 @@ def chat(req: ChatRequest) -> ChatResponse:
             tools_used=["pending_intent_memory", "behavior_learning", f"performance:{system_profile()['level']}"],
             created_at=now_iso(),
         )
+    agent_action = execute_agent_action_from_chat(original_user_message, session_id, user_id, behavior_signals)
+    if agent_action:
+        return agent_action
     response_mode = choose_response_mode(original_user_message, req.mode, req.model)
     quick_reply = local_fast_reply(original_user_message)
     if quick_reply:
@@ -5613,7 +5938,6 @@ def chat_stream(req: ChatRequest) -> StreamingResponse:
 @app.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = Form(None)) -> UploadResponse:
     session_id = ensure_session(session_id)
-    session = get_session(session_id)
     original_name = file.filename or "uploaded_file"
     safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", original_name)[:120]
     saved_name = f"{session_id}_{int(time.time())}_{safe_name}"
@@ -5628,16 +5952,24 @@ async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = 
         "word_count": 0,
     }
     file_limit = current_performance_limits().get("file_context_chars", MAX_FILE_CONTEXT_CHARS)
-    session.setdefault("files", []).append({
+    file_record = {
         "filename": original_name,
         "saved_as": saved_name,
         "path": str(saved_path),
         "uploaded_at": now_iso(),
         "text": extracted[:file_limit],
         "summary": summary,
-    })
-    session["files"] = session["files"][-10:]
-    update_session(session_id, session)
+    }
+
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        session = sessions.get(session_id) or new_session_record(session_id)
+        session.setdefault("files", []).append(file_record)
+        session["files"] = session["files"][-10:]
+        session["updated_at"] = now_iso()
+        sessions[session_id] = session
+        return None, True
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
     return UploadResponse(
         ok=True,
         session_id=session_id,
@@ -5655,10 +5987,13 @@ def read_session(session_id: str) -> Dict[str, Any]:
 
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: str) -> Dict[str, Any]:
-    sessions = load_sessions()
-    if session_id in sessions:
-        del sessions[session_id]
-        save_sessions(sessions)
+    def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
+        if session_id in sessions:
+            del sessions[session_id]
+            return None, True
+        return None, False
+
+    update_json_dict(SESSIONS_FILE, {}, mutate)
     return {"ok": True, "deleted": session_id}
 
 
