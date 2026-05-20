@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.42.0-fast-direct-answers"
+APP_VERSION = "8.43.0-reflective-fast-style"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -450,6 +450,9 @@ def local_fast_reply(message: str) -> Optional[str]:
     direct_name = local_direct_name_reply(text)
     if direct_name:
         return direct_name
+    reflective = local_reflective_reply(text)
+    if reflective:
+        return reflective
     if re.search(r"\b(second world war|world war ii|world war 2|ww2)\b", text) and re.search(
         r"\b(cause|caused|reason|start|started|begin|began|behind|person|responsible|who)\b",
         text,
@@ -655,6 +658,50 @@ def local_direct_name_reply(message: str) -> Optional[str]:
             return f"One well-known {kind} is {person}."
 
     return None
+
+
+def local_reflective_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(ai|artificial intelligence|assistant|chatbot|nexora|model)\b", lower):
+        return None
+    if not re.search(r"\b(powerful|power|best|better|good|useful|trust|trusted|trustworthy|safe|safety|dangerous|wisdom|intelligent|smart|human|understand|capable|capability)\b", lower):
+        return None
+    if re.search(r"\b(code|bug|fix|install|run|api|backend|frontend|html|css|javascript|python|deploy)\b", lower):
+        return None
+
+    if re.search(r"\b(powerful|power|capability|capable)\b", lower):
+        return (
+            "Interesting question to sit with. The strongest version of AI is not just the one that can do the most things.\n\n"
+            "**Power in AI is usefulness with judgment.**\n\n"
+            "A powerful AI should be able to:\n\n"
+            "- **Understand the real need:** It should look past messy wording and figure out what the person is actually trying to solve.\n"
+            "- **Know its limits:** It should be confident when the facts are solid, but honest when something needs search, evidence, or expert judgment.\n"
+            "- **Stay useful under pressure:** If one engine is slow, it should fall back to another path instead of giving a dead-end error.\n"
+            "- **Earn trust:** It should be accurate, clear, and willing to say uncomfortable truths instead of sounding impressive for no reason.\n"
+            "- **Protect the user:** Power without safety is not intelligence. It is just risk with good grammar.\n\n"
+            "The weaker version of powerful is just fluent text. That can look impressive, but if it guesses, hallucinates, or hides uncertainty, it becomes dangerous.\n\n"
+            "The better version is closer to wisdom: useful knowledge, careful reasoning, clean communication, and judgment about when not to overclaim.\n\n"
+            "For Nexora, that means speed, memory, real-time context, local fallback, clean structure, and a human tone all working together."
+        )
+
+    if re.search(r"\b(trust|trusted|trustworthy|safe|safety|dangerous|honest|accuracy|accurate)\b", lower):
+        return (
+            "The key thing is that trust in AI should be earned, not assumed.\n\n"
+            "**A trustworthy AI is not the one that always sounds confident. It is the one that knows when confidence is deserved.**\n\n"
+            "That means it should:\n\n"
+            "- **Separate facts from guesses:** Stable knowledge is fine, but current claims need evidence.\n"
+            "- **Admit uncertainty:** Saying \"I cannot verify that yet\" is better than inventing a polished answer.\n"
+            "- **Use the right tool:** Search for current facts, local memory for preferences, and structured reasoning for complex problems.\n"
+            "- **Avoid harm:** A useful answer should not create danger, confusion, or false confidence.\n\n"
+            "In practice, the safest AI is not timid. It is careful. It still helps, but it does not pretend."
+        )
+
+    return (
+        "The way I think about it is simple: a good AI should make thinking easier, not noisier.\n\n"
+        "**The best AI is not just smart. It is useful, honest, and steady.**\n\n"
+        "It should understand the user's intent, answer in clean language, use tools when facts may be current, and avoid pretending when it does not know.\n\n"
+        "That balance matters because fluent answers can feel intelligent even when they are wrong. Real usefulness comes from clarity plus judgment."
+    )
 
 
 def clean_writing_topic_candidate(raw: str) -> str:
@@ -1203,6 +1250,7 @@ def local_semantic_reply(
 ) -> Optional[str]:
     return (
         local_direct_name_reply(message)
+        or local_reflective_reply(message)
         or local_comparison_reply(message)
         or local_pros_cons_reply(message)
         or local_goal_plan_reply(message)
@@ -3455,6 +3503,13 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
             "- Keep normal chat natural and concise. Use headings only when the answer has more than one clear part.",
             "- Notice the user's intent and emotion; be steady, not dramatic.",
         ])
+        if re.search(r"\b(ai|artificial intelligence|assistant|chatbot|nexora|model|powerful|power|trust|wisdom|safe|human|meaning|think|opinion)\b", user_message.lower()):
+            base.extend([
+                "- For this reflective-style chat, use a thoughtful opening sentence, then one bold thesis sentence.",
+                "- Use compact bullets with bold labels only if they add clarity.",
+                "- Be honest about limits and uncertainty without becoming evasive.",
+                "- A single natural curiosity question at the end is allowed if it feels human and relevant.",
+            ])
     elif lane == "planning":
         base.extend([
             "- Understand the user's real goal, then turn it into a practical action plan.",
@@ -4150,6 +4205,8 @@ def free_provider_status() -> Dict[str, Any]:
         "no_key_default": "pollinations",
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
+            "fast_direct_answers_for_simple_stable_questions",
+            "reflective_human_answer_style",
             "ollama_local_reasoning_engine",
             "pollinations_base",
             "pollinations_backup_model_on_failure",
@@ -5071,6 +5128,9 @@ Style:
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
 - Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
 - Use a ChatGPT-like rhythm: one clear opening sentence, then useful context, then the practical next point.
+- For reflective, philosophical, opinion, or judgment questions, use a Claude-like reflective rhythm: a thoughtful first sentence, one strong bold thesis, then compact bullets with bold labels where useful.
+- In reflective answers, distinguish impressive capability from real usefulness. Prefer judgment, honesty, uncertainty-awareness, and human benefit over hype.
+- For reflective answers, a single natural curiosity question at the end is allowed only when it genuinely continues the conversation. Do not add generic follow-up prompts to normal answers.
 - For most answers, use the familiar ChatGPT shape: answer first, then short headings or bullets only when they make the answer easier to read.
 - Default structure for serious answers: one direct lead paragraph first, then only the useful sections. Prefer section names like "Short answer:", "Key points:", "How it works:", "What it means:", "Details:", and "Bottom line:".
 - Use this answer blueprint:
@@ -5102,7 +5162,7 @@ Style:
 - Avoid stiff phrases like "It is important to note", "In conclusion", "As an AI", "Based on your query", and "Here is the answer".
 - Use short paragraphs, crisp bullets, or small tables when they improve clarity.
 - Keep casual answers concise; expand only when the task genuinely needs depth.
-- Do not add follow-up suggestions, extra prompts, or generic closing questions after the answer.
+- Do not add follow-up suggestions, extra prompts, or generic closing questions after the answer. The only exception is reflective human chat, where one natural curiosity question may be useful.
 - End once the answer is complete.
 - Never write "Direct Answer" or expose backend/system details.
 - Do not output raw LaTeX delimiters like \[...\] unless the user explicitly asks for LaTeX. For equations, prefer readable plain text such as "6 CO2 + 6 H2O -> C6H12O6 + 6 O2" or simple Unicode subscripts when possible.
