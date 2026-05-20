@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: nexora-ai
+    env: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: NEXORA_PROVIDER
+        value: auto
+      - key: NEXORA_OLLAMA_MODE
+        value: fallback
+      - key: NEXORA_AUTONOMOUS_RESEARCH
+        value: "true"
+      - key: NEXORA_IMAGE_PROVIDER
+        value: pollinations
+      - key: NEXORA_FREE_CLUB_MODE
+        value: auto

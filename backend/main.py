@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.45.0-source-button-intelligence"
+APP_VERSION = "8.46.0-public-website-deploy"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -6141,16 +6141,6 @@ def execute_agent_action_from_chat(
     return None
 
 
-@app.get("/")
-def root() -> Dict[str, Any]:
-    return {
-        "app": APP_NAME,
-        "version": APP_VERSION,
-        "status": "running",
-        "message": "Nexora free API agent backend is running.",
-    }
-
-
 @app.get("/app", response_class=HTMLResponse)
 def web_app() -> HTMLResponse:
     if not FRONTEND_INDEX.exists():
@@ -6159,6 +6149,11 @@ def web_app() -> HTMLResponse:
             status_code=404,
         )
     return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
+
+
+@app.get("/", response_class=HTMLResponse)
+def root() -> HTMLResponse:
+    return web_app()
 
 
 @app.get("/nexora", response_class=HTMLResponse)
@@ -7517,4 +7512,9 @@ def finance() -> Dict[str, Any]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+        reload=os.getenv("NEXORA_RELOAD", "false").strip().lower() in {"1", "true", "yes"},
+    )

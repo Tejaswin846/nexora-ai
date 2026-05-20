@@ -1,0 +1,9 @@
+.git
+backend/venv
+backend/__pycache__
+backend/**/*.pyc
+backend/nexora_data
+backend/.env
+*.log
+Thumbs.db
+.DS_Store
