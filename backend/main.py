@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.44.0-autonomous-research-style"
+APP_VERSION = "8.45.0-source-button-intelligence"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -5911,13 +5911,38 @@ def wikipedia_fallback_reply(question: str, sources: List[SourceItem]) -> str:
     title = clean_text(source.title) or clean_learning_topic(question)
     sentences = re.split(r"(?<=[.!?])\s+", snippet)
     first = sentences[0] if sentences else snippet
-    rest = [sentence for sentence in sentences[1:4] if sentence]
+    rest = [sentence for sentence in sentences[1:6] if sentence]
     lines = [
         first or f"{title} is best understood by starting with its basic meaning and main details.",
     ]
     if rest:
         lines.extend(["", "Key points:"])
         lines.extend(f"- {sentence}" for sentence in rest)
+    if re.search(r"\b(explain|teach|how|why|what is|what are)\b", question.lower()):
+        topic = title.lower()
+        if "black hole" in topic:
+            lines.extend([
+                "",
+                "How to think about it:",
+                "- A black hole is not an empty hole in space; it is an extremely dense object with gravity so strong that light cannot escape once it crosses the event horizon.",
+                "- Black holes can form when very massive stars collapse after running out of fuel.",
+                "- Scientists detect them by studying their effects on nearby stars, gas, light, and gravitational waves.",
+            ])
+        elif "quantum comput" in topic:
+            lines.extend([
+                "",
+                "How to think about it:",
+                "- A normal computer stores information as bits: 0 or 1.",
+                "- A quantum computer uses quantum bits, or qubits, which can represent richer states through superposition and entanglement.",
+                "- That can make some special calculations much faster, but quantum computers are still difficult to build and control.",
+            ])
+        else:
+            lines.extend([
+                "",
+                "How to think about it:",
+                f"- Start with the definition, then connect {title.lower()} to its cause, effect, or real-world use.",
+                "- Separate the core idea from extra details so the answer stays easy to remember.",
+            ])
     lines.extend([
         "",
         "Bottom line:",
