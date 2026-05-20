@@ -34,7 +34,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.33.0-understanding-engine"
+APP_VERSION = "8.34.0-resilient-chat"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -103,6 +103,7 @@ FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", 
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
 FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "12"))
 MAX_HISTORY_MESSAGES = 5
+MAX_SESSION_MESSAGES = int(os.getenv("NEXORA_MAX_SESSION_MESSAGES", "240"))
 MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
@@ -112,7 +113,7 @@ MAX_IMAGE_MEMORY_ITEMS = 160
 MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = int(os.getenv("NEXORA_RESPONSE_CACHE_TTL", "600"))
-RESPONSE_CACHE_MAX = int(os.getenv("NEXORA_RESPONSE_CACHE_MAX", "100"))
+RESPONSE_CACHE_MAX = int(os.getenv("NEXORA_RESPONSE_CACHE_MAX", "180"))
 LOCAL_WRITING_FAST = os.getenv("NEXORA_LOCAL_WRITING_FAST", "true").strip().lower() not in {"0", "false", "off", "no"}
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
 IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
@@ -681,6 +682,116 @@ def resolve_pending_task_reply(session_id: str, message: str) -> Optional[str]:
     return build_generic_writing(topic, kind, length)
 
 
+def is_more_request(message: str) -> bool:
+    lower = clean_text(message).lower()
+    return bool(re.fullmatch(
+        r"(a\s+bit\s+more|bit\s+more|more|continue|continue\s+it|go\s+on|expand|expand\s+it|make\s+it\s+longer|add\s+more|tell\s+me\s+more|explain\s+more|a\s+little\s+more)[.! ]*",
+        lower,
+    ))
+
+
+def extract_topic_from_recent_focus(focus: Dict[str, Any]) -> str:
+    previous_user = clean_text(str(focus.get("previous_user", "")))
+    previous_assistant = clean_text(str(focus.get("previous_assistant", "")))
+    if previous_user:
+        topic = normalize_prompt_topic(previous_user)
+        if topic != "the topic":
+            return topic
+    heading_match = re.match(r"^([A-Z][A-Za-z0-9' -]{2,60})\s+is\b", previous_assistant)
+    if heading_match:
+        return title_case_topic(heading_match.group(1))
+    keywords = [word for word in focus.get("keywords", []) if word not in MEMORY_STOPWORDS]
+    if keywords:
+        return title_case_topic(" ".join(keywords[:3]))
+    return "the topic"
+
+
+def local_continuation_reply(message: str, focus: Dict[str, Any]) -> Optional[str]:
+    if not is_more_request(message):
+        return None
+    topic = extract_topic_from_recent_focus(focus)
+    if topic == "the topic":
+        return (
+            "Sure. I can add more, but I need the topic first.\n\n"
+            "Send the topic or the last answer you want me to expand."
+        )
+    topic_lower = topic.lower()
+    return (
+        "Sure. A bit more:\n\n"
+        f"Another important point about {topic_lower} is that it becomes easier to understand when we connect it with real life. "
+        "A good answer should not only explain the meaning, but also show why the idea matters and how it affects people, choices, or situations.\n\n"
+        f"For example, when we think about {topic_lower}, we can look at its causes, its effects, and the lessons it teaches. "
+        "This makes the answer feel complete instead of just memorized.\n\n"
+        "Bottom line:\n"
+        f"{topic} becomes stronger as an answer when it has clear meaning, real-life connection, and a simple final takeaway."
+    )
+
+
+def local_capability_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(powerful|capability|understand|understanding|know everything|100 questions|hundred questions)\b", lower):
+        return None
+    return (
+        "Yes. Nexora should stay useful for long chats, not break after a few questions.\n\n"
+        "What I am optimizing for:\n"
+        "- Understand messy typing and infer the real request.\n"
+        "- Remember the current task and follow-ups like 'a bit more' or 'make it better'.\n"
+        "- Keep answering even if the free online model times out.\n"
+        "- Use real-time search for current facts instead of guessing.\n"
+        "- Keep long sessions stable by storing more chat turns and using compact context.\n\n"
+        "Important truth:\n"
+        "It cannot literally know everything offline, but it can combine saved memory, recent chat context, local fallbacks, and web search to behave much more reliably."
+    )
+
+
+def local_resilient_reply(
+    message: str,
+    session_id: str,
+    response_lane: str,
+    presentation_style: str,
+    understanding_state: Optional[Dict[str, Any]] = None,
+) -> str:
+    state = understanding_state or {}
+    focus = recent_session_focus(get_session(session_id), message)
+    continuation = local_continuation_reply(message, focus)
+    if continuation:
+        return continuation
+    capability = local_capability_reply(message)
+    if capability:
+        return capability
+    writing = local_writing_reply(state.get("normalized") or message, session_id=session_id)
+    if writing:
+        return writing
+    lower = clean_text(state.get("normalized") or message).lower()
+    if response_lane == "learning" or re.search(r"\b(explain|what|why|how|teach|learn)\b", lower):
+        topic = normalize_prompt_topic(state.get("normalized") or message)
+        if topic == "the topic":
+            topic = "this"
+        return (
+            f"{title_case_topic(topic)} means understanding the main idea first, then connecting it with examples.\n\n"
+            "Key points:\n"
+            "- Start with the simple meaning.\n"
+            "- Break the idea into smaller parts.\n"
+            "- Use one real-life example.\n"
+            "- End with the main takeaway.\n\n"
+            "Bottom line:\n"
+            "A good answer is clear, connected, and easy to remember."
+        )
+    if response_lane == "build":
+        return (
+            "I can keep working on that. The practical next step is to identify the exact part that should change, apply a small fix, and test the visible behavior.\n\n"
+            "What I will prioritize:\n"
+            "- No timeout-style dead ends.\n"
+            "- Better context memory for follow-ups.\n"
+            "- Clean, structured answers.\n"
+            "- A fallback answer when the online model is unavailable."
+        )
+    return (
+        "I am still here. The free text engine had trouble, so I am using the local fallback instead.\n\n"
+        "Ask the question again in normal words, or send the topic directly, and I will answer from the current chat context."
+    )
+
+
 def choose_response_mode(message: str, requested_mode: Optional[str], requested_model: Optional[str]) -> str:
     text = clean_text(message).lower()
     requested = f"{requested_mode or ''} {requested_model or ''}".lower()
@@ -760,7 +871,7 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "ollama_context_tokens": 1536,
             "history_messages": 2,
             "file_context_chars": 1600,
-            "cache_items": 40,
+            "cache_items": 120,
         },
         "light": {
             "instant_max_tokens": 360,
@@ -768,7 +879,7 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "ollama_context_tokens": 2048,
             "history_messages": 3,
             "file_context_chars": 2600,
-            "cache_items": 60,
+            "cache_items": 160,
         },
         "balanced": {
             "instant_max_tokens": 520,
@@ -776,7 +887,7 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "ollama_context_tokens": 3072,
             "history_messages": 5,
             "file_context_chars": 4000,
-            "cache_items": 80,
+            "cache_items": 180,
         },
         "strong": {
             "instant_max_tokens": 760,
@@ -784,7 +895,7 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "ollama_context_tokens": 4096,
             "history_messages": 7,
             "file_context_chars": 6000,
-            "cache_items": 100,
+            "cache_items": 220,
         },
     }
     return profiles.get(level, profiles["light"])
@@ -951,7 +1062,8 @@ def append_session_message(session_id: str, role: str, content: str) -> None:
     session.setdefault("messages", []).append(
         {"role": role, "content": content, "created_at": now_iso()}
     )
-    session["messages"] = session["messages"][-60:]
+    session["messages"] = session["messages"][-MAX_SESSION_MESSAGES:]
+    session["turn_count"] = int(session.get("turn_count", 0) or 0) + (1 if role == "user" else 0)
     clean_content = clean_text(content)
     if role == "user" and clean_content:
         session["last_user_message"] = clean_content[:700]
@@ -4331,6 +4443,37 @@ def chat(req: ChatRequest) -> ChatResponse:
         if not use_research
         else None
     )
+    local_context_reply = None
+    if not use_research:
+        focus_for_local = recent_session_focus(get_session(session_id), original_user_message)
+        local_context_reply = (
+            local_continuation_reply(understanding_message, focus_for_local)
+            or local_capability_reply(understanding_message)
+        )
+    if local_context_reply:
+        final_reply = clean_reply(local_context_reply)
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", final_reply)
+        maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            final_reply,
+            user_id,
+            session_id,
+            response_lane,
+            presentation_style,
+            behavior_signals,
+        )
+        set_cached_response(response_cache_key, final_reply, "nexora_context_resilient", [])
+        return ChatResponse(
+            reply=final_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="nexora_context_resilient",
+            sources=[],
+            tools_used=tools_used + ["local_context_resilient"],
+            created_at=now_iso(),
+        )
     local_first_stable = response_lane == "writing" or (
         presentation_style == "table" and "anime" in clean_text(original_user_message).lower()
     )
@@ -4425,9 +4568,15 @@ def chat(req: ChatRequest) -> ChatResponse:
                     reply = local_structured
                     tools_used.append("local_structured_fallback")
                 else:
-                    model_failed = True
-                    model_used = "offline"
-                    reply = setup_error_message(f"{error}; Ollama fallback: {fallback_error}")
+                    model_used = "nexora_local_resilient"
+                    reply = local_resilient_reply(
+                        understanding_message,
+                        session_id,
+                        response_lane,
+                        presentation_style,
+                        understanding_state,
+                    )
+                    tools_used.append("local_resilient_fallback")
         else:
             if verified_sources:
                 model_used = "realtime_search_fallback"
@@ -4438,9 +4587,15 @@ def chat(req: ChatRequest) -> ChatResponse:
                 reply = local_structured
                 tools_used.append("local_structured_fallback")
             else:
-                model_failed = True
-                model_used = "offline"
-                reply = setup_error_message(str(error))
+                model_used = "nexora_local_resilient"
+                reply = local_resilient_reply(
+                    understanding_message,
+                    session_id,
+                    response_lane,
+                    presentation_style,
+                    understanding_state,
+                )
+                tools_used.append("local_resilient_fallback")
 
     if is_bad_generated_reply(reply) and verified_sources:
         model_used = "realtime_search_fallback"
@@ -4485,12 +4640,17 @@ def chat(req: ChatRequest) -> ChatResponse:
             final_reply = clean_reply(local_structured)
             tools_used.append("empty_reply_local_structured")
         else:
-            model_failed = True
-            model_used = model_used or "empty_reply"
-            final_reply = (
-                "I could not get a valid answer from the text model for that request. "
-                "Please retry once, or ask with realtime search enabled."
+            model_used = "nexora_local_resilient"
+            final_reply = clean_reply(
+                local_resilient_reply(
+                    understanding_message,
+                    session_id,
+                    response_lane,
+                    presentation_style,
+                    understanding_state,
+                )
             )
+            tools_used.append("empty_reply_local_resilient")
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message, user_id)
