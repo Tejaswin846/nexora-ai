@@ -11567,8 +11567,72 @@ document.addEventListener("DOMContentLoaded",()=>{
     });
   }
 
+  function addAssistantText(text){
+    ensureChat();
+    if(typeof window.addMessage === "function") window.addMessage(text || "", "ai-message", "assistant");
+    closeToolModal();
+  }
+
+  function openPowerToolsPanel(){
+    openToolModal("Power tools", "Files, study plans, websites, reminders, workflows, email drafts, and automation plans.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxPowerFile"><div class="nx-tool-card-title">Summarize file</div><div class="nx-tool-card-meta">Summarize the latest uploaded PDF or document.</div></button></div><div class="nx-tool-card"><button id="nxPowerStudy"><div class="nx-tool-card-title">Study planner</div><div class="nx-tool-card-meta">Create a day-by-day revision plan.</div></button></div><div class="nx-tool-card"><button id="nxPowerWebsite"><div class="nx-tool-card-title">Website</div><div class="nx-tool-card-meta">Generate a single-file website artifact.</div></button></div><div class="nx-tool-card"><button id="nxPowerReminder"><div class="nx-tool-card-title">Reminder</div><div class="nx-tool-card-meta">Save a local reminder.</div></button></div><div class="nx-tool-card"><button id="nxPowerWorkflow"><div class="nx-tool-card-title">Workflow</div><div class="nx-tool-card-meta">Create a reusable checklist.</div></button></div><div class="nx-tool-card"><button id="nxPowerEmail"><div class="nx-tool-card-title">Email draft</div><div class="nx-tool-card-meta">Draft a clean email.</div></button></div><div class="nx-tool-card"><button id="nxPowerAutomation"><div class="nx-tool-card-title">Automation plan</div><div class="nx-tool-card-meta">Plan safe browser/task actions.</div></button></div></div>', function(){
+      $("nxPowerFile").onclick = async () => {
+        try{
+          const res = await fetch(API + "/files/summarize", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || "", user_id:getNexoraUserId(), max_points:6})});
+          const data = await res.json();
+          if(!data.ok) return toast(data.message || "Upload a file first");
+          addAssistantText((data.artifact && data.artifact.content) || (data.summary && data.summary.summary) || "Summary ready.");
+        }catch(e){ toast("Could not summarize file"); }
+      };
+      $("nxPowerStudy").onclick = () => openToolModal("Study planner", "Create a focused plan.", '<input class="nx-tool-input" id="nxStudyTopic" placeholder="Topic"><div class="nx-tool-row" style="margin-top:10px;"><input class="nx-tool-input" id="nxStudyDays" value="7" placeholder="Days"><input class="nx-tool-input" id="nxStudyMinutes" value="45" placeholder="Minutes/day"></div><button class="nx-tool-btn" id="nxStudyCreate" style="margin-top:12px;">Create plan</button>', function(){
+        $("nxStudyCreate").onclick = async () => {
+          const res = await fetch(API + "/study/plan", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("nxStudyTopic").value || "Study topic", days:Number($("nxStudyDays").value || 7), daily_minutes:Number($("nxStudyMinutes").value || 45), user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
+          const data = await res.json();
+          addAssistantText(data.plan || "Study plan created.");
+        };
+      });
+      $("nxPowerWebsite").onclick = () => openToolModal("Generate website", "Create a single-file website artifact.", '<textarea class="nx-tool-textarea" id="nxWebsitePrompt" placeholder="Example: portfolio website for a student designer"></textarea><input class="nx-tool-input" id="nxWebsiteTitle" style="margin-top:10px;" placeholder="Optional title"><button class="nx-tool-btn" id="nxWebsiteCreate" style="margin-top:12px;">Generate website</button>', function(){
+        $("nxWebsiteCreate").onclick = async () => {
+          const res = await fetch(API + "/website/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({prompt:$("nxWebsitePrompt").value || "modern website", title:$("nxWebsiteTitle").value || "", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
+          const data = await res.json();
+          addAssistantText("Website artifact created: " + ((data.artifact && data.artifact.title) || "Website"));
+        };
+      });
+      $("nxPowerReminder").onclick = () => openToolModal("Reminder", "Save a local reminder.", '<input class="nx-tool-input" id="nxReminderTitle" placeholder="Reminder"><input class="nx-tool-input" id="nxReminderDue" style="margin-top:10px;" placeholder="Due, e.g. tomorrow 7 PM"><button class="nx-tool-btn" id="nxReminderCreate" style="margin-top:12px;">Save reminder</button>', function(){
+        $("nxReminderCreate").onclick = async () => {
+          const res = await fetch(API + "/reminders/create", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:$("nxReminderTitle").value || "Reminder", due_at:$("nxReminderDue").value || "", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
+          const data = await res.json();
+          toast(data.ok ? "Reminder saved" : "Could not save reminder");
+          closeToolModal();
+        };
+      });
+      $("nxPowerWorkflow").onclick = () => openToolModal("Workflow", "Create a reusable checklist.", '<input class="nx-tool-input" id="nxWorkflowName" placeholder="Workflow name"><textarea class="nx-tool-textarea" id="nxWorkflowSteps" style="margin-top:10px;" placeholder="One step per line"></textarea><button class="nx-tool-btn" id="nxWorkflowCreate" style="margin-top:12px;">Create workflow</button>', function(){
+        $("nxWorkflowCreate").onclick = async () => {
+          const steps = ($("nxWorkflowSteps").value || "").split("\\n").map(s => s.trim()).filter(Boolean);
+          const res = await fetch(API + "/workflows/create", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:$("nxWorkflowName").value || "Workflow", steps, user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
+          const data = await res.json();
+          addAssistantText("Workflow created: " + ((data.workflow && data.workflow.name) || "Workflow"));
+        };
+      });
+      $("nxPowerEmail").onclick = () => openToolModal("Email draft", "Draft a clean email.", '<textarea class="nx-tool-textarea" id="nxEmailPurpose" placeholder="Purpose of the email"></textarea><input class="nx-tool-input" id="nxEmailRecipient" style="margin-top:10px;" placeholder="Recipient"><button class="nx-tool-btn" id="nxEmailCreate" style="margin-top:12px;">Draft email</button>', function(){
+        $("nxEmailCreate").onclick = async () => {
+          const res = await fetch(API + "/email/draft", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({purpose:$("nxEmailPurpose").value || "send a clear message", recipient:$("nxEmailRecipient").value || "", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
+          const data = await res.json();
+          addAssistantText(data.draft || "Email draft created.");
+        };
+      });
+      $("nxPowerAutomation").onclick = () => openToolModal("Automation plan", "Plan safe browser/task execution.", '<textarea class="nx-tool-textarea" id="nxAutomationGoal" placeholder="What should be automated?"></textarea><button class="nx-tool-btn" id="nxAutomationCreate" style="margin-top:12px;">Create plan</button>', function(){
+        $("nxAutomationCreate").onclick = async () => {
+          const res = await fetch(API + "/automation/plan", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({goal:$("nxAutomationGoal").value || "automation task", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
+          const data = await res.json();
+          addAssistantText(data.plan || "Automation plan created.");
+        };
+      });
+    });
+  }
+
   function openCustomizePanel(){
-    openToolModal("Customize", "Tune Nexora personality, memory, AI provider, voice, and account tools.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxOpenFreeAI"><div class="nx-tool-card-title">Free AI</div><div class="nx-tool-card-meta">Keep the no-key base and strengthen it with club mode.</div></button></div><div class="nx-tool-card"><button id="nxOpenAccount"><div class="nx-tool-card-title">Account</div><div class="nx-tool-card-meta">Open profile and account settings.</div></button></div><div class="nx-tool-card"><button id="nxOpenVoice"><div class="nx-tool-card-title">Voice</div><div class="nx-tool-card-meta">Change speech and wake settings.</div></button></div><div class="nx-tool-card"><button id="nxResetPersona"><div class="nx-tool-card-title">Reset persona</div><div class="nx-tool-card-meta">Clear style customization.</div></button></div><div class="nx-tool-card"><button id="nxResetBehavior"><div class="nx-tool-card-title">Reset behavior learning</div><div class="nx-tool-card-meta">Clear feedback-based adaptation.</div></button></div></div>', function(){
+    openToolModal("Customize", "Tune Nexora personality, memory, AI provider, voice, and account tools.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxOpenPowerTools"><div class="nx-tool-card-title">Power tools</div><div class="nx-tool-card-meta">Files, planners, reminders, workflows, websites, email, automation.</div></button></div><div class="nx-tool-card"><button id="nxOpenFreeAI"><div class="nx-tool-card-title">Free AI</div><div class="nx-tool-card-meta">Keep the no-key base and strengthen it with club mode.</div></button></div><div class="nx-tool-card"><button id="nxOpenAccount"><div class="nx-tool-card-title">Account</div><div class="nx-tool-card-meta">Open profile and account settings.</div></button></div><div class="nx-tool-card"><button id="nxOpenVoice"><div class="nx-tool-card-title">Voice</div><div class="nx-tool-card-meta">Change speech and wake settings.</div></button></div><div class="nx-tool-card"><button id="nxResetPersona"><div class="nx-tool-card-title">Reset persona</div><div class="nx-tool-card-meta">Clear style customization.</div></button></div><div class="nx-tool-card"><button id="nxResetBehavior"><div class="nx-tool-card-title">Reset behavior learning</div><div class="nx-tool-card-meta">Clear feedback-based adaptation.</div></button></div></div>', function(){
+      $("nxOpenPowerTools").onclick = () => openPowerToolsPanel();
       $("nxOpenFreeAI").onclick = () => openFreeAISetupPanel();
       $("nxOpenAccount").onclick = () => { closeToolModal(); if(typeof window.openAccount === "function") window.openAccount(); };
       $("nxOpenVoice").onclick = () => { closeToolModal(); if(typeof window.openVoiceSettings === "function") window.openVoiceSettings(); };

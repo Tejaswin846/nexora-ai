@@ -9,6 +9,7 @@ import re
 import threading
 import time
 import uuid
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
@@ -34,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.35.0-strong-local-brain"
+APP_VERSION = "8.36.0-power-stages"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -47,6 +48,8 @@ PROJECTS_FILE = DATA_DIR / "projects.json"
 ARTIFACTS_FILE = DATA_DIR / "artifacts.json"
 USERS_FILE = DATA_DIR / "users.json"
 IMAGE_MEMORY_FILE = DATA_DIR / "image_memory.json"
+REMINDERS_FILE = DATA_DIR / "reminders.json"
+WORKFLOWS_FILE = DATA_DIR / "workflows.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
 CODE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "code.html"
 
@@ -212,6 +215,61 @@ class ArtifactRequest(BaseModel):
     content: str = ""
     url: str = ""
     prompt: str = ""
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class FileSummaryRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=120)
+    filename: Optional[str] = None
+    max_points: int = 6
+    user_id: Optional[str] = None
+
+
+class StudyPlanRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=180)
+    days: int = 7
+    daily_minutes: int = 45
+    goal: str = Field("", max_length=500)
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class WebsiteRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=900)
+    title: Optional[str] = Field(None, max_length=120)
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class ReminderRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=160)
+    due_at: str = Field("", max_length=80)
+    notes: str = Field("", max_length=500)
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class WorkflowRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    goal: str = Field("", max_length=700)
+    steps: List[str] = []
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class EmailDraftRequest(BaseModel):
+    purpose: str = Field(..., min_length=1, max_length=900)
+    recipient: str = Field("", max_length=160)
+    tone: str = Field("professional", max_length=80)
+    details: str = Field("", max_length=1000)
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class AutomationRequest(BaseModel):
+    goal: str = Field(..., min_length=1, max_length=900)
+    context: str = Field("", max_length=1200)
     user_id: Optional[str] = None
     session_id: Optional[str] = None
 
@@ -837,8 +895,62 @@ def local_semantic_reply(
     )
 
 
+def local_email_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(email|e-mail|mail)\b", lower):
+        return None
+    purpose = clean_text(message)
+    purpose = re.sub(r"(?i)^(please\s+)?(write|draft|make|create|compose|give me)\s+(an?\s+)?(email|e-mail|mail)\s*(to|for|about)?\s*", "", purpose)
+    purpose = purpose or "send a clear professional message"
+    return draft_email_text(purpose)
+
+
+def local_study_plan_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
+        return None
+    topic_raw = re.sub(r"(?i)^(please\s+)?(make|create|generate|give me|prepare)\s+(a\s+)?", "", clean_text(message))
+    topic_raw = re.sub(r"(?i)\b(study plan|study planner|revision plan|timetable|schedule for study)\b\s*(for|on|about)?\s*", "", topic_raw)
+    topic_raw = re.sub(r"(?i)\b(in|for)\s+\d{1,2}\s*(day|days|week|weeks)\b", "", topic_raw)
+    topic = title_case_topic(topic_raw.strip(" .,:;-") or clean_learning_topic(message))
+    days_match = re.search(r"\b(\d{1,2})\s*(day|days)\b", lower)
+    days = int(days_match.group(1)) if days_match else 7
+    return make_study_plan(topic, days=days, daily_minutes=45)
+
+
+def local_file_summary_reply(message: str, session_id: Optional[str]) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not session_id or not re.search(r"\b(summarize|summary|notes from|key points from)\b", lower) or not re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+        return None
+    session = get_session(session_id)
+    files = session.get("files", [])
+    if not files:
+        return "Upload a PDF or text file first, then ask me to summarize it."
+    selected = files[-1]
+    result = summarize_text_locally(str(selected.get("text", "")), 6)
+    lines = [
+        f"File summary: {selected.get('filename', 'uploaded file')}",
+        "",
+        "Summary:",
+        result["summary"],
+    ]
+    if result["key_points"]:
+        lines.extend(["", "Key points:"])
+        lines.extend(f"- {point}" for point in result["key_points"])
+    if result["action_items"]:
+        lines.extend(["", "Action items:"])
+        lines.extend(f"- {item}" for item in result["action_items"])
+    return "\n".join(lines)
+
+
 def is_high_confidence_local_reply(message: str, presentation_style: str = "balanced") -> bool:
     lower = clean_text(message).lower()
+    if re.search(r"\b(summarize|summary|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+        return True
+    if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
+        return True
+    if re.search(r"\b(email|e-mail|mail)\b", lower) and re.search(r"\b(write|draft|compose|make|create|ask|request)\b", lower):
+        return True
     if split_comparison_subjects(message):
         return True
     if re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
@@ -860,6 +972,15 @@ def local_structured_fallback(
     writing = local_writing_reply(message, session_id=session_id)
     if writing:
         return writing
+    file_summary = local_file_summary_reply(message, session_id)
+    if file_summary:
+        return file_summary
+    study_plan = local_study_plan_reply(message)
+    if study_plan:
+        return study_plan
+    email = local_email_reply(message)
+    if email:
+        return email
     semantic = local_semantic_reply(message, response_lane, presentation_style)
     if semantic:
         return semantic
@@ -1011,6 +1132,26 @@ def local_capability_reply(message: str) -> Optional[str]:
     )
 
 
+def safety_filter_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if re.search(r"\b(make|build|create|instructions for|how to)\b.*\b(bomb|explosive|poison|weapon|gun|malware|ransomware|phishing|steal password|bypass login)\b", lower):
+        return (
+            "I cannot help with harmful instructions, malware, weapons, theft, or bypassing security.\n\n"
+            "I can help with a safe alternative: cybersecurity basics, defensive coding, legal troubleshooting, or a high-level explanation without actionable harm."
+        )
+    if re.search(r"\b(kill myself|suicide|self harm|hurt myself)\b", lower):
+        return (
+            "I am really sorry you are feeling this. I cannot help with self-harm instructions.\n\n"
+            "Please contact local emergency services now if you might act on this. If you are in the U.S. or Canada, call or text 988. If you are elsewhere, contact a trusted person nearby or your local crisis line right now."
+        )
+    if re.search(r"\b(diagnose me|which medicine should i take|legal advice|invest all|guaranteed profit)\b", lower):
+        return (
+            "I can give general information, but this is a high-stakes topic. I should not replace a qualified professional.\n\n"
+            "Share the context, and I will help you understand options, risks, and questions to ask an expert."
+        )
+    return None
+
+
 def local_resilient_reply(
     message: str,
     session_id: str,
@@ -1029,6 +1170,15 @@ def local_resilient_reply(
     writing = local_writing_reply(state.get("normalized") or message, session_id=session_id)
     if writing:
         return writing
+    file_summary = local_file_summary_reply(state.get("normalized") or message, session_id)
+    if file_summary:
+        return file_summary
+    study_plan = local_study_plan_reply(state.get("normalized") or message)
+    if study_plan:
+        return study_plan
+    email = local_email_reply(state.get("normalized") or message)
+    if email:
+        return email
     semantic = local_semantic_reply(state.get("normalized") or message, response_lane, presentation_style)
     if semantic:
         return semantic
@@ -1541,6 +1691,159 @@ def create_artifact(
     artifacts.insert(0, artifact)
     save_artifacts(artifacts)
     return artifact
+
+
+def load_reminders() -> List[Dict[str, Any]]:
+    raw = safe_read_json(REMINDERS_FILE, [])
+    return raw if isinstance(raw, list) else []
+
+
+def save_reminders(items: List[Dict[str, Any]]) -> None:
+    safe_write_json(REMINDERS_FILE, items[:300])
+
+
+def load_workflows() -> List[Dict[str, Any]]:
+    raw = safe_read_json(WORKFLOWS_FILE, [])
+    return raw if isinstance(raw, list) else []
+
+
+def save_workflows(items: List[Dict[str, Any]]) -> None:
+    safe_write_json(WORKFLOWS_FILE, items[:200])
+
+
+def make_study_plan(topic: str, days: int = 7, daily_minutes: int = 45, goal: str = "") -> str:
+    safe_days = max(1, min(60, int(days or 7)))
+    minutes = max(10, min(240, int(daily_minutes or 45)))
+    clean_topic = title_case_topic(topic)
+    goal_line = clean_text(goal) or f"Understand {clean_topic} clearly and revise it with confidence."
+    lines = [
+        f"Study plan: {clean_topic}",
+        "",
+        f"Goal: {goal_line}",
+        f"Daily time: {minutes} minutes",
+        "",
+        "| Day | Focus | Work | Check |",
+        "|---|---|---|---|",
+    ]
+    cycle = [
+        ("Foundation", "Read the basics and write a simple definition.", "Explain the topic in 3 lines."),
+        ("Key ideas", "List the main points and mark confusing parts.", "Answer 5 quick questions."),
+        ("Examples", "Connect the topic with real-life examples.", "Teach the idea out loud."),
+        ("Practice", "Solve questions or write a short answer.", "Check mistakes and rewrite weak parts."),
+        ("Memory", "Make flashcards or a one-page note.", "Recall without looking."),
+        ("Mixed revision", "Revise notes and practice harder questions.", "Score yourself honestly."),
+        ("Final review", "Do a timed recap and fix the last gaps.", "Write the final summary."),
+    ]
+    for day in range(1, safe_days + 1):
+        focus, work, check = cycle[(day - 1) % len(cycle)]
+        lines.append(f"| {day} | {focus} | {work} | {check} |")
+    lines.extend([
+        "",
+        "Daily rhythm:",
+        "1. 5 minutes: quick recall.",
+        f"2. {max(10, minutes - 15)} minutes: main study block.",
+        "3. 10 minutes: practice or self-test.",
+        "",
+        "Bottom line:",
+        "Study in small loops: learn, recall, practice, correct, repeat.",
+    ])
+    return "\n".join(lines)
+
+
+def draft_email_text(purpose: str, recipient: str = "", tone: str = "professional", details: str = "") -> str:
+    recipient_line = clean_text(recipient) or "Sir/Madam"
+    tone_text = clean_text(tone).lower() or "professional"
+    detail_text = clean_text(details)
+    purpose_text = clean_text(purpose)
+    subject = title_case_topic(purpose_text[:70])
+    if tone_text in {"friendly", "warm", "casual"}:
+        greeting = f"Hi {recipient_line},"
+        close = "Best,"
+    else:
+        greeting = f"Dear {recipient_line},"
+        close = "Sincerely,"
+    body = [
+        f"Subject: {subject}",
+        "",
+        greeting,
+        "",
+        f"I am writing to {purpose_text.rstrip('.')}.",
+    ]
+    if detail_text:
+        body.extend(["", detail_text])
+    body.extend([
+        "",
+        "Please let me know if this works for you.",
+        "",
+        close,
+        "[Your Name]",
+    ])
+    return "\n".join(body)
+
+
+def generate_website_html(prompt: str, title: Optional[str] = None) -> str:
+    clean_prompt = clean_text(prompt)
+    page_title = clean_text(title or "") or title_case_topic(clean_prompt[:60] or "Nexora Website")
+    subtitle = clean_prompt or "A focused, polished website generated by Nexora."
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html_lib.escape(page_title)}</title>
+  <style>
+    :root {{ color-scheme: dark; font-family: Inter, Segoe UI, Arial, sans-serif; }}
+    body {{ margin:0; background:#101114; color:#f6f7fb; }}
+    header {{ min-height:72vh; display:grid; place-items:center; padding:48px 20px; background:linear-gradient(135deg,#141821,#233447 55%,#294936); }}
+    .hero {{ width:min(980px,100%); }}
+    h1 {{ font-size:clamp(42px,8vw,88px); line-height:1; margin:0 0 18px; letter-spacing:0; }}
+    p {{ font-size:18px; line-height:1.65; color:#dce5ef; max-width:720px; }}
+    .actions {{ display:flex; gap:12px; flex-wrap:wrap; margin-top:28px; }}
+    a {{ color:#101114; background:#f8d35b; padding:12px 18px; border-radius:8px; text-decoration:none; font-weight:700; }}
+    main {{ padding:48px 20px; }}
+    .grid {{ width:min(980px,100%); margin:auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }}
+    section {{ border:1px solid #2e333d; border-radius:8px; padding:22px; background:#181b20; }}
+    h2 {{ margin:0 0 10px; font-size:20px; }}
+    footer {{ padding:32px 20px; text-align:center; color:#9aa6b2; }}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hero">
+      <h1>{html_lib.escape(page_title)}</h1>
+      <p>{html_lib.escape(subtitle)}</p>
+      <div class="actions"><a href="#start">Get started</a></div>
+    </div>
+  </header>
+  <main id="start">
+    <div class="grid">
+      <section><h2>Purpose</h2><p>Clear positioning, readable content, and a direct first impression.</p></section>
+      <section><h2>Features</h2><p>Fast layout, responsive sections, and polished visual hierarchy.</p></section>
+      <section><h2>Next Step</h2><p>Edit the text, add real images, and connect forms or navigation as needed.</p></section>
+    </div>
+  </main>
+  <footer>Generated by Nexora</footer>
+</body>
+</html>"""
+
+
+def make_automation_plan(goal: str, context: str = "") -> str:
+    clean_goal = clean_text(goal)
+    clean_context = clean_text(context)
+    lines = [
+        f"Automation plan: {clean_goal}",
+        "",
+        "Safe workflow:",
+        "1. Confirm the exact goal and the app/site involved.",
+        "2. Collect required inputs without exposing passwords or private data.",
+        "3. Break the task into small browser/file/email steps.",
+        "4. Run only reversible or low-risk actions automatically.",
+        "5. Ask for confirmation before sending messages, deleting data, paying, posting, or changing accounts.",
+    ]
+    if clean_context:
+        lines.extend(["", "Context:", clean_context])
+    lines.extend(["", "Bottom line:", "Nexora can plan automation now, and should confirm before risky real-world actions."])
+    return "\n".join(lines)
 
 
 def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
@@ -2781,13 +3084,98 @@ TEXT_EXTENSIONS = {
 }
 
 
+def extract_pdf_text(path: Path) -> str:
+    try:
+        try:
+            from pypdf import PdfReader  # type: ignore
+        except Exception:
+            from PyPDF2 import PdfReader  # type: ignore
+        reader = PdfReader(str(path))
+        pages = []
+        for index, page in enumerate(reader.pages[:40], start=1):
+            try:
+                text = page.extract_text() or ""
+            except Exception:
+                text = ""
+            if clean_text(text):
+                pages.append(f"[Page {index}]\n{text}")
+        return "\n\n".join(pages)
+    except Exception:
+        pass
+
+    try:
+        raw = path.read_bytes()
+        chunks: List[str] = []
+        for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", raw, flags=re.DOTALL):
+            data = match.group(1).strip()
+            for candidate in (data,):
+                try:
+                    inflated = zlib.decompress(candidate)
+                except Exception:
+                    inflated = candidate
+                text = inflated.decode("latin-1", errors="ignore")
+                text = re.sub(r"\\[()]", " ", text)
+                pieces = re.findall(r"\(([^()]{2,})\)", text)
+                if pieces:
+                    chunks.append(" ".join(pieces))
+        return clean_text("\n".join(chunks))
+    except Exception:
+        return ""
+
+
 def basic_extract_text(path: Path) -> str:
-    if path.suffix.lower() not in TEXT_EXTENSIONS:
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return extract_pdf_text(path)
+    if suffix not in TEXT_EXTENSIONS:
         return ""
     try:
         return path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
+
+
+def split_sentences(text: str) -> List[str]:
+    plain = clean_text(re.sub(r"\s+", " ", text))
+    if not plain:
+        return []
+    parts = re.split(r"(?<=[.!?])\s+", plain)
+    return [part.strip() for part in parts if len(part.strip()) > 20]
+
+
+def summarize_text_locally(text: str, max_points: int = 6) -> Dict[str, Any]:
+    sentences = split_sentences(text)
+    if not sentences:
+        return {
+            "summary": "No readable text was extracted from this file.",
+            "key_points": [],
+            "action_items": [],
+            "word_count": 0,
+        }
+    words = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{3,}", clean_text(text).lower())
+    stop = MEMORY_STOPWORDS.union({"this", "that", "into", "their", "there", "would", "could", "should"})
+    freq: Dict[str, int] = {}
+    for word in words:
+        if word not in stop:
+            freq[word] = freq.get(word, 0) + 1
+    scored = []
+    for index, sentence in enumerate(sentences[:120]):
+        sentence_words = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{3,}", sentence.lower())
+        score = sum(freq.get(word, 0) for word in sentence_words) + max(0, 8 - index)
+        scored.append((score, index, sentence))
+    chosen = sorted(sorted(scored, reverse=True)[: max(2, min(10, max_points))], key=lambda item: item[1])
+    key_points = [sentence for _, _, sentence in chosen[:max_points]]
+    action_items = [
+        sentence for sentence in sentences
+        if re.search(r"\b(need to|must|should|todo|action|next|deadline|submit|complete|revise|practice)\b", sentence, re.I)
+    ][:5]
+    summary = " ".join(key_points[:2])
+    return {
+        "summary": summary,
+        "key_points": key_points,
+        "action_items": action_items,
+        "word_count": len(re.findall(r"\S+", text)),
+    }
 
 
 def build_file_context(session_id: str) -> str:
@@ -4350,18 +4738,31 @@ def read_user_workflow(user_id: Optional[str] = None) -> Dict[str, Any]:
         item for item in image_memory.get("images", [])
         if isinstance(item, dict) and normalize_user_id(str(item.get("user_id", "default"))) == normalized
     ]
+    reminders = [
+        item for item in load_reminders()
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized and not item.get("done")
+    ]
+    workflows = [
+        item for item in load_workflows()
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ]
     return {
         "ok": True,
         "user_id": normalized,
         "user": users.get(normalized, {"id": normalized}),
         "memory_items": len(memories),
         "image_items": len(images),
+        "reminder_items": len(reminders),
+        "workflow_items": len(workflows),
         "image_preferences": image_memory.get("preferences", {}).get(normalized, {}),
         "workflow": {
             "sessions": "per browser user id",
             "chat_memory": "per user",
             "image_memory": "per user prompt/style/size cache",
             "artifacts": "filterable by user",
+            "files": "uploads, optional PDF text extraction, summaries",
+            "reminders": "local reminders with due text and done status",
+            "workflows": "saved reusable checklists and automation plans",
         },
     }
 
@@ -4436,6 +4837,226 @@ def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
         session_id=req.session_id,
     )
     return {"ok": True, "artifact": artifact}
+
+
+@app.get("/capabilities")
+def capabilities() -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "version": APP_VERSION,
+        "stages": {
+            "writing": ["emails", "letters", "essays", "polished tone", "structured answers"],
+            "files": ["txt/md/code extraction", "optional PDF extraction", "local summaries", "session file context"],
+            "websites": ["single-file HTML generation", "artifact saving"],
+            "study": ["study planner", "study explanations", "local topic cards"],
+            "images": ["Pollinations generation", "prompt enhancement", "per-user image memory"],
+            "workflows": ["save workflows", "run workflow checklists", "automation planning"],
+            "reminders": ["local reminder storage", "due list", "done status"],
+            "search": ["DuckDuckGo HTML search", "strict current-fact verification"],
+            "safety": ["harmful request filter", "high-stakes caution"],
+        },
+        "limits": {
+            "local_model_training": False,
+            "email_calendar_connectors": "draft/planning only unless a connector is added",
+            "browser_actions": "planned safely inside Nexora; external browser automation needs a browser connector",
+        },
+    }
+
+
+@app.post("/files/summarize")
+def summarize_file(req: FileSummaryRequest) -> Dict[str, Any]:
+    session = get_session(req.session_id)
+    files = session.get("files", [])
+    selected = None
+    if req.filename:
+        requested = clean_text(req.filename).lower()
+        selected = next(
+            (item for item in reversed(files) if requested in clean_text(str(item.get("filename", ""))).lower()),
+            None,
+        )
+    if selected is None and files:
+        selected = files[-1]
+    if not selected:
+        return {"ok": False, "message": "No uploaded file found in this session.", "summary": ""}
+    text = str(selected.get("text", ""))
+    result = summarize_text_locally(text, req.max_points)
+    content = (
+        f"File summary: {selected.get('filename', 'file')}\n\n"
+        f"Summary:\n{result['summary']}\n\n"
+        "Key points:\n" + "\n".join(f"- {point}" for point in result["key_points"])
+    )
+    if result["action_items"]:
+        content += "\n\nAction items:\n" + "\n".join(f"- {item}" for item in result["action_items"])
+    artifact = create_artifact(
+        title=f"Summary - {selected.get('filename', 'file')}",
+        artifact_type="File Summary",
+        content=content,
+        user_id=req.user_id or str(session.get("user_id", "default")),
+        session_id=req.session_id,
+    )
+    return {"ok": True, "file": selected, "summary": result, "artifact": artifact}
+
+
+@app.post("/study/plan")
+def create_study_plan(req: StudyPlanRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
+    plan = make_study_plan(req.topic, req.days, req.daily_minutes, req.goal)
+    artifact = create_artifact(
+        title=f"Study plan - {title_case_topic(req.topic)}",
+        artifact_type="Study Plan",
+        content=plan,
+        prompt=req.topic,
+        user_id=user_id,
+        session_id=req.session_id,
+    )
+    upsert_memory_item(f"User is studying {title_case_topic(req.topic)}.", user_id, "study", "study_plan", req.session_id)
+    return {"ok": True, "plan": plan, "artifact": artifact}
+
+
+@app.post("/website/generate")
+def generate_website(req: WebsiteRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
+    html = generate_website_html(req.prompt, req.title)
+    title = clean_text(req.title or "") or title_case_topic(req.prompt[:60])
+    artifact = create_artifact(
+        title=f"Website - {title}",
+        artifact_type="Website",
+        content=html,
+        prompt=req.prompt,
+        user_id=user_id,
+        session_id=req.session_id,
+    )
+    return {"ok": True, "html": html, "artifact": artifact}
+
+
+@app.get("/reminders")
+def list_reminders(user_id: Optional[str] = None, include_done: bool = False) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    items = load_reminders()
+    if user_id:
+        items = [item for item in items if normalize_user_id(str(item.get("user_id", "default"))) == normalized]
+    if not include_done:
+        items = [item for item in items if not item.get("done")]
+    return {"ok": True, "user_id": normalized, "reminders": items[:100]}
+
+
+@app.post("/reminders/create")
+def create_reminder(req: ReminderRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
+    reminder = {
+        "id": f"reminder_{uuid.uuid4().hex[:12]}",
+        "title": clean_text(req.title),
+        "due_at": clean_text(req.due_at),
+        "notes": clean_text(req.notes),
+        "user_id": user_id,
+        "session_id": req.session_id,
+        "done": False,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    items = load_reminders()
+    items.insert(0, reminder)
+    save_reminders(items)
+    return {"ok": True, "reminder": reminder}
+
+
+@app.post("/reminders/{reminder_id}/done")
+def complete_reminder(reminder_id: str) -> Dict[str, Any]:
+    items = load_reminders()
+    for item in items:
+        if item.get("id") == reminder_id:
+            item["done"] = True
+            item["updated_at"] = now_iso()
+            save_reminders(items)
+            return {"ok": True, "reminder": item}
+    return {"ok": False, "message": "Reminder not found."}
+
+
+@app.get("/workflows")
+def list_workflows(user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    items = load_workflows()
+    if user_id:
+        items = [item for item in items if normalize_user_id(str(item.get("user_id", "default"))) == normalized]
+    return {"ok": True, "user_id": normalized, "workflows": items[:100]}
+
+
+@app.post("/workflows/create")
+def create_workflow(req: WorkflowRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
+    steps = [clean_text(step) for step in req.steps if clean_text(step)]
+    if not steps:
+        steps = [
+            "Clarify the goal.",
+            "Collect inputs and files.",
+            "Do the main work.",
+            "Check the output.",
+            "Save or share the result.",
+        ]
+    workflow = {
+        "id": f"workflow_{uuid.uuid4().hex[:12]}",
+        "name": clean_text(req.name),
+        "goal": clean_text(req.goal),
+        "steps": steps[:20],
+        "user_id": user_id,
+        "session_id": req.session_id,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    items = load_workflows()
+    items.insert(0, workflow)
+    save_workflows(items)
+    return {"ok": True, "workflow": workflow}
+
+
+@app.post("/workflows/{workflow_id}/run")
+def run_workflow(workflow_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    workflow = next((item for item in load_workflows() if item.get("id") == workflow_id), None)
+    if not workflow:
+        return {"ok": False, "message": "Workflow not found."}
+    content = (
+        f"Workflow: {workflow.get('name')}\n\n"
+        f"Goal: {workflow.get('goal') or 'Complete this workflow carefully.'}\n\n"
+        "Checklist:\n" + "\n".join(f"{index}. {step}" for index, step in enumerate(workflow.get("steps", []), start=1))
+    )
+    artifact = create_artifact(
+        title=f"Workflow run - {workflow.get('name')}",
+        artifact_type="Workflow",
+        content=content,
+        user_id=user_id or str(workflow.get("user_id", "default")),
+        session_id=str(workflow.get("session_id") or ""),
+    )
+    return {"ok": True, "workflow": workflow, "run": content, "artifact": artifact}
+
+
+@app.post("/email/draft")
+def draft_email(req: EmailDraftRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
+    draft = draft_email_text(req.purpose, req.recipient, req.tone, req.details)
+    artifact = create_artifact(
+        title="Email draft",
+        artifact_type="Email",
+        content=draft,
+        prompt=req.purpose,
+        user_id=user_id,
+        session_id=req.session_id,
+    )
+    return {"ok": True, "draft": draft, "artifact": artifact}
+
+
+@app.post("/automation/plan")
+def plan_automation(req: AutomationRequest) -> Dict[str, Any]:
+    user_id = register_user(req.user_id, req.session_id)
+    plan = make_automation_plan(req.goal, req.context)
+    artifact = create_artifact(
+        title=f"Automation plan - {title_case_topic(req.goal[:60])}",
+        artifact_type="Automation Plan",
+        content=plan,
+        prompt=req.goal,
+        user_id=user_id,
+        session_id=req.session_id,
+    )
+    return {"ok": True, "plan": plan, "artifact": artifact}
 
 
 @app.post("/image/generate", response_model=ImageResponse)
@@ -4528,6 +5149,19 @@ def chat(req: ChatRequest) -> ChatResponse:
     session = get_session(session_id)
     behavior_profile, behavior_signals = learn_behavior_from_message(original_user_message)
     persona_profile, persona_changes = learn_persona_from_message(original_user_message)
+    safety_reply = safety_filter_reply(original_user_message)
+    if safety_reply:
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", safety_reply)
+        return ChatResponse(
+            reply=safety_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="nexora_safety_filter",
+            sources=[],
+            tools_used=["safety_filter", "behavior_learning", f"performance:{system_profile()['level']}"],
+            created_at=now_iso(),
+        )
     if persona_changes:
         reply = persona_update_reply(persona_changes, persona_profile)
         append_session_message(session_id, "user", original_user_message)
@@ -4987,6 +5621,12 @@ async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = 
     content = await file.read()
     saved_path.write_bytes(content)
     extracted = basic_extract_text(saved_path)
+    summary = summarize_text_locally(extracted, 5) if extracted else {
+        "summary": "No readable text was extracted from this file.",
+        "key_points": [],
+        "action_items": [],
+        "word_count": 0,
+    }
     file_limit = current_performance_limits().get("file_context_chars", MAX_FILE_CONTEXT_CHARS)
     session.setdefault("files", []).append({
         "filename": original_name,
@@ -4994,6 +5634,7 @@ async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = 
         "path": str(saved_path),
         "uploaded_at": now_iso(),
         "text": extracted[:file_limit],
+        "summary": summary,
     })
     session["files"] = session["files"][-10:]
     update_session(session_id, session)
@@ -5003,7 +5644,7 @@ async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = 
         filename=original_name,
         saved_as=saved_name,
         extracted_chars=len(extracted),
-        message="File uploaded. Nexora will use it when relevant.",
+        message="File uploaded. Nexora will use it when relevant. Ask 'summarize this file' for a structured summary.",
     )
 
 
