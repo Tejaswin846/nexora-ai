@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html as html_lib
 import json
 import os
@@ -33,7 +34,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.30.0-fast-structured-fallback"
+APP_VERSION = "8.31.1-intent-memory-image"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -106,6 +107,7 @@ MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
 MAX_MEMORY_ITEMS = 80
+MAX_MEMORY_CONTEXT_ITEMS = 8
 MAX_IMAGE_MEMORY_ITEMS = 160
 MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
@@ -257,6 +259,16 @@ def clean_text(text: str) -> str:
 
 def compact_for_cache(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().lower()[:900]
+
+
+def stable_hash(value: str, length: int = 16) -> str:
+    digest = hashlib.sha256((value or "").encode("utf-8", errors="ignore")).hexdigest()
+    return digest[:max(8, min(64, length))]
+
+
+def stable_hash_int(value: str, modulo: int = 1000000) -> int:
+    digest = hashlib.sha256((value or "").encode("utf-8", errors="ignore")).hexdigest()
+    return int(digest[:16], 16) % max(1, modulo)
 
 
 def cache_key(session_id: str, message: str, mode: Optional[str], model: Optional[str]) -> str:
@@ -745,6 +757,79 @@ def save_memory(items: List[Dict[str, Any]]) -> None:
     safe_write_json(MEMORY_FILE, items[-MAX_MEMORY_ITEMS:])
 
 
+MEMORY_STOPWORDS = {
+    "about", "after", "again", "also", "and", "are", "because", "been", "before",
+    "being", "but", "can", "could", "did", "does", "for", "from", "give", "have",
+    "how", "into", "make", "more", "need", "now", "only", "should", "that", "the",
+    "then", "this", "those", "use", "user", "want", "what", "when", "where", "which",
+    "with", "without", "work", "works", "you", "your",
+}
+
+
+def memory_keywords(text: str) -> List[str]:
+    words = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", clean_text(text).lower())
+    keywords = []
+    for word in words:
+        if word in MEMORY_STOPWORDS or len(word) < 3:
+            continue
+        if word not in keywords:
+            keywords.append(word)
+    return keywords[:18]
+
+
+def upsert_memory_item(
+    content: str,
+    user_id: str = "default",
+    category: str = "preference",
+    source: str = "auto",
+    session_id: Optional[str] = None,
+    strength: int = 1,
+) -> None:
+    clean_content = clean_text(content)[:500]
+    if not clean_content:
+        return
+    normalized_user = normalize_user_id(user_id)
+    normalized_category = clean_text(category).lower()[:40] or "general"
+    now = now_iso()
+    keywords = memory_keywords(clean_content)
+    items = load_memory()
+    key = f"{normalized_user}|{normalized_category}|{clean_content.lower()}"
+    for item in items:
+        item_key = str(item.get("memory_key", ""))
+        same_legacy = (
+            normalize_user_id(str(item.get("user_id", "default"))) == normalized_user
+            and clean_text(str(item.get("content", ""))).lower() == clean_content.lower()
+        )
+        if item_key == key or same_legacy:
+            item["memory_key"] = key
+            item["content"] = clean_content
+            item["category"] = normalized_category
+            item["source"] = source or item.get("source", "auto")
+            item["keywords"] = sorted(set(item.get("keywords", []) + keywords))[:24]
+            item["hits"] = int(item.get("hits", 1) or 1) + max(1, strength)
+            item["last_seen"] = now
+            if session_id:
+                sessions = item.setdefault("sessions", [])
+                if session_id not in sessions:
+                    sessions.append(session_id)
+                item["sessions"] = sessions[-12:]
+            save_memory(items)
+            return
+    items.append({
+        "memory_key": key,
+        "content": clean_content,
+        "category": normalized_category,
+        "source": source,
+        "user_id": normalized_user,
+        "keywords": keywords,
+        "hits": max(1, strength),
+        "sessions": [session_id] if session_id else [],
+        "created_at": now,
+        "last_seen": now,
+    })
+    save_memory(items)
+
+
 def normalize_project_name(name: str) -> str:
     return clean_text(name)[:80] or "Untitled project"
 
@@ -899,9 +984,11 @@ def normalize_image_style(style: Optional[str]) -> str:
     presets = {
         "": "",
         "auto": "",
-        "realistic": "realistic, natural lighting, detailed, high quality",
+        "realistic": "photorealistic, natural lighting, realistic skin texture, high detail, polished finish",
         "cinematic": "cinematic lighting, dramatic composition, high detail",
-        "anime": "anime illustration, clean line art, vibrant colors",
+        "anime": "semi-realistic anime illustration, expressive detailed eyes, soft cinematic lighting, polished painterly finish",
+        "anime-realistic": "semi-realistic anime portrait, expressive detailed eyes, natural skin shading, soft cinematic lighting, polished painterly finish",
+        "anime realistic": "semi-realistic anime portrait, expressive detailed eyes, natural skin shading, soft cinematic lighting, polished painterly finish",
         "poster": "poster design, strong composition, bold readable layout",
         "logo": "simple logo mark, clean vector-like design, centered, minimal background",
         "3d": "3D render, smooth materials, studio lighting",
@@ -914,8 +1001,10 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
     subject = strip_image_command(prompt)
     style_text = normalize_image_style(style)
     style_only_subjects = {
-        "anime": "anime character portrait",
-        "realistic": "realistic portrait",
+        "anime": "semi-realistic anime character portrait, close-up face, luminous detailed eyes",
+        "anime realistic": "semi-realistic anime character portrait, close-up face, luminous detailed eyes",
+        "anime-realistic": "semi-realistic anime character portrait, close-up face, luminous detailed eyes",
+        "realistic": "realistic cinematic portrait",
         "cinematic": "cinematic character scene",
         "poster": "modern poster design",
         "logo": "minimal logo mark",
@@ -930,6 +1019,39 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
     additions = []
     if style_text:
         additions.append(style_text)
+    is_logo_like = re.search(r"\b(logo|icon|brand mark|vector mark)\b", lower)
+    is_poster_like = re.search(r"\b(poster|flyer|banner|cover)\b", lower)
+    is_anime_like = re.search(r"\b(anime|manga|manhwa|naruto|sasuke|gojo|luffy|kakashi)\b", lower)
+    is_photo_like = re.search(r"\b(photo|photoreal|photorealistic|realistic|real life|cinematic)\b", lower)
+    is_portrait_like = re.search(
+        r"\b(portrait|face|headshot|selfie|girl|boy|woman|man|person|character|eyes|close[- ]?up)\b",
+        lower,
+    )
+    if is_anime_like and is_portrait_like:
+        additions.extend([
+            "clean close-up portrait framing",
+            "luminous detailed eyes",
+            "natural skin shading",
+            "soft sunlight and rim light",
+            "crisp hair detail",
+            "smooth painterly rendering",
+        ])
+    elif is_anime_like:
+        additions.extend([
+            "clean anime illustration",
+            "polished painterly rendering",
+            "cinematic lighting",
+            "crisp subject edges",
+        ])
+    elif is_photo_like and is_portrait_like:
+        additions.extend([
+            "realistic portrait lighting",
+            "natural skin texture",
+            "sharp facial detail",
+            "clean background separation",
+        ])
+    elif not is_logo_like and not is_poster_like:
+        additions.append("clean professional finish")
     if not re.search(r"\b(close[- ]?up|wide shot|portrait|landscape|top view|isometric|centered|composition)\b", lower):
         additions.append("clear composition")
     if not re.search(r"\b(light|lighting|sunset|night|daylight|studio|cinematic)\b", lower):
@@ -939,12 +1061,44 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
     if not re.search(r"\b(blurry|low quality|bad quality)\b", lower):
         additions.append("sharp focus")
 
-    final_prompt = ", ".join(part for part in [subject] + additions if part)
+    final_parts = []
+    seen_parts = set()
+    for part in [subject] + additions:
+        cleaned = clean_text(part)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        current_text = " ".join(final_parts).lower()
+        if key in seen_parts or key in current_text:
+            continue
+        seen_parts.add(key)
+        final_parts.append(cleaned)
+    final_prompt = ", ".join(final_parts)
     return clean_text(final_prompt)[:900]
 
 
-def build_image_negative_prompt(negative_prompt: Optional[str]) -> str:
-    base_items = ["blurry", "low quality", "distorted", "extra fingers", "bad anatomy", "messy text", "watermark"]
+def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[str] = None) -> str:
+    raw_style = clean_text(style or "").lower()
+    base_items = [
+        "low quality",
+        "low resolution",
+        "blurry",
+        "out of focus",
+        "distorted",
+        "deformed face",
+        "deformed eyes",
+        "bad anatomy",
+        "extra fingers",
+        "extra limbs",
+        "duplicate face",
+        "messy text",
+        "jpeg artifacts",
+        "noise",
+        "oversaturated",
+        "flat lighting",
+    ]
+    if "logo" not in raw_style:
+        base_items.extend(["watermark", "signature", "random logo"])
     extra = clean_text(negative_prompt or "")
     items = base_items + [item.strip() for item in extra.split(",") if item.strip()]
     deduped = []
@@ -966,7 +1120,7 @@ def image_cache_key(user_id: str, prompt: str, size_label: str, negative_prompt:
         compact_for_cache(negative_prompt),
         IMAGE_MODEL or "provider_default",
     ])
-    return str(abs(hash(packed)))
+    return stable_hash(packed)
 
 
 def load_image_memory() -> Dict[str, Any]:
@@ -1070,7 +1224,8 @@ def find_cached_image(user_id: str, enhanced_prompt: str, size_label: str, negat
 def build_image_url(prompt: str, size: Optional[str], negative_prompt: Optional[str] = "", user_id: str = "default") -> Tuple[str, int, int]:
     width, height = parse_image_size(size)
     clean_prompt = clean_text(prompt)
-    seed = abs(hash(f"{normalize_user_id(user_id)}|{clean_prompt}|{width}x{height}|{clean_text(negative_prompt or '')}")) % 1000000
+    clean_negative = clean_text(negative_prompt or "")[:500]
+    seed = stable_hash_int(f"{normalize_user_id(user_id)}|{clean_prompt}|{width}x{height}|{clean_negative}")
     encoded_prompt = quote(clean_prompt[:900])
     params = {
         "width": width,
@@ -1078,7 +1233,7 @@ def build_image_url(prompt: str, size: Optional[str], negative_prompt: Optional[
         "seed": seed,
         "nologo": "true",
         "enhance": "true",
-        "negative": build_image_negative_prompt(negative_prompt),
+        "negative": clean_negative,
     }
     if IMAGE_MODEL:
         params["model"] = IMAGE_MODEL
@@ -1138,7 +1293,7 @@ def save_persona_profile(profile: Dict[str, Any]) -> None:
 
 def persona_signature(profile: Dict[str, Any]) -> str:
     packed = json.dumps(profile, ensure_ascii=False, sort_keys=True)
-    return str(abs(hash(packed)))
+    return stable_hash(packed)
 
 
 def add_persona_rule(profile: Dict[str, Any], rule: str) -> None:
@@ -1346,7 +1501,7 @@ def behavior_signature(profile: Dict[str, Any]) -> str:
         "preferences": profile.get("preferences", []),
     }
     packed = json.dumps(stable, ensure_ascii=False, sort_keys=True)
-    return str(abs(hash(packed)))
+    return stable_hash(packed)
 
 
 def behavior_add_preference(profile: Dict[str, Any], preference: str) -> None:
@@ -1650,6 +1805,85 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
     return "\n".join(base)
 
 
+def analyze_user_intent(
+    user_message: str,
+    response_lane: str,
+    presentation_style: str,
+    use_research: bool,
+    behavior_signals: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    text = clean_text(user_message)
+    lower = text.lower()
+    signals = behavior_signals or {}
+
+    if response_lane == "writing":
+        goal = "produce polished writing the user can use directly"
+    elif response_lane == "build":
+        goal = "solve or implement the requested app/code change"
+    elif response_lane == "learning":
+        goal = "explain the concept clearly and make it easy to study"
+    elif response_lane == "realtime_search" or use_research:
+        goal = "answer with current verified evidence"
+    else:
+        goal = "answer the user's practical question directly"
+
+    shape_map = {
+        "short": "short answer",
+        "table": "compact table with takeaway",
+        "chart": "compact chart/table summary",
+        "diagram": "simple text diagram plus key points",
+        "long": "structured long answer",
+        "finished_draft": "finished draft first",
+        "teaching_structure": "study-style explanation",
+        "implementation_summary": "implementation-focused steps",
+        "answer_with_evidence": "answer with citations",
+    }
+    expected_output = shape_map.get(presentation_style, "balanced answer")
+
+    constraints: List[str] = []
+    if re.search(r"\b(fast|faster|speed|efficient|efficiency|quick)\b", lower) or signals.get("urgency"):
+        constraints.append("prioritize speed and low-token structure")
+    if re.search(r"\b(structure|structured|clean|professional|beautiful|format)\b", lower) or signals.get("needs_structure"):
+        constraints.append("make the answer clean and well structured")
+    if re.search(r"\b(no extra|remove|only|without|don'?t add)\b", lower):
+        constraints.append("avoid extra UI/text and unnecessary endings")
+    if re.search(r"\b(memory|remember|long[- ]?term)\b", lower):
+        constraints.append("use and update long-term memory")
+    if use_research:
+        constraints.append("do not guess current facts without sources")
+
+    ambiguity = "low"
+    if len(text.split()) < 4 and response_lane == "human_chat":
+        ambiguity = "medium"
+    if re.search(r"\b(this|that|it|those|these)\b", lower) and len(text.split()) < 12:
+        ambiguity = "medium"
+
+    return {
+        "goal": goal,
+        "expected_output": expected_output,
+        "constraints": constraints,
+        "ambiguity": ambiguity,
+    }
+
+
+def build_intent_context(intent: Dict[str, Any]) -> str:
+    lines = [
+        "Current request understanding:",
+        f"- Likely user goal: {intent.get('goal', 'answer directly')}.",
+        f"- Best output shape: {intent.get('expected_output', 'balanced answer')}.",
+        f"- Ambiguity: {intent.get('ambiguity', 'low')}.",
+    ]
+    constraints = intent.get("constraints") or []
+    if constraints:
+        lines.append("- Current constraints:")
+        for item in constraints[:6]:
+            lines.append(f"  - {item}")
+    lines.append(
+        "Answer the likely intent first. Ask a clarifying question only if a useful answer would be risky or impossible."
+    )
+    return "\n".join(lines)
+
+
 def maybe_store_memory(user_message: str, user_id: str = "default") -> None:
     text = user_message.strip()
     lower = text.lower()
@@ -1665,25 +1899,119 @@ def maybe_store_memory(user_message: str, user_id: str = "default") -> None:
     ]
     if not any(trigger in lower for trigger in triggers):
         return
-    items = load_memory()
-    items.append({"content": text[:1200], "user_id": normalize_user_id(user_id), "created_at": now_iso()})
-    save_memory(items)
+    upsert_memory_item(
+        content=text[:1200],
+        user_id=user_id,
+        category="explicit",
+        source="user_instruction",
+        strength=3,
+    )
 
 
-def build_memory_context(user_id: str = "default") -> str:
+def score_memory_item(item: Dict[str, Any], query_keywords: List[str]) -> int:
+    content = clean_text(str(item.get("content", "")))
+    if not content:
+        return -100
+    item_keywords = set(str(value).lower() for value in item.get("keywords", []) if value)
+    if not item_keywords:
+        item_keywords = set(memory_keywords(content))
+    overlap = len(item_keywords.intersection(query_keywords))
+    category = str(item.get("category", "general")).lower()
+    source = str(item.get("source", "auto")).lower()
+    score = overlap * 4 + min(6, int(item.get("hits", 1) or 1))
+    if category in {"preference", "explicit", "identity", "project", "workflow"}:
+        score += 3
+    if source == "user_instruction":
+        score += 4
+    return score
+
+
+def build_memory_context(user_id: str = "default", current_message: str = "") -> str:
     normalized = normalize_user_id(user_id)
-    items = [
+    query_keywords = memory_keywords(current_message)
+    user_items = [
         item for item in load_memory()
         if normalize_user_id(str(item.get("user_id", "default"))) == normalized
-    ][-6:]
+    ]
+    scored = sorted(
+        user_items,
+        key=lambda item: (score_memory_item(item, query_keywords), str(item.get("last_seen", item.get("created_at", "")))),
+        reverse=True,
+    )
+    items = scored[:MAX_MEMORY_CONTEXT_ITEMS]
     lines = []
     for index, item in enumerate(items, start=1):
         content = clean_text(str(item.get("content", "")))
         if content:
-            lines.append(f"{index}. {content}")
+            category = clean_text(str(item.get("category", "memory"))) or "memory"
+            lines.append(f"{index}. [{category}] {content}")
     if not lines:
         return ""
-    return "Useful user/project memory:\n" + "\n".join(lines)
+    return (
+        "Long-term user memory relevant to this request:\n"
+        + "\n".join(lines)
+        + "\nUse these memories to infer intent and continuity. Do not mention memory unless it helps the answer."
+    )
+
+
+def memory_signature_for_user(user_id: str) -> str:
+    normalized = normalize_user_id(user_id)
+    stable = [
+        {
+            "content": clean_text(str(item.get("content", "")))[:160],
+            "category": item.get("category", ""),
+            "hits": item.get("hits", 1),
+            "last_seen": item.get("last_seen", item.get("created_at", "")),
+        }
+        for item in load_memory()
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ][-MAX_MEMORY_CONTEXT_ITEMS:]
+    return stable_hash(json.dumps(stable, ensure_ascii=False, sort_keys=True))
+
+
+def learn_long_term_memory_from_chat(
+    user_message: str,
+    assistant_reply: str,
+    user_id: str,
+    session_id: str,
+    response_lane: str,
+    presentation_style: str,
+    behavior_signals: Optional[Dict[str, Any]] = None,
+) -> None:
+    text = clean_text(user_message)
+    lower = text.lower()
+    signals = behavior_signals or {}
+
+    preference_patterns = [
+        (r"\b(fast|faster|speed|efficient|efficiency|no timeout|timeouts?)\b", "User values fast, efficient answers with minimal waiting.", "workflow"),
+        (r"\b(structure|structured|clean|professional|beautiful|format|punctuation|organized)\b", "User prefers clean, structured, professional answers.", "preference"),
+        (r"\b(understand|intent|what the user wants|question properly|human behavior)\b", "User wants Nexora to infer intent from informal wording and respond to the real need.", "preference"),
+        (r"\b(long[- ]?term memory|remember chat|memory of the chat|remember our chat)\b", "User wants long-term chat memory used for future replies.", "preference"),
+        (r"\b(short|brief|concise)\b", "User sometimes asks for concise answers; keep simple requests short.", "preference"),
+        (r"\b(detailed|long answer|deep|explain fully)\b", "User wants detailed answers when the topic is complex or asks for depth.", "preference"),
+        (r"\b(realtime|real time|search|perplexity|current|latest)\b", "User expects realtime search for current facts and accuracy-sensitive questions.", "workflow"),
+        (r"\b(image|create image|generate image)\b", "User cares about clean image generation workflow with minimal extra text.", "workflow"),
+        (r"\b(github|website|official website|pages)\b", "User is building or publishing Nexora as a website/GitHub Pages project.", "project"),
+        (r"\b(nexora|independent ai|self learning|real ai)\b", "User is building Nexora as a personal AI assistant with memory, adaptation, and useful autonomy.", "project"),
+        (r"\b(class|study|exam|homework|chapter|notes)\b", "User may ask study questions and prefers simple, exam-friendly explanations.", "preference"),
+        (r"\b(email|letter|essay|application|speech|draft)\b", "For writing tasks, user usually wants the finished draft first with polished structure.", "preference"),
+    ]
+    for pattern, memory, category in preference_patterns:
+        if re.search(pattern, lower):
+            upsert_memory_item(memory, user_id, category, "auto_behavior", session_id, strength=1)
+
+    if any(phrase in lower for phrase in ["from now on", "always", "remember", "i want nexora", "nexora should"]):
+        upsert_memory_item(text[:500], user_id, "explicit", "user_instruction", session_id, strength=3)
+
+    if response_lane:
+        upsert_memory_item(
+            f"Recent interaction pattern: response lane '{response_lane}' with preferred presentation '{presentation_style}'.",
+            user_id,
+            "interaction_pattern",
+            "auto_trace",
+            session_id,
+            strength=1 if signals.get("correction") else 0,
+        )
 
 
 TEXT_EXTENSIONS = {
@@ -2297,7 +2625,7 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
     if re.search(r"\b(search|searcch|look up|lookup|google|find online|on the internet|real[- ]?time|realtime)\b", text):
         return True
     keywords = [
-        "latest", "today", "current", "recent", "news", "live", "now", "2026", "2025",
+        "latest", "today", "current", "recent", "news", "live", "right now", "2026", "2025",
         "stock", "share", "market", "price", "ceo", "president", "prime minister",
         "winner", "score", "weather", "schedule", "election", "filing", "contract",
         "order", "announcement", "released", "updated", "crude oil", "oil crisis",
@@ -2383,7 +2711,7 @@ def should_use_free_club(
         return True
     if response_lane == "realtime_search" or presentation_style == "answer_with_evidence":
         return True
-    if re.search(r"\b(latest|current|today|recent|news|live|now|2026|2025|price|market|score|weather|election|filing)\b", text):
+    if re.search(r"\b(latest|current|today|recent|news|live|right now|2026|2025|price|market|score|weather|election|filing)\b", text):
         return True
     if len(text) >= FREE_CLUB_MIN_QUERY_CHARS and re.search(
         r"\b(current|latest|research|sources?|citations?|real[- ]?time|realtime)\b",
@@ -2404,7 +2732,7 @@ def should_add_free_club_search(
     text = clean_text(message).lower()
     if presentation_style == "answer_with_evidence":
         return True
-    if re.search(r"\b(latest|current|today|recent|news|live|now|2026|2025|price|market|score|weather|election|filing|sources?|citations?)\b", text):
+    if re.search(r"\b(latest|current|today|recent|news|live|right now|2026|2025|price|market|score|weather|election|filing|sources?|citations?)\b", text):
         return True
     return False
 
@@ -2589,6 +2917,7 @@ def build_messages(
     behavior_context: str,
     response_lane_context: str,
     presentation_context: str,
+    intent_context: str,
     use_research: bool,
     response_mode: str,
 ) -> List[Dict[str, str]]:
@@ -2616,6 +2945,8 @@ def build_messages(
         messages.append({"role": "system", "content": persona_context})
     if behavior_context:
         messages.append({"role": "system", "content": behavior_context})
+    if intent_context:
+        messages.append({"role": "system", "content": intent_context})
     if response_lane_context:
         messages.append({"role": "system", "content": response_lane_context})
     if presentation_context:
@@ -3351,7 +3682,7 @@ def generate_image(req: ImageRequest) -> ImageResponse:
     original_prompt = strip_image_command(req.prompt)
     style = infer_image_style(original_prompt, req.style, user_id)
     enhanced_prompt = enhance_image_prompt(original_prompt, style, req.enhance)
-    negative_prompt = build_image_negative_prompt(req.negative_prompt)
+    negative_prompt = build_image_negative_prompt(req.negative_prompt, style)
     width, height = parse_image_size(req.size)
     size_label = f"{width}x{height}"
     cached_item = find_cached_image(user_id, enhanced_prompt, size_label, negative_prompt)
@@ -3438,6 +3769,15 @@ def chat(req: ChatRequest) -> ChatResponse:
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", reply)
         maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            reply,
+            user_id,
+            session_id,
+            "persona_update",
+            "preference",
+            behavior_signals,
+        )
         return ChatResponse(
             reply=reply,
             session_id=session_id,
@@ -3462,16 +3802,39 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
 
+    use_research = should_use_research(original_user_message, req.mode, req.use_web)
+    response_lane = classify_response_lane(original_user_message, use_research)
+    presentation_style = classify_presentation_style(original_user_message, response_lane, use_research)
+    intent = analyze_user_intent(
+        original_user_message,
+        response_lane,
+        presentation_style,
+        use_research,
+        behavior_signals,
+    )
+    memory_sig = memory_signature_for_user(user_id)
     response_cache_key = cache_key(
         session_id,
         original_user_message,
         req.mode,
-        f"{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}",
+        f"{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{response_lane}:{presentation_style}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
     )
     cached = get_cached_response(response_cache_key)
     if cached:
+        cached_reply = str(cached["reply"])
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", cached_reply)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            cached_reply,
+            user_id,
+            session_id,
+            response_lane,
+            presentation_style,
+            behavior_signals,
+        )
         return ChatResponse(
-            reply=str(cached["reply"]),
+            reply=cached_reply,
             session_id=session_id,
             mode=req.mode or "agent",
             model_used=str(cached["model_used"]),
@@ -3490,9 +3853,9 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used: List[str] = []
     tools_used.append(f"performance:{system_profile()['level']}")
     tools_used.append("behavior_learning")
+    tools_used.append("intent_understanding")
     sources: List[SourceItem] = []
     verified_sources: List[SourceItem] = []
-    use_research = should_use_research(original_user_message, req.mode, req.use_web)
     confidence = "none"
     rounds = 0
 
@@ -3511,6 +3874,15 @@ def chat(req: ChatRequest) -> ChatResponse:
             )
             append_session_message(session_id, "user", original_user_message)
             append_session_message(session_id, "assistant", reply)
+            learn_long_term_memory_from_chat(
+                original_user_message,
+                reply,
+                user_id,
+                session_id,
+                response_lane,
+                presentation_style,
+                behavior_signals,
+            )
             return ChatResponse(
                 reply=reply,
                 session_id=session_id,
@@ -3524,16 +3896,15 @@ def chat(req: ChatRequest) -> ChatResponse:
     file_context = build_file_context(session_id)
     if file_context:
         tools_used.append("file_context")
-    memory_context = build_memory_context(user_id)
+    memory_context = build_memory_context(user_id, original_user_message)
     if memory_context and not use_research:
         tools_used.append("memory")
     persona_context = build_persona_context(persona_profile)
     tools_used.append("adaptive_persona")
     behavior_context = build_behavior_context(behavior_profile, behavior_signals)
-    response_lane = classify_response_lane(original_user_message, use_research)
-    presentation_style = classify_presentation_style(original_user_message, response_lane, use_research)
     response_lane_context = build_response_lane_context(original_user_message, use_research)
     presentation_context = build_presentation_context(original_user_message, response_lane, use_research)
+    intent_context = build_intent_context(intent)
     tools_used.append(f"response_lane:{response_lane}")
     tools_used.append(f"presentation:{presentation_style}")
 
@@ -3550,6 +3921,15 @@ def chat(req: ChatRequest) -> ChatResponse:
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
         maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            final_reply,
+            user_id,
+            session_id,
+            response_lane,
+            presentation_style,
+            behavior_signals,
+        )
         set_cached_response(response_cache_key, final_reply, "nexora_local_structured", [])
         return ChatResponse(
             reply=final_reply,
@@ -3591,6 +3971,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         behavior_context=behavior_context,
         response_lane_context=response_lane_context,
         presentation_context=presentation_context,
+        intent_context=intent_context,
         use_research=use_research,
         response_mode=response_mode,
     )
@@ -3693,6 +4074,15 @@ def chat(req: ChatRequest) -> ChatResponse:
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message, user_id)
+    learn_long_term_memory_from_chat(
+        original_user_message,
+        final_reply,
+        user_id,
+        session_id,
+        response_lane,
+        presentation_style,
+        behavior_signals,
+    )
     if not model_failed and not is_bad_generated_reply(final_reply):
         set_cached_response(response_cache_key, final_reply, model_used, response_sources)
     return ChatResponse(
