@@ -34,7 +34,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.31.1-intent-memory-image"
+APP_VERSION = "8.32.0-understanding-memory"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -393,17 +393,18 @@ def local_fast_reply(message: str) -> Optional[str]:
     return None
 
 
-def normalize_prompt_topic(raw: str) -> str:
-    topic = clean_text(raw)
-    topic = re.sub(
-        r"(?i)^(please\s+)?(write|give|make|create|draft|prepare)\s+(me\s+|an?\s+|the\s+)?",
-        "",
-        topic,
-    )
-    topic = re.sub(r"(?i)^(essay|paragraph|speech|article|note)\s+(on|about|for)\s+", "", topic)
-    topic = re.sub(r"(?i)\b(essay|paragraph|speech|article|note)\b", "", topic)
-    topic = re.sub(r"(?i)\b(on|about|for)\b\s*", "", topic, count=1)
-    topic = re.sub(r"\s+", " ", topic).strip(" .,:;-")
+WRITING_KIND_RE = r"(essay|paragraph|speech|article|note)"
+WRITING_LENGTH_RE = r"(long|short|brief|small|detailed|full|complete)"
+WRITING_TOPIC_FILLERS = {
+    "a", "an", "and", "about", "article", "brief", "can", "complete", "could",
+    "create", "detailed", "draft", "essay", "for", "full", "give", "i", "in",
+    "long", "make", "me", "need", "note", "of", "on", "paragraph", "please",
+    "prepare", "short", "small", "speech", "the", "want", "write", "you",
+}
+
+
+def title_case_topic(topic: str) -> str:
+    topic = clean_text(topic)
     if not topic:
         return "the topic"
     small_words = {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "with"}
@@ -414,38 +415,174 @@ def normalize_prompt_topic(raw: str) -> str:
     return " ".join(words)
 
 
-def local_writing_reply(message: str) -> Optional[str]:
+def clean_writing_topic_candidate(raw: str) -> str:
+    topic = clean_text(raw)
+    topic = re.sub(r"(?i)\b(thanks|thank you|pls|please|sir|mam|ma'am)\b", " ", topic)
+    topic = re.sub(r"(?i)^(i\s+(need|want|would like)\s+|can you\s+|could you\s+|would you\s+)", "", topic)
+    topic = re.sub(r"(?i)^(write|give|make|create|draft|prepare)\s+(me\s+)?", "", topic)
+    topic = re.sub(r"(?i)\b" + WRITING_KIND_RE + r"\b", " ", topic)
+    topic = re.sub(r"(?i)\b" + WRITING_LENGTH_RE + r"\b", " ", topic)
+    topic = re.sub(r"(?i)^(me\s+|an?\s+|the\s+|on\s+|about\s+|for\s+|of\s+)+", "", topic)
+    topic = re.sub(r"\s+", " ", topic).strip(" .,:;-")
+    return topic
+
+
+def meaningful_topic_words(topic: str) -> List[str]:
+    words = re.findall(r"[a-zA-Z][a-zA-Z'-]{1,}", clean_text(topic).lower())
+    return [word for word in words if word not in WRITING_TOPIC_FILLERS]
+
+
+def extract_writing_topic(raw: str) -> str:
+    text = clean_text(raw)
+    topic_match = re.search(r"(?i)\b(?:topic\s*(?:is|:)?|on|about|for|regarding|titled)\s+(.+)$", text)
+    if topic_match:
+        topic = clean_writing_topic_candidate(topic_match.group(1))
+    else:
+        topic = clean_writing_topic_candidate(text)
+    return title_case_topic(topic) if meaningful_topic_words(topic) else "the topic"
+
+
+def normalize_prompt_topic(raw: str) -> str:
+    return extract_writing_topic(raw)
+
+
+def analyze_writing_request(message: str) -> Dict[str, Any]:
     text = clean_text(message)
     lower = text.lower()
-    if not re.search(r"\b(essay|paragraph|speech|article|write about|write on)\b", lower):
-        return None
+    has_kind = bool(re.search(r"\b" + WRITING_KIND_RE + r"\b", lower))
+    has_write_action = bool(re.search(r"\b(write|draft|prepare|compose|make|create|give)\b", lower))
+    has_need_action = bool(re.search(r"\b(i\s+need|i\s+want|need|want)\b", lower))
+    has_writing_phrase = bool(re.search(r"\b(write\s+(about|on)|write\s+me|draft\s+me|give\s+me)\b", lower))
+    is_writing = has_writing_phrase or (has_kind and (has_write_action or has_need_action or len(text.split()) <= 8))
+    kind_match = re.search(r"\b" + WRITING_KIND_RE + r"\b", lower)
+    kind = kind_match.group(1) if kind_match else "writing"
+    length = "long" if re.search(r"\b(long|detailed|full|complete)\b", lower) else "balanced"
+    if re.search(r"\b(short|brief|small)\b", lower):
+        length = "short"
+    topic = extract_writing_topic(text)
+    missing_topic = topic == "the topic"
+    return {
+        "is_writing": is_writing,
+        "kind": kind,
+        "length": length,
+        "topic": topic,
+        "missing_topic": missing_topic,
+    }
 
-    topic = normalize_prompt_topic(text)
-    topic_lower = topic.lower()
-    if "father" in topic_lower and "day" in topic_lower:
+
+def missing_writing_topic_reply(request: Dict[str, Any]) -> str:
+    length = "long " if request.get("length") == "long" else "short " if request.get("length") == "short" else ""
+    kind = clean_text(str(request.get("kind") or "writing"))
+    if kind == "writing":
+        kind = "piece"
+    return (
+        f"Sure. What topic should the {length}{kind} be about?\n\n"
+        "Send just the topic, and I will write it properly."
+    )
+
+
+def build_fathers_day_essay(length: str = "balanced") -> str:
+    if length == "long":
         return (
-            "Father's Day is a special occasion to honor the love, sacrifice, and guidance of fathers. "
-            "A father often works quietly in the background, supporting the family, protecting his children, "
-            "and teaching them important values through his actions.\n\n"
-            "A father's love may not always be expressed in many words, but it can be seen in his care, hard work, "
-            "and constant concern for the future of his children. He encourages us when we feel weak, corrects us "
-            "when we make mistakes, and helps us become responsible people.\n\n"
-            "Father's Day reminds us to thank our fathers for everything they do. A simple wish, a kind word, or "
-            "spending time with them can make them feel loved and respected. It is not only a day for gifts, but "
-            "also a day for gratitude.\n\n"
+            "Father's Day is a special occasion dedicated to honoring fathers and father figures for their love, "
+            "sacrifice, guidance, and support. A father plays an important role in shaping a child's life, not only "
+            "by providing for the family, but also by teaching values through daily actions.\n\n"
+            "A father's love is often quiet. He may not always express his feelings in many words, but his care can "
+            "be seen in his hard work, protection, patience, and concern for the future of his children. He stands "
+            "beside the family during difficult times and gives strength when others feel weak.\n\n"
+            "Fathers also teach discipline and responsibility. They correct us when we make mistakes, encourage us "
+            "when we lose confidence, and guide us toward better choices. Their advice may sometimes feel strict, "
+            "but it often comes from experience and love.\n\n"
+            "Father's Day reminds us that we should not take these sacrifices for granted. A simple thank you, a kind "
+            "message, or spending time together can mean a lot. The day is not only about gifts; it is about gratitude, "
+            "respect, and emotional connection.\n\n"
+            "In many families, fathers are the silent strength behind every achievement. Their efforts help children "
+            "dream bigger, work harder, and face life with courage. This is why Father's Day is meaningful: it gives us "
+            "a chance to recognize the love that often works quietly in the background.\n\n"
             "Bottom line:\n"
-            "Father's Day teaches us to value our fathers and appreciate the strength, patience, and love they give us every day."
+            "Father's Day teaches us to value our fathers, respect their sacrifices, and appreciate the steady love they give every day."
         )
+    return (
+        "Father's Day is a special occasion to honor the love, sacrifice, and guidance of fathers. "
+        "A father often works quietly in the background, supporting the family, protecting his children, "
+        "and teaching them important values through his actions.\n\n"
+        "A father's love may not always be expressed in many words, but it can be seen in his care, hard work, "
+        "and constant concern for the future of his children. He encourages us when we feel weak, corrects us "
+        "when we make mistakes, and helps us become responsible people.\n\n"
+        "Father's Day reminds us to thank our fathers for everything they do. A simple wish, a kind word, or "
+        "spending time with them can make them feel loved and respected. It is not only a day for gifts, but "
+        "also a day for gratitude.\n\n"
+        "Bottom line:\n"
+        "Father's Day teaches us to value our fathers and appreciate the strength, patience, and love they give us every day."
+    )
 
+
+def build_generic_writing(topic: str, kind: str = "essay", length: str = "balanced") -> str:
+    topic_lower = topic.lower()
+    if length == "short" or kind == "paragraph":
+        return (
+            f"{topic} is an important subject because it helps us understand the world more clearly. "
+            f"It shows why ideas, values, and actions matter in daily life. When we think about {topic_lower}, "
+            "we learn to connect knowledge with real situations and make better choices.\n\n"
+            "Bottom line:\n"
+            f"{topic} becomes meaningful when we understand it clearly and use that understanding in life."
+        )
+    if length == "long":
+        return (
+            f"{topic} is an important subject because it helps us think more clearly about life, society, and human values. "
+            f"When we study {topic_lower}, we do not only learn facts. We also learn how those facts connect with real people, "
+            "real problems, and real choices.\n\n"
+            f"One of the main reasons {topic_lower} matters is that it shapes the way people understand the world around them. "
+            "A good understanding of this topic can build awareness, responsibility, and better judgment. It can also help us "
+            "see the difference between surface-level knowledge and true understanding.\n\n"
+            f"In daily life, {topic_lower} can influence our thoughts, habits, and decisions. It teaches us to look beyond simple "
+            "answers and think about causes, effects, and consequences. This makes learning more useful because it becomes connected "
+            "to practical life.\n\n"
+            "Another important point is that every subject becomes stronger when we explain it in simple language. Clear thinking "
+            "is more powerful than complicated wording. A well-written answer should help the reader understand the idea step by step, "
+            "without confusion or unnecessary detail.\n\n"
+            f"Overall, {topic_lower} is valuable because it encourages learning, reflection, and better action. It reminds us that "
+            "education is not only about memorizing information, but also about understanding meaning and applying it wisely.\n\n"
+            "Bottom line:\n"
+            f"{topic} becomes truly useful when we understand it clearly, connect it with real life, and explain it in a simple, thoughtful way."
+        )
     return (
         f"{topic} is an important subject because it helps us understand values, responsibility, and the world around us. "
-        f"When we think about {topic.lower()}, we learn not only facts, but also the meaning behind them.\n\n"
-        f"One of the main reasons {topic.lower()} matters is that it affects people's thoughts, choices, and actions. "
+        f"When we think about {topic_lower}, we learn not only facts, but also the meaning behind them.\n\n"
+        f"One of the main reasons {topic_lower} matters is that it affects people's thoughts, choices, and actions. "
         "It can teach discipline, kindness, awareness, and better decision-making, depending on the situation.\n\n"
-        f"In daily life, {topic.lower()} reminds us that learning is not only about memorizing information. "
+        f"In daily life, {topic_lower} reminds us that learning is not only about memorizing information. "
         "It is also about understanding ideas clearly and using them in the right way.\n\n"
         "Bottom line:\n"
         f"{topic} becomes valuable when we understand it clearly and connect it with real life."
+    )
+
+
+def local_writing_reply(message: str, session_id: Optional[str] = None) -> Optional[str]:
+    text = clean_text(message)
+    request = analyze_writing_request(text)
+    if not request.get("is_writing"):
+        return None
+
+    if request.get("missing_topic"):
+        if session_id:
+            set_pending_task(session_id, {
+                "type": "writing_topic",
+                "kind": request.get("kind", "essay"),
+                "length": request.get("length", "balanced"),
+                "source": "missing_topic",
+            })
+        return missing_writing_topic_reply(request)
+
+    topic = str(request.get("topic") or "the topic")
+    topic_lower = topic.lower()
+    if "father" in topic_lower and "day" in topic_lower:
+        return build_fathers_day_essay(str(request.get("length", "balanced")))
+
+    return build_generic_writing(
+        topic,
+        str(request.get("kind", "essay")),
+        str(request.get("length", "balanced")),
     )
 
 
@@ -453,8 +590,9 @@ def local_structured_fallback(
     message: str,
     response_lane: str = "human_chat",
     presentation_style: str = "balanced",
+    session_id: Optional[str] = None,
 ) -> Optional[str]:
-    writing = local_writing_reply(message)
+    writing = local_writing_reply(message, session_id=session_id)
     if writing:
         return writing
 
@@ -486,6 +624,61 @@ def local_structured_fallback(
         )
 
     return None
+
+
+def looks_like_new_task(message: str) -> bool:
+    lower = clean_text(message).lower()
+    return bool(re.search(
+        r"\b(what|why|how|search|latest|current|code|debug|fix|image|picture|photo|generate|create|website|github)\b",
+        lower,
+    ))
+
+
+def resolve_pending_task_reply(session_id: str, message: str) -> Optional[str]:
+    session = get_session(session_id)
+    pending = session.get("pending_task")
+    if not isinstance(pending, dict):
+        return None
+    text = clean_text(message)
+    lower = text.lower()
+    if lower in {"cancel", "stop", "leave it", "forget it", "never mind", "nevermind"}:
+        clear_pending_task(session_id)
+        return "Okay, cancelled."
+
+    if pending.get("type") != "writing_topic":
+        return None
+
+    request = analyze_writing_request(text)
+    if request.get("is_writing") and request.get("missing_topic"):
+        set_pending_task(session_id, {
+            "type": "writing_topic",
+            "kind": request.get("kind", pending.get("kind", "essay")),
+            "length": request.get("length", pending.get("length", "balanced")),
+            "source": "missing_topic",
+        })
+        return missing_writing_topic_reply(request)
+
+    if request.get("is_writing") and not request.get("missing_topic"):
+        topic = str(request.get("topic") or "the topic")
+        kind = str(request.get("kind") or pending.get("kind") or "essay")
+        length = str(request.get("length") or pending.get("length") or "balanced")
+    else:
+        if looks_like_new_task(text) and len(text.split()) > 3:
+            clear_pending_task(session_id)
+            return None
+        topic = normalize_prompt_topic(text)
+        if topic == "the topic":
+            return missing_writing_topic_reply({
+                "kind": pending.get("kind", "essay"),
+                "length": pending.get("length", "balanced"),
+            })
+        kind = str(pending.get("kind") or "essay")
+        length = str(pending.get("length") or "balanced")
+
+    clear_pending_task(session_id)
+    if "father" in topic.lower() and "day" in topic.lower():
+        return build_fathers_day_essay(length)
+    return build_generic_writing(topic, kind, length)
 
 
 def choose_response_mode(message: str, requested_mode: Optional[str], requested_model: Optional[str]) -> str:
@@ -737,6 +930,20 @@ def bind_session_user(session_id: str, user_id: str) -> None:
         return
     session["user_id"] = user_id
     update_session(session_id, session)
+
+
+def set_pending_task(session_id: str, task: Dict[str, Any]) -> None:
+    session = get_session(session_id)
+    task["created_at"] = now_iso()
+    session["pending_task"] = task
+    update_session(session_id, session)
+
+
+def clear_pending_task(session_id: str) -> None:
+    session = get_session(session_id)
+    if "pending_task" in session:
+        session.pop("pending_task", None)
+        update_session(session_id, session)
 
 
 def append_session_message(session_id: str, role: str, content: str) -> None:
@@ -1653,7 +1860,7 @@ def classify_response_lane(user_message: str, use_research: bool) -> str:
     text = clean_text(user_message).lower()
     if use_research:
         return "realtime_search"
-    if re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft|essay|paragraph|speech|article)\b", text):
+    if analyze_writing_request(user_message).get("is_writing") or re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft)\b", text):
         return "writing"
     if re.search(r"\b(explain|teach|learn|class|chapter|homework|notes|summary|revise|study)\b", text):
         return "learning"
@@ -1986,6 +2193,7 @@ def learn_long_term_memory_from_chat(
         (r"\b(fast|faster|speed|efficient|efficiency|no timeout|timeouts?)\b", "User values fast, efficient answers with minimal waiting.", "workflow"),
         (r"\b(structure|structured|clean|professional|beautiful|format|punctuation|organized)\b", "User prefers clean, structured, professional answers.", "preference"),
         (r"\b(understand|intent|what the user wants|question properly|human behavior)\b", "User wants Nexora to infer intent from informal wording and respond to the real need.", "preference"),
+        (r"\b(doesn'?t understand|dont understand|didn'?t understand|missing topic|ask for the topic)\b", "When a writing request is incomplete, ask for the missing topic instead of guessing.", "preference"),
         (r"\b(long[- ]?term memory|remember chat|memory of the chat|remember our chat)\b", "User wants long-term chat memory used for future replies.", "preference"),
         (r"\b(short|brief|concise)\b", "User sometimes asks for concise answers; keep simple requests short.", "preference"),
         (r"\b(detailed|long answer|deep|explain fully)\b", "User wants detailed answers when the topic is complex or asks for depth.", "preference"),
@@ -3787,6 +3995,29 @@ def chat(req: ChatRequest) -> ChatResponse:
             tools_used=["adaptive_persona", "behavior_learning", f"performance:{system_profile()['level']}"],
             created_at=now_iso(),
         )
+    pending_reply = resolve_pending_task_reply(session_id, original_user_message)
+    if pending_reply:
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", pending_reply)
+        maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            pending_reply,
+            user_id,
+            session_id,
+            "pending_intent",
+            "finished_draft",
+            behavior_signals,
+        )
+        return ChatResponse(
+            reply=pending_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="nexora_pending_intent_memory",
+            sources=[],
+            tools_used=["pending_intent_memory", "behavior_learning", f"performance:{system_profile()['level']}"],
+            created_at=now_iso(),
+        )
     response_mode = choose_response_mode(original_user_message, req.mode, req.model)
     quick_reply = local_fast_reply(original_user_message)
     if quick_reply:
@@ -3805,6 +4036,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     use_research = should_use_research(original_user_message, req.mode, req.use_web)
     response_lane = classify_response_lane(original_user_message, use_research)
     presentation_style = classify_presentation_style(original_user_message, response_lane, use_research)
+    writing_request = analyze_writing_request(original_user_message)
     intent = analyze_user_intent(
         original_user_message,
         response_lane,
@@ -3817,9 +4049,10 @@ def chat(req: ChatRequest) -> ChatResponse:
         session_id,
         original_user_message,
         req.mode,
-        f"{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{response_lane}:{presentation_style}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
+        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{response_lane}:{presentation_style}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
     )
-    cached = get_cached_response(response_cache_key)
+    skip_response_cache = bool(writing_request.get("is_writing") and writing_request.get("missing_topic"))
+    cached = None if skip_response_cache else get_cached_response(response_cache_key)
     if cached:
         cached_reply = str(cached["reply"])
         append_session_message(session_id, "user", original_user_message)
@@ -3909,7 +4142,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"presentation:{presentation_style}")
 
     local_structured = (
-        local_structured_fallback(original_user_message, response_lane, presentation_style)
+        local_structured_fallback(original_user_message, response_lane, presentation_style, session_id=session_id)
         if not use_research
         else None
     )
@@ -3930,7 +4163,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             presentation_style,
             behavior_signals,
         )
-        set_cached_response(response_cache_key, final_reply, "nexora_local_structured", [])
+        if not skip_response_cache:
+            set_cached_response(response_cache_key, final_reply, "nexora_local_structured", [])
         return ChatResponse(
             reply=final_reply,
             session_id=session_id,
