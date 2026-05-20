@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.41.0-ollama-club"
+APP_VERSION = "8.42.0-fast-direct-answers"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -447,6 +447,9 @@ def local_fast_reply(message: str) -> Optional[str]:
         return "Anytime. Send me the next thing and I will help you move it forward."
     if text in {"who are you", "who are you?", "what are you", "what are you?"}:
         return "I am Nexora, your AI assistant for clear answers, coding help, research-aware reasoning, files, and project work."
+    direct_name = local_direct_name_reply(text)
+    if direct_name:
+        return direct_name
     if re.search(r"\b(second world war|world war ii|world war 2|ww2)\b", text) and re.search(
         r"\b(cause|caused|reason|start|started|begin|began|behind|person|responsible|who)\b",
         text,
@@ -502,6 +505,156 @@ def title_case_topic(topic: str) -> str:
         else:
             words.append(lower if index and lower in small_words else lower.capitalize())
     return " ".join(words)
+
+
+COUNTRY_NAME_ALIASES: Dict[str, Tuple[str, str]] = {
+    "india": ("india", "Indian"),
+    "indian": ("india", "Indian"),
+    "america": ("america", "American"),
+    "american": ("america", "American"),
+    "usa": ("america", "American"),
+    "us": ("america", "American"),
+    "u s": ("america", "American"),
+    "u.s.": ("america", "American"),
+    "u.s.a.": ("america", "American"),
+    "united states": ("america", "American"),
+    "united states of america": ("america", "American"),
+    "uk": ("uk", "British"),
+    "britain": ("uk", "British"),
+    "british": ("uk", "British"),
+    "england": ("uk", "British"),
+    "japan": ("japan", "Japanese"),
+    "japanese": ("japan", "Japanese"),
+    "south korea": ("south korea", "South Korean"),
+    "korea": ("south korea", "South Korean"),
+    "korean": ("south korea", "South Korean"),
+    "france": ("france", "French"),
+    "french": ("france", "French"),
+    "brazil": ("brazil", "Brazilian"),
+    "brazilian": ("brazil", "Brazilian"),
+}
+
+
+DIRECT_NAME_ANSWERS: Dict[Tuple[str, str], str] = {
+    ("actor", "america"): "Tom Hanks",
+    ("actress", "america"): "Meryl Streep",
+    ("celebrity", "america"): "Dwayne Johnson",
+    ("singer", "america"): "Taylor Swift",
+    ("musician", "america"): "Taylor Swift",
+    ("artist", "america"): "Taylor Swift",
+    ("writer", "america"): "Stephen King",
+    ("author", "america"): "Stephen King",
+    ("scientist", "america"): "Katherine Johnson",
+    ("athlete", "america"): "Serena Williams",
+    ("player", "america"): "LeBron James",
+    ("actor", "india"): "Amitabh Bachchan",
+    ("actress", "india"): "Deepika Padukone",
+    ("celebrity", "india"): "Amitabh Bachchan",
+    ("singer", "india"): "Arijit Singh",
+    ("musician", "india"): "A. R. Rahman",
+    ("artist", "india"): "A. R. Rahman",
+    ("writer", "india"): "R. K. Narayan",
+    ("author", "india"): "R. K. Narayan",
+    ("scientist", "india"): "C. V. Raman",
+    ("athlete", "india"): "P. V. Sindhu",
+    ("player", "india"): "Sachin Tendulkar",
+    ("cricketer", "india"): "Sachin Tendulkar",
+    ("actor", "uk"): "Benedict Cumberbatch",
+    ("actress", "uk"): "Emma Watson",
+    ("celebrity", "uk"): "David Beckham",
+    ("singer", "uk"): "Adele",
+    ("actor", "japan"): "Ken Watanabe",
+    ("celebrity", "japan"): "Naomi Osaka",
+    ("singer", "japan"): "Hikaru Utada",
+    ("actor", "south korea"): "Lee Min-ho",
+    ("actress", "south korea"): "Bae Suzy",
+    ("celebrity", "south korea"): "BTS",
+    ("singer", "south korea"): "Jungkook",
+    ("actor", "france"): "Omar Sy",
+    ("celebrity", "france"): "Kylian Mbappe",
+    ("singer", "france"): "Edith Piaf",
+    ("actor", "brazil"): "Wagner Moura",
+    ("celebrity", "brazil"): "Neymar",
+    ("singer", "brazil"): "Anitta",
+}
+
+
+DIRECT_NAME_DEFAULTS: Dict[str, str] = {
+    "actor": "Tom Hanks",
+    "actress": "Meryl Streep",
+    "celebrity": "Amitabh Bachchan",
+    "singer": "Taylor Swift",
+    "musician": "A. R. Rahman",
+    "artist": "A. R. Rahman",
+    "writer": "Stephen King",
+    "author": "Stephen King",
+    "scientist": "C. V. Raman",
+    "athlete": "Serena Williams",
+    "player": "Sachin Tendulkar",
+    "cricketer": "Sachin Tendulkar",
+}
+
+
+def normalize_country_name(raw: str) -> Tuple[str, str]:
+    key = clean_text(raw).lower().strip(" .,:;-?")
+    key = re.sub(r"\b(the|from|in|of)\b", " ", key)
+    key = re.sub(r"\s+", " ", key).strip()
+    return COUNTRY_NAME_ALIASES.get(key, (key, title_case_topic(key)))
+
+
+def normalize_person_kind(raw: str) -> str:
+    key = clean_text(raw).lower().strip(" .,:;-?")
+    aliases = {
+        "actors": "actor",
+        "actresses": "actress",
+        "celebs": "celebrity",
+        "celebrities": "celebrity",
+        "singers": "singer",
+        "musicians": "musician",
+        "artists": "artist",
+        "writers": "writer",
+        "authors": "author",
+        "scientists": "scientist",
+        "players": "player",
+        "athletes": "athlete",
+        "cricketers": "cricketer",
+    }
+    return aliases.get(key, key)
+
+
+def local_direct_name_reply(message: str) -> Optional[str]:
+    text = clean_text(message)
+    lower = text.lower().strip(" .!?")
+    person_kind = r"actor|actress|celebrity|celebrities|celeb|celebs|singer|musician|artist|writer|author|scientist|athlete|player|cricketer"
+    country_part = r"[a-zA-Z .'-]{2,60}"
+
+    match = re.search(
+        rf"\b(?:name|give|tell me|tell|mention)\s+(?:me\s+)?(?:one\s+|a\s+|an\s+|any\s+)?(?P<kind>{person_kind})\s+(?:from|in|of)\s+(?P<country>{country_part})$",
+        lower,
+    )
+    if not match:
+        match = re.search(
+            rf"\b(?:name|give|tell me|tell|mention)\s+(?:me\s+)?(?:one\s+|a\s+|an\s+|any\s+)?(?P<country>{country_part})\s+(?P<kind>{person_kind})$",
+            lower,
+        )
+    if match:
+        kind = normalize_person_kind(match.group("kind"))
+        country_key, adjective = normalize_country_name(match.group("country"))
+        person = DIRECT_NAME_ANSWERS.get((kind, country_key)) or DIRECT_NAME_DEFAULTS.get(kind)
+        if person:
+            return f"One well-known {adjective} {kind} is {person}."
+
+    generic = re.search(
+        rf"\b(?:name|give|tell me|tell|mention)\s+(?:me\s+)?(?:one\s+|a\s+|an\s+|any\s+)?(?P<kind>{person_kind})$",
+        lower,
+    )
+    if generic:
+        kind = normalize_person_kind(generic.group("kind"))
+        person = DIRECT_NAME_DEFAULTS.get(kind)
+        if person:
+            return f"One well-known {kind} is {person}."
+
+    return None
 
 
 def clean_writing_topic_candidate(raw: str) -> str:
@@ -1049,7 +1202,8 @@ def local_semantic_reply(
     presentation_style: str = "balanced",
 ) -> Optional[str]:
     return (
-        local_comparison_reply(message)
+        local_direct_name_reply(message)
+        or local_comparison_reply(message)
         or local_pros_cons_reply(message)
         or local_goal_plan_reply(message)
         or local_step_reply(message)
