@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.43.0-reflective-fast-style"
+APP_VERSION = "8.44.0-autonomous-research-style"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -101,7 +101,7 @@ HF_API_KEY = os.getenv("HF_API_KEY", "").strip()
 HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
 REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "45"))
-SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "12"))
+SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "8"))
 MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "850"))
 INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "30"))
 THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "45"))
@@ -111,6 +111,8 @@ FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", 
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
 FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "6"))
 POLLINATIONS_QUALITY_GUARD = os.getenv("NEXORA_POLLINATIONS_QUALITY_GUARD", "true").strip().lower() not in {"0", "false", "off", "no"}
+AUTONOMOUS_RESEARCH_ENABLED = os.getenv("NEXORA_AUTONOMOUS_RESEARCH", "true").strip().lower() not in {"0", "false", "off", "no"}
+AUTONOMOUS_RESEARCH_MAX_RESULTS = max(1, min(int(os.getenv("NEXORA_AUTONOMOUS_RESEARCH_MAX_RESULTS", "2")), 3))
 MAX_HISTORY_MESSAGES = 5
 MAX_SESSION_MESSAGES = int(os.getenv("NEXORA_MAX_SESSION_MESSAGES", "240"))
 MAX_RESEARCH_SOURCES = 4
@@ -1080,6 +1082,25 @@ def local_comparison_reply(message: str) -> Optional[str]:
     if not subjects:
         return None
     left, right = subjects
+    pair = f"{left} {right}".lower()
+    if re.search(r"\belectric (car|cars|vehicle|vehicles|ev|evs)\b", pair) and re.search(
+        r"\b(petrol|gasoline|fuel) (car|cars|vehicle|vehicles)?\b|\bpetrol\b|\bgasoline\b",
+        pair,
+    ):
+        return (
+            "Electric cars and petrol cars mainly differ in how they store energy, how they run, and what they cost to maintain.\n\n"
+            "| Point | Electric cars | Petrol cars |\n"
+            "|---|---|---|\n"
+            "| Power source | Battery and electric motor | Petrol engine and fuel tank |\n"
+            "| Running feel | Quiet, smooth, quick acceleration | Engine sound, gear shifts, familiar driving feel |\n"
+            "| Daily cost | Usually cheaper to run if charging is affordable | Usually higher fuel cost, depending on petrol prices |\n"
+            "| Refuelling | Needs charging time and charging access | Refuels quickly at petrol pumps |\n"
+            "| Maintenance | Fewer moving parts, usually simpler maintenance | More engine parts, oil changes, and regular servicing |\n"
+            "| Pollution | No tailpipe emissions while driving | Emits exhaust gases while driving |\n"
+            "| Best for | City use, home charging, lower running cost | Long trips, quick refuelling, weak charging access |\n\n"
+            "Takeaway:\n"
+            "Choose an electric car if charging is easy and daily running cost matters most. Choose a petrol car if quick refuelling and long-distance flexibility matter more."
+        )
     return (
         f"{left} and {right} are easiest to compare by purpose, use, and key difference.\n\n"
         f"| Point | {left} | {right} |\n"
@@ -1528,16 +1549,16 @@ def local_capability_reply(message: str) -> Optional[str]:
     if not re.search(r"\b(powerful|capability|understand|understanding|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b", lower):
         return None
     return (
-        "Yes. Nexora should behave more like a real problem-solving assistant, not a keyword template.\n\n"
-        "What this level means:\n"
-        "- Understand the real goal behind messy wording.\n"
-        "- Use the previous chat when the user says 'it', 'this', or 'make it better'.\n"
-        "- Give domain-specific plans instead of generic steps.\n"
-        "- Remember repeated preferences through local memory and behavior learning.\n"
-        "- Use real-time search for current facts and local fallbacks for stable questions.\n"
-        "- Keep working when the free online model is slow or unavailable.\n\n"
+        "Yes. Nexora is built to act more like a real problem-solving assistant, not a keyword template.\n\n"
+        "**The useful version of powerful is understanding plus judgment.**\n\n"
+        "What this means in practice:\n"
+        "- **Intent first:** It reads messy wording by the likely goal, not only the exact words.\n"
+        "- **Memory aware:** It uses saved preferences, recent chat context, uploaded files, and image context when they matter.\n"
+        "- **Research aware:** It searches automatically for current or evidence-heavy questions, but avoids wasting time on simple stable facts.\n"
+        "- **Fallback ready:** If the free online model is slow, it can use local structured answers, Wikipedia context, search evidence, or Ollama.\n"
+        "- **Human style:** It keeps answers clean, direct, and paced like a thoughtful person explaining clearly.\n\n"
         "Important truth:\n"
-        "It still is not GPT-4/5-level unless you connect a stronger paid or local model, but this build can now combine memory, intent understanding, action tools, image/file context, search, and structured fallbacks to feel much more capable on your computer."
+        "It is not the same as a paid frontier model, but this build now combines intent understanding, memory, search, files, images, Ollama, Pollinations, and local fallbacks in a way that is much stronger on your computer."
     )
 
 
@@ -3498,6 +3519,8 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
         base.extend([
             "- Use ChatGPT-like human behavior: warm, attentive, direct, and context-aware.",
             "- Respond like a thoughtful collaborator, not a form template.",
+            "- Read messy wording by intent. If the literal wording is broken but the likely meaning is clear, answer the likely meaning.",
+            "- Give a useful answer instead of asking the user to repeat, unless the missing detail changes the answer completely.",
             "- Prefer simple cause-and-effect wording over formal phrasing.",
             "- Use blank lines to separate thought changes; dense blocks feel less human.",
             "- Keep normal chat natural and concise. Use headings only when the answer has more than one clear part.",
@@ -3539,6 +3562,7 @@ def analyze_user_intent(
     presentation_style: str,
     use_research: bool,
     behavior_signals: Optional[Dict[str, Any]] = None,
+    research_route: str = "none",
 ) -> Dict[str, Any]:
     text = clean_text(user_message)
     lower = text.lower()
@@ -3583,6 +3607,10 @@ def analyze_user_intent(
         constraints.append("infer the user's real intent from messy wording and recent context")
     if use_research:
         constraints.append("do not guess current facts without sources")
+    if research_route in {"web_light", "web_current", "strict_current"}:
+        constraints.append("use research only for claims that need evidence; keep the answer efficient")
+    elif research_route == "wikipedia":
+        constraints.append("use stable background context when it improves accuracy")
 
     ambiguity = "low"
     if len(text.split()) < 4 and response_lane == "human_chat":
@@ -3595,6 +3623,7 @@ def analyze_user_intent(
         "expected_output": expected_output,
         "constraints": constraints,
         "ambiguity": ambiguity,
+        "research_route": research_route,
     }
 
 
@@ -3604,6 +3633,7 @@ def build_intent_context(intent: Dict[str, Any]) -> str:
         f"- Likely user goal: {intent.get('goal', 'answer directly')}.",
         f"- Best output shape: {intent.get('expected_output', 'balanced answer')}.",
         f"- Ambiguity: {intent.get('ambiguity', 'low')}.",
+        f"- Research route: {intent.get('research_route', 'none')}.",
     ]
     constraints = intent.get("constraints") or []
     if constraints:
@@ -3611,7 +3641,7 @@ def build_intent_context(intent: Dict[str, Any]) -> str:
         for item in constraints[:6]:
             lines.append(f"  - {item}")
     lines.append(
-        "Answer the likely intent first. Ask a clarifying question only if a useful answer would be risky or impossible."
+        "Think in this order: understand the real ask, choose the shortest reliable path, use memory/context/search only when useful, then answer cleanly. Ask a clarifying question only if a useful answer would be risky or impossible."
     )
     return "\n".join(lines)
 
@@ -4206,6 +4236,8 @@ def free_provider_status() -> Dict[str, Any]:
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
             "fast_direct_answers_for_simple_stable_questions",
+            "answer_strategy_planner",
+            "autonomous_research_router",
             "reflective_human_answer_style",
             "ollama_local_reasoning_engine",
             "pollinations_base",
@@ -4217,7 +4249,7 @@ def free_provider_status() -> Dict[str, Any]:
             "pollinations_cleanup_review_when_needed",
             "strong_image_prompt_enhancer",
         ],
-        "message": "Nexora now clubs Pollinations for speed, Ollama for local fallback or optional primary mode, Wikipedia context, realtime search, and quality guard.",
+        "message": "Nexora clubs Pollinations for speed, Ollama for local fallback or optional primary mode, autonomous research routing, Wikipedia context, realtime search, memory, and quality guard.",
         "speed": {
             "ollama_mode": OLLAMA_MODE,
             "ollama_keep_alive": OLLAMA_KEEP_ALIVE,
@@ -4225,6 +4257,8 @@ def free_provider_status() -> Dict[str, Any]:
             "pollinations_primary_timeout": POLLINATIONS_PRIMARY_TIMEOUT,
             "pollinations_backup_timeout": POLLINATIONS_BACKUP_TIMEOUT,
             "pollinations_attempts": POLLINATIONS_ATTEMPTS,
+            "autonomous_research": AUTONOMOUS_RESEARCH_ENABLED,
+            "autonomous_research_max_results": AUTONOMOUS_RESEARCH_MAX_RESULTS,
             "local_writing_fast": LOCAL_WRITING_FAST,
             "quality_guard": POLLINATIONS_QUALITY_GUARD,
         },
@@ -4776,7 +4810,22 @@ def realtime_search_loop(query: str, max_rounds: int = 1) -> Dict[str, Any]:
         }
 
 
+def prefer_fast_realtime_search(query: str) -> bool:
+    lower = clean_text(query).lower()
+    return bool(re.search(
+        r"\b(latest|current|today|recent|news|live|right now|price|score|weather|winner|"
+        r"stock|share|market|ceo|president|prime minister|election|filing|released|updated)\b",
+        lower,
+    ))
+
+
 def research_with_realtime_fallback(query: str) -> Dict[str, Any]:
+    if prefer_fast_realtime_search(query):
+        fast = realtime_search_loop(query, max_rounds=1)
+        if fast.get("ok"):
+            fast["provider"] = "duckduckgo_fast"
+            return fast
+
     primary_error = ""
     try:
         research = research_loop(query, max_rounds=2)
@@ -4810,12 +4859,19 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
         "stock", "share", "market", "price", "ceo", "president", "prime minister",
         "winner", "score", "weather", "schedule", "election", "filing", "contract",
         "order", "announcement", "released", "updated", "crude oil", "oil crisis",
-        "petrol", "diesel", "fuel price", "energy crisis", "inflation", "rupee",
+        "fuel price", "energy crisis", "inflation", "rupee",
         "import bill", "sanctions", "current war", "latest war", "ongoing war",
         "war today", "war news", "current conflict", "latest conflict", "ongoing conflict",
         "conflict today", "conflict news", "russia ukraine", "ukraine war",
         "israel hamas", "gaza war", "iran israel", "middle east conflict",
     ]
+    fuel_words = ["petrol", "diesel", "gasoline", "fuel"]
+    fuel_current_context = [
+        "price", "latest", "current", "today", "recent", "crisis", "shortage",
+        "hike", "cut", "tax", "import", "inflation", "india",
+    ]
+    if any(word in text for word in fuel_words) and any(context in text for context in fuel_current_context):
+        return True
     return any(keyword in text for keyword in keywords)
 
 
@@ -4948,6 +5004,92 @@ def build_wikipedia_context(question: str) -> Tuple[str, List[SourceItem], str]:
         f"Evidence: {item['extract']}"
     )
     return context[:FREE_CLUB_CONTEXT_MAX_CHARS], [source], "wikipedia_context"
+
+
+def autonomous_research_route(
+    message: str,
+    response_lane: str,
+    presentation_style: str,
+    use_research: bool,
+) -> str:
+    if not AUTONOMOUS_RESEARCH_ENABLED:
+        return "none"
+    if use_research:
+        return "strict_current"
+
+    text = clean_text(message)
+    lower = text.lower()
+    if not text or response_lane in {"writing", "build"}:
+        return "none"
+
+    if should_add_wikipedia_context(text, response_lane, presentation_style):
+        return "wikipedia"
+
+    direct_short = len(text.split()) <= 10 and re.search(
+        r"\b(who is|who was|what is|what are|name|give me|tell me)\b",
+        lower,
+    )
+    if direct_short:
+        return "none"
+
+    if should_add_free_club_search(text, False, response_lane, presentation_style):
+        return "web_current"
+
+    research_intent = re.search(
+        r"\b(research|sources?|citations?|evidence|verify|fact[- ]?check|accurate|"
+        r"analy[sz]e|impact|causes?|effects?|crisis|policy|economy|market|"
+        r"compare|comparison|pros and cons|advantages and disadvantages)\b",
+        lower,
+    )
+    question_depth = len(text.split()) >= 7 and re.search(r"\b(why|how|what|which|should|can)\b", lower)
+    if response_lane in {"human_chat", "learning", "planning"} and (research_intent or question_depth):
+        if not re.search(r"\b(joke|story|poem|caption|rewrite|translate|summarize this text)\b", lower):
+            return "web_light" if research_intent else "wikipedia"
+
+    return "none"
+
+
+def build_autonomous_research_context(question: str, route: str) -> Tuple[str, List[SourceItem], str]:
+    if route == "wikipedia":
+        context, sources, status = build_wikipedia_context(question)
+        return context, sources, f"autonomous_{status}"
+
+    if route not in {"web_light", "web_current"}:
+        return "", [], "autonomous_research_none"
+
+    max_results = AUTONOMOUS_RESEARCH_MAX_RESULTS if route == "web_light" else min(3, MAX_SEARCH_RESULTS)
+    try:
+        raw_sources = duckduckgo_search(question, max_results=max_results)
+        sources = convert_sources(raw_sources)
+    except Exception as error:
+        return "", [], f"autonomous_{route}_unavailable:{type(error).__name__}"
+
+    if not sources:
+        return "", [], f"autonomous_{route}_empty"
+
+    if route == "web_current":
+        lines = [
+            "Autonomous current-information context:",
+            "Nexora selected web evidence because this question may involve recent or changeable facts.",
+            "Use citations for current claims. If evidence is weak, say what can and cannot be verified.",
+            f"Question: {question}",
+        ]
+    else:
+        lines = [
+            "Autonomous light research context:",
+            "Nexora selected lightweight web context because the question benefits from evidence or comparison.",
+            "Use these sources only when they improve accuracy. Do not force citations into a simple stable answer.",
+            f"Question: {question}",
+        ]
+
+    for source in sources:
+        lines.append(
+            f"[{source.id}] Title: {source.title}\n"
+            f"URL: {source.url}\n"
+            f"Domain: {source.domain}\n"
+            f"Evidence: {source.snippet}"
+        )
+    return "\n\n".join(lines)[:FREE_CLUB_CONTEXT_MAX_CHARS], sources, f"autonomous_{route}_context"
 
 
 def free_club_mode_enabled() -> bool:
@@ -5123,6 +5265,8 @@ Style:
 - Sound warm, intelligent, and natural, like a capable teammate sitting beside the user.
 - Keep the tone professional, calm, and polished: no hype, no messy phrasing, no overuse of emojis.
 - Behave like a real assistant inside the app: infer the user's practical intent, adapt to saved preferences, be proactive with the next useful step, and ask a short clarifying question only when guessing would be risky.
+- Think before answering: identify what the user really wants, decide whether stable knowledge, memory, file context, image context, or web evidence is needed, then choose the shortest reliable answer path.
+- Do research by default only when accuracy needs it. Do not slow down simple questions with unnecessary web context.
 - For letters, emails, applications, notices, proposals, and personal messages, write with smooth, graceful, human prose that is ready to send.
 - For everyday chat, use ChatGPT-like structure and behavior: conversational, emotionally aware, practical, and easy to scan without sounding scripted.
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
@@ -5251,11 +5395,15 @@ def clean_reply(text: str) -> str:
     text = strip_model_source_dump(text)
     text = structure_answer_text(text)
     text = re.sub(r"(?m)^\s*:\s*$\n?", "", text)
+    text = re.sub(r"(?m)^\s*>\s*$\n?", "", text)
     text = re.sub(r"(?im)^direct answer\s*:?", "", text)
     text = re.sub(r"(?im)^answer\s*:?", "", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
-    return polish_grammar_and_punctuation(text).strip()
+    text = polish_grammar_and_punctuation(text).strip()
+    if not re.search(r"[A-Za-z0-9]", text):
+        return "I could not turn that into a clean answer yet. Send the question again in one clear sentence, and I will answer directly."
+    return text
 
 
 def is_bad_generated_reply(text: str) -> bool:
@@ -5282,6 +5430,8 @@ def answer_quality_flags(
     question_lower = clean_text(question).lower()
     flags: List[str] = []
     if is_bad_generated_reply(raw):
+        flags.append("empty")
+    if cleaned and not re.search(r"[A-Za-z0-9]", cleaned):
         flags.append("empty")
     if re.search(r"\b(free text engine|backend|pollinations|ollama|api key|rate-limit|rate limit)\b", lower):
         flags.append("backend_talk")
@@ -5740,6 +5890,19 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
     return "\n".join(lines)
 
 
+def should_fast_return_research_answer(message: str, presentation_style: str) -> bool:
+    lower = clean_text(message).lower()
+    if presentation_style in {"chart", "diagram", "long"}:
+        return False
+    if len(lower.split()) > 16 and not re.search(r"\b(quick|short|brief|just tell)\b", lower):
+        return False
+    return bool(re.search(
+        r"\b(current|latest|today|right now|price|score|weather|winner|ceo|president|"
+        r"prime minister|stock|share|market)\b",
+        lower,
+    ))
+
+
 def wikipedia_fallback_reply(question: str, sources: List[SourceItem]) -> str:
     source = sources[0] if sources else None
     if not source:
@@ -6015,6 +6178,8 @@ def health() -> Dict[str, Any]:
             "provider": "duckduckgo_html",
             "max_results": MAX_SEARCH_RESULTS,
             "timeout": SEARCH_TIMEOUT,
+            "autonomous_routing": AUTONOMOUS_RESEARCH_ENABLED,
+            "autonomous_max_results": AUTONOMOUS_RESEARCH_MAX_RESULTS,
         },
         "image_generation": {
             "enabled": True,
@@ -6671,6 +6836,12 @@ def chat(req: ChatRequest) -> ChatResponse:
     use_research = should_use_research(understanding_message, req.mode, req.use_web)
     response_lane = classify_response_lane(understanding_message, use_research)
     presentation_style = classify_presentation_style(understanding_message, response_lane, use_research)
+    research_route = autonomous_research_route(
+        understanding_message,
+        response_lane,
+        presentation_style,
+        use_research,
+    )
     writing_request = analyze_writing_request(understanding_message)
     intent = analyze_user_intent(
         understanding_message,
@@ -6678,6 +6849,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         presentation_style,
         use_research,
         behavior_signals,
+        research_route,
     )
     understanding_context, understanding_state = build_understanding_context(
         session_id,
@@ -6691,7 +6863,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         session_id,
         original_user_message,
         req.mode,
-        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{response_lane}:{presentation_style}:{understanding_state.get('vague_followup')}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
+        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{research_route}:{response_lane}:{presentation_style}:{understanding_state.get('vague_followup')}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
     )
     skip_response_cache = bool(writing_request.get("is_writing") and writing_request.get("missing_topic"))
     cached = None if skip_response_cache else get_cached_response(response_cache_key)
@@ -6729,6 +6901,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"performance:{system_profile()['level']}")
     tools_used.append("behavior_learning")
     tools_used.append("intent_understanding")
+    tools_used.append(f"autonomous_research:{research_route}")
     sources: List[SourceItem] = []
     verified_sources: List[SourceItem] = []
     confidence = "none"
@@ -6865,10 +7038,16 @@ def chat(req: ChatRequest) -> ChatResponse:
         response_mode,
         response_lane,
         presentation_style,
-    )
+    ) or (research_route in {"wikipedia", "web_light", "web_current"})
     if use_free_club:
         tools_used.append(f"free_club:{FREE_CLUB_MODE}")
-        if should_add_free_club_search(understanding_message, use_research, response_lane, presentation_style):
+        if not use_research and research_route in {"wikipedia", "web_light", "web_current"}:
+            free_club_context, free_club_sources, club_status = build_autonomous_research_context(
+                understanding_message,
+                research_route,
+            )
+            tools_used.append(f"free_club:{club_status}")
+        elif should_add_free_club_search(understanding_message, use_research, response_lane, presentation_style):
             free_club_context, free_club_sources, club_status = build_free_club_search_context(understanding_message)
             tools_used.append(f"free_club:{club_status}")
         elif should_add_wikipedia_context(understanding_message, response_lane, presentation_style):
@@ -6879,7 +7058,38 @@ def chat(req: ChatRequest) -> ChatResponse:
         part for part in [research_context, free_club_context] if part
     )
 
-    if free_club_sources and free_club_sources[0].provider == "wikipedia" and presentation_style == "short":
+    if verified_sources and should_fast_return_research_answer(understanding_message, presentation_style):
+        final_reply = clean_reply(search_evidence_fallback_reply(original_user_message, verified_sources))
+        final_reply = ensure_inline_citations(final_reply, verified_sources)
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", final_reply)
+        maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            final_reply,
+            user_id,
+            session_id,
+            response_lane,
+            presentation_style,
+            behavior_signals,
+        )
+        if not skip_response_cache:
+            set_cached_response(response_cache_key, final_reply, "realtime_search_fast", verified_sources)
+        return ChatResponse(
+            reply=final_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="realtime_search_fast",
+            sources=verified_sources,
+            tools_used=tools_used + ["realtime_search_fast"],
+            created_at=now_iso(),
+        )
+
+    if (
+        free_club_sources
+        and free_club_sources[0].provider == "wikipedia"
+        and presentation_style in {"short", "teaching_structure", "balanced"}
+    ):
         final_reply = clean_reply(wikipedia_fallback_reply(understanding_message, free_club_sources))
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
@@ -6955,6 +7165,10 @@ def chat(req: ChatRequest) -> ChatResponse:
             model_used = "wikipedia_summary_fallback"
             reply = wikipedia_fallback_reply(understanding_message, free_club_sources)
             tools_used.append("wikipedia_summary_fallback")
+        elif free_club_sources:
+            model_used = "autonomous_research_fallback"
+            reply = search_evidence_fallback_reply(understanding_message, free_club_sources)
+            tools_used.append("autonomous_research_fallback")
         elif local_structured:
             model_used = "nexora_local_structured"
             reply = local_structured
@@ -7031,6 +7245,12 @@ def chat(req: ChatRequest) -> ChatResponse:
     final_reply = clean_reply(reply)
     if verified_sources:
         final_reply = ensure_inline_citations(final_reply, verified_sources)
+    elif (
+        free_club_sources
+        and research_route in {"web_light", "web_current"}
+        and (presentation_style == "answer_with_evidence" or research_route == "web_current")
+    ):
+        final_reply = ensure_inline_citations(final_reply, free_club_sources)
     response_sources = verified_sources if verified_sources else free_club_sources
     if is_bad_generated_reply(final_reply) and not model_failed:
         if local_structured:
