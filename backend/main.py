@@ -34,7 +34,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.34.0-resilient-chat"
+APP_VERSION = "8.35.0-strong-local-brain"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -402,6 +402,11 @@ WRITING_TOPIC_FILLERS = {
     "long", "make", "me", "need", "note", "of", "on", "paragraph", "please",
     "prepare", "short", "small", "speech", "the", "want", "write", "you",
 }
+TITLE_ACRONYMS = {
+    "ai", "api", "bjp", "cpu", "css", "gdp", "gpu", "hdd", "html", "http",
+    "ias", "isro", "jee", "js", "ml", "nasa", "neet", "ram", "rom", "sat",
+    "ssd", "ui", "url", "usb", "ux", "www",
+}
 
 
 def title_case_topic(topic: str) -> str:
@@ -412,7 +417,10 @@ def title_case_topic(topic: str) -> str:
     words = []
     for index, word in enumerate(topic.split()):
         lower = word.lower()
-        words.append(lower if index and lower in small_words else lower.capitalize())
+        if lower in TITLE_ACRONYMS:
+            words.append(lower.upper())
+        else:
+            words.append(lower if index and lower in small_words else lower.capitalize())
     return " ".join(words)
 
 
@@ -587,6 +595,262 @@ def local_writing_reply(message: str, session_id: Optional[str] = None) -> Optio
     )
 
 
+LOCAL_KNOWLEDGE_CARDS: Dict[str, Dict[str, Any]] = {
+    "photosynthesis": {
+        "answer": "Photosynthesis is the process by which green plants, algae, and some bacteria use sunlight to make food from carbon dioxide and water.",
+        "points": [
+            "Chlorophyll in leaves absorbs light energy.",
+            "Carbon dioxide enters through tiny openings called stomata.",
+            "Water comes from the roots and moves to the leaves.",
+            "Glucose is produced as food, and oxygen is released.",
+        ],
+        "bottom": "Photosynthesis changes light energy into chemical energy stored in glucose.",
+    },
+    "respiration": {
+        "answer": "Respiration is the process by which living cells release energy from food, usually glucose.",
+        "points": [
+            "It happens in cells and provides energy for life processes.",
+            "Aerobic respiration uses oxygen and releases more energy.",
+            "Carbon dioxide and water are common waste products.",
+        ],
+        "bottom": "Respiration is how cells turn food into usable energy.",
+    },
+    "gravity": {
+        "answer": "Gravity is the force of attraction between objects that have mass.",
+        "points": [
+            "It pulls objects toward Earth, which is why things fall down.",
+            "It keeps planets moving around the Sun.",
+            "More massive objects have stronger gravitational pull.",
+        ],
+        "bottom": "Gravity is the force that gives weight and keeps large objects in orbit.",
+    },
+    "democracy": {
+        "answer": "Democracy is a system of government in which people have the power to choose their leaders and influence decisions.",
+        "points": [
+            "Citizens vote in elections.",
+            "Leaders are expected to be accountable to the people.",
+            "Rights, laws, and public participation are important.",
+        ],
+        "bottom": "Democracy means government by the people, directly or through elected representatives.",
+    },
+    "artificial intelligence": {
+        "answer": "Artificial intelligence is technology that lets computers perform tasks that normally require human intelligence.",
+        "points": [
+            "It can understand language, recognize patterns, make predictions, and generate content.",
+            "AI learns from data or follows rules designed by humans.",
+            "It is useful, but it can make mistakes and needs human judgment.",
+        ],
+        "bottom": "AI is powerful when it helps people think, create, decide, and work faster.",
+    },
+    "machine learning": {
+        "answer": "Machine learning is a part of AI where computers learn patterns from data instead of being programmed for every single rule.",
+        "points": [
+            "The model is trained on examples.",
+            "It finds patterns and uses them to make predictions.",
+            "Better data usually leads to better results.",
+        ],
+        "bottom": "Machine learning is how many modern AI systems improve from examples.",
+    },
+    "internet": {
+        "answer": "The internet is a global network that connects computers and devices so they can share information.",
+        "points": [
+            "It supports websites, email, video calls, apps, and online learning.",
+            "Data travels through connected networks using communication rules called protocols.",
+            "It is useful, but privacy, distraction, and misinformation are risks.",
+        ],
+        "bottom": "The internet connects people and information across the world.",
+    },
+    "pollution": {
+        "answer": "Pollution is the addition of harmful substances or energy to the environment.",
+        "points": [
+            "Air, water, soil, and noise pollution are common types.",
+            "It can harm humans, animals, plants, and ecosystems.",
+            "Reducing waste, saving energy, and using cleaner technology can help.",
+        ],
+        "bottom": "Pollution damages the environment, so prevention and responsible habits matter.",
+    },
+    "climate change": {
+        "answer": "Climate change means long-term changes in Earth's temperature, rainfall, seasons, and weather patterns.",
+        "points": [
+            "Human activities such as burning fossil fuels increase greenhouse gases.",
+            "It can cause heat waves, melting ice, rising sea levels, and extreme weather.",
+            "Reducing emissions and adapting to changes are both important.",
+        ],
+        "bottom": "Climate change is a long-term environmental challenge driven strongly by greenhouse gases.",
+    },
+    "water cycle": {
+        "answer": "The water cycle is the continuous movement of water between Earth's surface and the atmosphere.",
+        "points": [
+            "Evaporation turns water into vapor.",
+            "Condensation forms clouds.",
+            "Precipitation brings water back as rain, snow, or hail.",
+            "Collection gathers water in rivers, lakes, oceans, and groundwater.",
+        ],
+        "bottom": "The water cycle recycles Earth's water through evaporation, clouds, rain, and collection.",
+    },
+}
+
+
+def clean_learning_topic(message: str) -> str:
+    text = clean_text(message)
+    text = re.sub(r"(?i)\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\s+(of|for|about)?\s*", "", text)
+    text = re.sub(r"(?i)\b(difference between|compare)\s+", "", text)
+    text = re.sub(r"(?i)^(please\s+)?(explain|define|describe|tell me about|teach me|what is|what are|who is|who are|why is|why are|how does|how do|how is|meaning of)\s+", "", text)
+    text = re.sub(r"(?i)\b(in simple words|simply|for class \d+|briefly|short answer|long answer|with example|examples?)\b", " ", text)
+    text = re.sub(r"\?+$", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" .,:;-")
+    if not text:
+        return "this"
+    return title_case_topic(text)
+
+
+def find_knowledge_card(topic: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+    lower = clean_text(topic).lower()
+    for key, card in LOCAL_KNOWLEDGE_CARDS.items():
+        if re.search(rf"\b{re.escape(key)}\b", lower):
+            return key, card
+    aliases = {
+        "ai": "artificial intelligence",
+        "ml": "machine learning",
+        "ww2": "second world war",
+        "world war ii": "second world war",
+        "world war 2": "second world war",
+    }
+    for alias, key in aliases.items():
+        if re.search(rf"\b{re.escape(alias)}\b", lower):
+            return key, LOCAL_KNOWLEDGE_CARDS.get(key)
+    return lower, None
+
+
+def local_knowledge_reply(message: str, presentation_style: str = "balanced") -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(what is|what are|explain|define|describe|meaning of|teach me|how does|why does|why is|how is)\b", lower):
+        return None
+    topic = clean_learning_topic(message)
+    key, card = find_knowledge_card(topic)
+    if card:
+        lines = [
+            f"{card['answer']}\n",
+            "Key points:",
+        ]
+        lines.extend(f"- {point}" for point in card.get("points", [])[:5])
+        lines.extend(["", "Bottom line:", str(card.get("bottom", ""))])
+        return "\n".join(lines)
+
+    topic_lower = topic.lower()
+    if presentation_style == "short":
+        return (
+            f"{topic} is best understood by starting with its simple meaning, then looking at one example.\n\n"
+            "Bottom line:\n"
+            f"A good answer about {topic_lower} should explain what it means and why it matters."
+        )
+    return (
+        f"{topic} can be understood by breaking it into meaning, parts, and use.\n\n"
+        "Key points:\n"
+        f"- Meaning: Start with what {topic_lower} means in simple words.\n"
+        "- Parts: Break the idea into smaller pieces.\n"
+        "- Example: Connect it with a real-life situation.\n"
+        "- Use: Explain why it matters.\n\n"
+        "Bottom line:\n"
+        f"A strong answer about {topic_lower} should be simple, structured, and connected to real life."
+    )
+
+
+def split_comparison_subjects(message: str) -> Optional[Tuple[str, str]]:
+    text = clean_text(message)
+    patterns = [
+        r"(?i)\b(?:difference between|compare)\s+(.+?)\s+(?:and|with|vs\.?|versus)\s+(.+?)[?.!]*$",
+        r"(?i)^(.+?)\s+(?:vs\.?|versus)\s+(.+?)[?.!]*$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            left = title_case_topic(match.group(1).strip(" .,:;-"))
+            right = title_case_topic(match.group(2).strip(" .,:;-"))
+            if left and right and left.lower() != right.lower():
+                return left, right
+    return None
+
+
+def local_comparison_reply(message: str) -> Optional[str]:
+    subjects = split_comparison_subjects(message)
+    if not subjects:
+        return None
+    left, right = subjects
+    return (
+        f"{left} and {right} are easiest to compare by purpose, use, and key difference.\n\n"
+        f"| Point | {left} | {right} |\n"
+        "|---|---|---|\n"
+        "| Basic idea | One side of the comparison | The other side of the comparison |\n"
+        "| Main use | Used when its features fit the need | Used when its features fit the need |\n"
+        "| Key difference | Check what it does best | Check how it differs in function or result |\n\n"
+        "Bottom line:\n"
+        f"The best choice between {left.lower()} and {right.lower()} depends on the purpose, context, and result you need."
+    )
+
+
+def local_pros_cons_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
+        return None
+    topic = clean_learning_topic(message)
+    return (
+        f"{topic} has both useful benefits and possible drawbacks.\n\n"
+        "| Advantages | Disadvantages |\n"
+        "|---|---|\n"
+        "| Can save time or effort | Can create dependency if used carelessly |\n"
+        "| Can improve access to information or tools | Can cause distraction or misuse |\n"
+        "| Can support learning, work, or communication | May need rules, balance, or responsible use |\n\n"
+        "Bottom line:\n"
+        f"{topic} is most useful when it is used wisely and with balance."
+    )
+
+
+def local_step_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(how to|steps to|how can i|how do i)\b", lower):
+        return None
+    topic = clean_learning_topic(message)
+    return (
+        f"Goal:\n{topic}\n\n"
+        "Steps:\n"
+        "1. Start with the exact outcome you want.\n"
+        "2. Break it into small actions.\n"
+        "3. Do the first action and check the result.\n"
+        "4. Fix one problem at a time.\n"
+        "5. Repeat until the result works.\n\n"
+        "Bottom line:\n"
+        "Small clear steps work better than trying to solve everything at once."
+    )
+
+
+def local_semantic_reply(
+    message: str,
+    response_lane: str = "human_chat",
+    presentation_style: str = "balanced",
+) -> Optional[str]:
+    return (
+        local_comparison_reply(message)
+        or local_pros_cons_reply(message)
+        or local_step_reply(message)
+        or local_knowledge_reply(message, presentation_style)
+    )
+
+
+def is_high_confidence_local_reply(message: str, presentation_style: str = "balanced") -> bool:
+    lower = clean_text(message).lower()
+    if split_comparison_subjects(message):
+        return True
+    if re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
+        return True
+    if re.search(r"\b(how to|steps to|how can i|how do i)\b", lower):
+        return True
+    if re.search(r"\b(what is|what are|explain|define|describe|meaning of|teach me)\b", lower):
+        _, card = find_knowledge_card(clean_learning_topic(message))
+        return card is not None
+    return False
+
+
 def local_structured_fallback(
     message: str,
     response_lane: str = "human_chat",
@@ -596,6 +860,9 @@ def local_structured_fallback(
     writing = local_writing_reply(message, session_id=session_id)
     if writing:
         return writing
+    semantic = local_semantic_reply(message, response_lane, presentation_style)
+    if semantic:
+        return semantic
 
     text = clean_text(message)
     lower = text.lower()
@@ -762,6 +1029,9 @@ def local_resilient_reply(
     writing = local_writing_reply(state.get("normalized") or message, session_id=session_id)
     if writing:
         return writing
+    semantic = local_semantic_reply(state.get("normalized") or message, response_lane, presentation_style)
+    if semantic:
+        return semantic
     lower = clean_text(state.get("normalized") or message).lower()
     if response_lane == "learning" or re.search(r"\b(explain|what|why|how|teach|learn)\b", lower):
         topic = normalize_prompt_topic(state.get("normalized") or message)
@@ -4474,7 +4744,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             tools_used=tools_used + ["local_context_resilient"],
             created_at=now_iso(),
         )
-    local_first_stable = response_lane == "writing" or (
+    local_first_stable = response_lane == "writing" or is_high_confidence_local_reply(understanding_message, presentation_style) or (
         presentation_style == "table" and "anime" in clean_text(original_user_message).lower()
     )
     if LOCAL_WRITING_FAST and local_structured and local_first_stable:
