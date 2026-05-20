@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.40.0-pollinations-plus"
+APP_VERSION = "8.41.0-ollama-club"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -77,17 +77,19 @@ def load_local_env(path: Path) -> None:
 load_local_env(BASE_DIR / ".env")
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
-FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "llama3.2:1b")
-THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "llama3.2:3b")
+FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "llama3.2:latest")
+THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "llama3.2:latest")
 DEFAULT_MODEL = FAST_MODEL
+OLLAMA_MODE = os.getenv("NEXORA_OLLAMA_MODE", "fallback").strip().lower()
+OLLAMA_KEEP_ALIVE = os.getenv("NEXORA_OLLAMA_KEEP_ALIVE", "10m").strip()
 
 FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "openai").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
-POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "14"))
-POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "10"))
-POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "8"))
+POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "10"))
+POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "7"))
+POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "4"))
 POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -107,7 +109,7 @@ FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "2600"))
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
-FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "12"))
+FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "6"))
 POLLINATIONS_QUALITY_GUARD = os.getenv("NEXORA_POLLINATIONS_QUALITY_GUARD", "true").strip().lower() not in {"0", "false", "off", "no"}
 MAX_HISTORY_MESSAGES = 5
 MAX_SESSION_MESSAGES = int(os.getenv("NEXORA_MAX_SESSION_MESSAGES", "240"))
@@ -825,7 +827,7 @@ def find_knowledge_card(topic: str) -> Tuple[str, Optional[Dict[str, Any]]]:
 
 def local_knowledge_reply(message: str, presentation_style: str = "balanced") -> Optional[str]:
     lower = clean_text(message).lower()
-    if not re.search(r"\b(what is|what are|who is|who are|who was|who were|explain|define|describe|meaning of|teach me|how does|why does|why is|how is)\b", lower):
+    if not re.search(r"\b(what is|what are|who is|who are|who was|who were|explain|define|describe|meaning of|teach me|tell me|use of|uses of|example of|how does|why does|why is|how is)\b", lower):
         return None
     topic = clean_learning_topic(message)
     key, card = find_knowledge_card(topic)
@@ -1111,6 +1113,9 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
         _, card = find_knowledge_card(clean_learning_topic(message))
         if card is not None:
             return True
+    _, direct_card = find_knowledge_card(message)
+    if direct_card is not None and re.search(r"\b(tell me|use|uses|example|meaning|simple|explain|what|who|why|how)\b", lower):
+        return True
     if is_goal_or_problem_request(message):
         return True
     if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
@@ -3836,6 +3841,11 @@ def ollama_available_models() -> List[str]:
         return []
 
 
+def ollama_is_ready(available: Optional[List[str]] = None) -> bool:
+    models = available if available is not None else ollama_available_models()
+    return bool(models)
+
+
 def model_size_score(model_name: str) -> float:
     text = model_name.lower()
     match = re.search(r"(\d+(?:\.\d+)?)\s*b", text)
@@ -3877,12 +3887,30 @@ def select_ollama_model(requested: Optional[str]) -> str:
     return available[0] if available else FAST_MODEL
 
 
+def ollama_status() -> Dict[str, Any]:
+    available = ollama_available_models()
+    ready = bool(available)
+    return {
+        "enabled": OLLAMA_MODE not in {"off", "false", "0", "disabled", "none"},
+        "mode": OLLAMA_MODE,
+        "ok": is_ollama_ok(),
+        "ready": ready,
+        "url": OLLAMA_URL,
+        "available_models": available,
+        "selected_model": select_ollama_model(None) if ready else FAST_MODEL,
+        "fast_model": FAST_MODEL,
+        "thinking_model": THINKING_MODEL,
+        "keep_alive": OLLAMA_KEEP_ALIVE,
+    }
+
+
 def ollama_chat(messages: List[Dict[str, str]], model: str, response_mode: str = "instant") -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
     payload = {
         "model": model,
         "messages": messages,
         "stream": False,
+        "keep_alive": OLLAMA_KEEP_ALIVE or "10m",
         "options": {
             "temperature": temperature,
             "top_p": 0.85,
@@ -3906,6 +3934,7 @@ FREE_PROVIDER_KEY_ENV = {
 
 FREE_PROVIDER_MODEL_ENV = {
     "pollinations": "POLLINATIONS_MODEL",
+    "ollama": "NEXORA_FAST_MODEL",
     "groq": "GROQ_MODEL",
     "gemini": "GEMINI_MODEL",
     "openrouter": "OPENROUTER_MODEL",
@@ -3914,6 +3943,7 @@ FREE_PROVIDER_MODEL_ENV = {
 
 FREE_PROVIDER_LABELS = {
     "auto": "Auto",
+    "ollama": "Ollama Local",
     "pollinations": "Pollinations",
     "groq": "Groq",
     "gemini": "Gemini",
@@ -3948,13 +3978,25 @@ def configured_free_providers() -> List[str]:
 
 
 def free_provider_status() -> Dict[str, Any]:
+    ollama_info = ollama_status()
+    provider_priority = list(configured_free_providers())
+    if (
+        ollama_info.get("enabled")
+        and ollama_info.get("ready")
+        and (FREE_API_PROVIDER == "ollama" or OLLAMA_MODE in {"primary", "local", "always"})
+    ):
+        provider_priority.append("ollama")
+        provider_priority = ["ollama"] + [item for item in provider_priority if item != "ollama"]
+    elif ollama_info.get("enabled") and ollama_info.get("ready"):
+        provider_priority.append("ollama")
     return {
         "selected": FREE_API_PROVIDER,
         "configured": configured_free_providers(),
-        "priority": configured_free_providers(),
+        "priority": provider_priority,
         "no_key_default": "pollinations",
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
+            "ollama_local_reasoning_engine",
             "pollinations_base",
             "pollinations_backup_model_on_failure",
             "wikipedia_summary_context_for_stable_facts",
@@ -3964,8 +4006,10 @@ def free_provider_status() -> Dict[str, Any]:
             "pollinations_cleanup_review_when_needed",
             "strong_image_prompt_enhancer",
         ],
-        "message": "Pollinations stays as the no-key base. Nexora clubs it with corrected intent, Wikipedia context for stable facts, optional realtime search, quality guard, and stronger image prompts.",
+        "message": "Nexora now clubs Pollinations for speed, Ollama for local fallback or optional primary mode, Wikipedia context, realtime search, and quality guard.",
         "speed": {
+            "ollama_mode": OLLAMA_MODE,
+            "ollama_keep_alive": OLLAMA_KEEP_ALIVE,
             "pollinations_timeout": POLLINATIONS_TIMEOUT,
             "pollinations_primary_timeout": POLLINATIONS_PRIMARY_TIMEOUT,
             "pollinations_backup_timeout": POLLINATIONS_BACKUP_TIMEOUT,
@@ -3974,6 +4018,7 @@ def free_provider_status() -> Dict[str, Any]:
             "quality_guard": POLLINATIONS_QUALITY_GUARD,
         },
         "available": {
+            "ollama": bool(ollama_info.get("ready")),
             "pollinations": True,
             "groq": bool(GROQ_API_KEY),
             "gemini": bool(GEMINI_API_KEY),
@@ -3981,6 +4026,8 @@ def free_provider_status() -> Dict[str, Any]:
             "huggingface": bool(HF_API_KEY),
         },
         "models": {
+            "ollama": ollama_info.get("selected_model") or FAST_MODEL,
+            "ollama_available": ollama_info.get("available_models", []),
             "pollinations": POLLINATIONS_MODEL,
             "pollinations_backups": pollinations_model_candidates()[1:],
             "groq": GROQ_MODEL,
@@ -3988,6 +4035,7 @@ def free_provider_status() -> Dict[str, Any]:
             "openrouter": OPENROUTER_MODEL,
             "huggingface": HF_MODEL,
         },
+        "ollama": ollama_info,
         "labels": FREE_PROVIDER_LABELS,
     }
 
@@ -4023,9 +4071,16 @@ def write_env_pairs(path: Path, updates: Dict[str, Optional[str]]) -> None:
 def apply_free_ai_runtime_settings(provider: str, api_key: Optional[str], model: Optional[str], clear_key: bool) -> None:
     global FREE_API_PROVIDER, GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, HF_API_KEY
     global POLLINATIONS_MODEL, GROQ_MODEL, GEMINI_MODEL, OPENROUTER_MODEL, HF_MODEL
+    global FAST_MODEL, THINKING_MODEL, DEFAULT_MODEL, OLLAMA_MODE
 
     FREE_API_PROVIDER = provider
     os.environ["NEXORA_PROVIDER"] = provider
+    if provider == "ollama":
+        OLLAMA_MODE = "primary"
+        os.environ["NEXORA_OLLAMA_MODE"] = "primary"
+    elif OLLAMA_MODE == "primary":
+        OLLAMA_MODE = "auto"
+        os.environ["NEXORA_OLLAMA_MODE"] = "auto"
 
     if provider in FREE_PROVIDER_KEY_ENV:
         key_env = FREE_PROVIDER_KEY_ENV[provider]
@@ -4050,6 +4105,11 @@ def apply_free_ai_runtime_settings(provider: str, api_key: Optional[str], model:
             os.environ[model_env] = model_value
         if provider == "pollinations":
             POLLINATIONS_MODEL = model_value
+        elif provider == "ollama":
+            FAST_MODEL = model_value
+            THINKING_MODEL = model_value
+            DEFAULT_MODEL = model_value
+            os.environ["NEXORA_THINKING_MODEL"] = model_value
         elif provider == "groq":
             GROQ_MODEL = model_value
         elif provider == "gemini":
@@ -4062,7 +4122,7 @@ def apply_free_ai_runtime_settings(provider: str, api_key: Optional[str], model:
 
 def save_free_ai_settings(req: FreeAISettingsRequest) -> Tuple[bool, str]:
     provider = clean_text(req.provider or "auto").lower()
-    allowed = {"auto", "pollinations", "groq", "gemini", "openrouter", "huggingface"}
+    allowed = {"auto", "ollama", "pollinations", "groq", "gemini", "openrouter", "huggingface"}
     if provider not in allowed:
         return False, "Choose a supported provider."
 
@@ -4071,6 +4131,10 @@ def save_free_ai_settings(req: FreeAISettingsRequest) -> Tuple[bool, str]:
     clear_key = bool(req.clear_key)
 
     updates: Dict[str, Optional[str]] = {"NEXORA_PROVIDER": provider}
+    if provider == "ollama":
+        updates["NEXORA_OLLAMA_MODE"] = "primary"
+    else:
+        updates["NEXORA_OLLAMA_MODE"] = "auto"
     if provider in FREE_PROVIDER_KEY_ENV:
         key_env = FREE_PROVIDER_KEY_ENV[provider]
         existing_key = os.getenv(key_env, "").strip()
@@ -4084,6 +4148,8 @@ def save_free_ai_settings(req: FreeAISettingsRequest) -> Tuple[bool, str]:
     model_env = FREE_PROVIDER_MODEL_ENV.get(provider)
     if model and model_env:
         updates[model_env] = model.strip()
+        if provider == "ollama":
+            updates["NEXORA_THINKING_MODEL"] = model.strip()
 
     write_env_pairs(BASE_DIR / ".env", updates)
     apply_free_ai_runtime_settings(provider, api_key, model, clear_key)
@@ -4137,7 +4203,7 @@ def build_plain_pollinations_prompt(messages: List[Dict[str, str]]) -> str:
 
 def call_pollinations_simple(messages: List[Dict[str, str]], response_mode: str) -> str:
     _, timeout, _ = mode_limits(response_mode)
-    timeout = min(timeout, POLLINATIONS_TIMEOUT)
+    timeout = min(timeout, POLLINATIONS_BACKUP_TIMEOUT)
     prompt = build_plain_pollinations_prompt(messages)
     url = "https://text.pollinations.ai/" + requests.utils.quote(prompt, safe="")
     response = HTTP.get(url, params={"model": POLLINATIONS_MODEL}, timeout=timeout)
@@ -4298,6 +4364,111 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
         except Exception as error:
             provider_errors.append(f"{provider}: {error}")
     raise RuntimeError("; ".join(provider_errors) or "No free API provider is configured")
+
+
+def requested_prefers_ollama(requested: Optional[str]) -> bool:
+    key = clean_text(requested or "").lower()
+    return bool(key and (
+        key in {"ollama", "local", "offline", "local model", "llama"}
+        or key.startswith("ollama:")
+        or key.startswith("llama")
+    ))
+
+
+def should_prefer_ollama(
+    requested: Optional[str],
+    response_mode: str,
+    response_lane: str,
+    presentation_style: str,
+    use_research: bool,
+    support_context: str,
+    file_context: str,
+    memory_context: str,
+    available_models: List[str],
+) -> bool:
+    if not ollama_is_ready(available_models):
+        return False
+    if OLLAMA_MODE in {"off", "false", "0", "disabled", "none"}:
+        return False
+    if FREE_API_PROVIDER == "ollama" or requested_prefers_ollama(requested):
+        return True
+    if OLLAMA_MODE in {"primary", "local", "always"}:
+        return True
+    if OLLAMA_MODE in {"fallback", "backup", "secondary"}:
+        return False
+    if use_research or support_context:
+        return False
+    if response_mode == "thinking":
+        return True
+    if response_lane in {"writing", "planning", "learning", "build"}:
+        return True
+    if presentation_style in {"long", "diagram", "teaching_structure", "implementation_summary", "finished_draft"}:
+        return True
+    if file_context:
+        return True
+    if memory_context and response_lane in {"writing", "planning", "learning", "build"}:
+        return True
+    return False
+
+
+def generate_with_engine_club(
+    messages: List[Dict[str, str]],
+    requested_model: Optional[str],
+    response_mode: str,
+    response_lane: str,
+    presentation_style: str,
+    use_research: bool,
+    support_context: str,
+    file_context: str,
+    memory_context: str,
+) -> Tuple[str, str, List[str]]:
+    errors: List[str] = []
+    tools: List[str] = []
+    free_providers = configured_free_providers()
+    available_ollama = ollama_available_models()
+    ollama_ready = ollama_is_ready(available_ollama)
+    prefer_ollama = should_prefer_ollama(
+        requested_model,
+        response_mode,
+        response_lane,
+        presentation_style,
+        use_research,
+        support_context,
+        file_context,
+        memory_context,
+        available_ollama,
+    )
+
+    def try_ollama(label: str) -> Tuple[str, str, List[str]]:
+        model = select_ollama_model(requested_model)
+        reply = ollama_chat(messages, model, response_mode)
+        if not clean_text(reply):
+            raise RuntimeError("empty ollama response")
+        return reply, f"ollama:{model}:{response_mode}", [f"{label}:{response_mode}"]
+
+    if prefer_ollama and ollama_ready:
+        try:
+            return try_ollama("ollama_primary")
+        except Exception as error:
+            errors.append(f"ollama: {error}")
+            tools.append("ollama_primary_failed")
+
+    if free_providers:
+        try:
+            reply, model_used = free_api_chat(messages, requested_model, response_mode)
+            return reply, model_used, tools + [f"free_api:{response_mode}"]
+        except Exception as error:
+            errors.append(f"free_api: {error}")
+            tools.append("free_api_failed")
+
+    if ollama_ready and not prefer_ollama:
+        try:
+            return try_ollama("ollama_fallback")
+        except Exception as error:
+            errors.append(f"ollama: {error}")
+            tools.append("ollama_fallback_failed")
+
+    raise RuntimeError("; ".join(errors) or "No text engine is available")
 
 
 def decode_search_url(raw_url: str) -> str:
@@ -4553,7 +4724,7 @@ def build_wikipedia_context(question: str) -> Tuple[str, List[SourceItem], str]:
         title=str(item["title"]),
         url=str(item["url"]),
         domain="wikipedia.org",
-        snippet=str(item["extract"])[:300],
+        snippet=str(item["extract"])[:900],
         score=80,
         provider="wikipedia",
     )
@@ -4712,12 +4883,17 @@ def free_club_review_reply(
         "Final improved answer:"
     )
     try:
-        reviewed = call_pollinations_chat(
+        reviewed = call_openai_compatible_chat(
+            "pollinations",
+            POLLINATIONS_URL,
+            None,
+            POLLINATIONS_MODEL,
             [
                 {"role": "system", "content": review_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             "instant",
+            timeout_override=min(5, POLLINATIONS_PRIMARY_TIMEOUT),
         )
     except Exception:
         return None
@@ -6489,6 +6665,32 @@ def chat(req: ChatRequest) -> ChatResponse:
         part for part in [research_context, free_club_context] if part
     )
 
+    if free_club_sources and free_club_sources[0].provider == "wikipedia" and presentation_style == "short":
+        final_reply = clean_reply(wikipedia_fallback_reply(understanding_message, free_club_sources))
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", final_reply)
+        maybe_store_memory(original_user_message, user_id)
+        learn_long_term_memory_from_chat(
+            original_user_message,
+            final_reply,
+            user_id,
+            session_id,
+            response_lane,
+            presentation_style,
+            behavior_signals,
+        )
+        if not skip_response_cache:
+            set_cached_response(response_cache_key, final_reply, "wikipedia_summary_fast", free_club_sources)
+        return ChatResponse(
+            reply=final_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="wikipedia_summary_fast",
+            sources=free_club_sources,
+            tools_used=tools_used + ["wikipedia_summary_fast"],
+            created_at=now_iso(),
+        )
+
     model_user_message = understanding_message
     if clean_text(understanding_message).lower() != clean_text(original_user_message).lower():
         model_user_message = (
@@ -6515,69 +6717,44 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     model_used = ""
     model_failed = False
-    free_providers = configured_free_providers()
     generation_started = time.time()
     try:
-        if free_providers:
-            reply, model_used = free_api_chat(messages, req.model, response_mode)
-            tools_used.append(f"free_api:{response_mode}")
-        else:
-            model_used = select_ollama_model(req.model)
-            reply = ollama_chat(messages, model_used, response_mode)
-            tools_used.append(f"ollama:{response_mode}")
+        reply, model_used, engine_tools = generate_with_engine_club(
+            messages,
+            req.model,
+            response_mode,
+            response_lane,
+            presentation_style,
+            use_research,
+            combined_research_context,
+            file_context,
+            memory_context,
+        )
+        tools_used.extend(engine_tools)
     except Exception as error:
-        if free_providers:
-            tools_used.append("free_api_failed")
-            try:
-                model_used = select_ollama_model(req.model)
-                reply = ollama_chat(messages, model_used, response_mode)
-                tools_used.append(f"ollama_fallback:{response_mode}")
-            except Exception as fallback_error:
-                if verified_sources:
-                    model_used = "realtime_search_fallback"
-                    reply = search_evidence_fallback_reply(original_user_message, verified_sources)
-                    tools_used.append("search_evidence_fallback")
-                elif free_club_sources and free_club_sources[0].provider == "wikipedia":
-                    model_used = "wikipedia_summary_fallback"
-                    reply = wikipedia_fallback_reply(understanding_message, free_club_sources)
-                    tools_used.append("wikipedia_summary_fallback")
-                elif local_structured:
-                    model_used = "nexora_local_structured"
-                    reply = local_structured
-                    tools_used.append("local_structured_fallback")
-                else:
-                    model_used = "nexora_local_resilient"
-                    reply = local_resilient_reply(
-                        understanding_message,
-                        session_id,
-                        response_lane,
-                        presentation_style,
-                        understanding_state,
-                    )
-                    tools_used.append("local_resilient_fallback")
+        tools_used.append("engine_club_failed")
+        if verified_sources:
+            model_used = "realtime_search_fallback"
+            reply = search_evidence_fallback_reply(original_user_message, verified_sources)
+            tools_used.append("search_evidence_fallback")
+        elif free_club_sources and free_club_sources[0].provider == "wikipedia":
+            model_used = "wikipedia_summary_fallback"
+            reply = wikipedia_fallback_reply(understanding_message, free_club_sources)
+            tools_used.append("wikipedia_summary_fallback")
+        elif local_structured:
+            model_used = "nexora_local_structured"
+            reply = local_structured
+            tools_used.append("local_structured_fallback")
         else:
-            if verified_sources:
-                model_used = "realtime_search_fallback"
-                reply = search_evidence_fallback_reply(original_user_message, verified_sources)
-                tools_used.append("search_evidence_fallback")
-            elif free_club_sources and free_club_sources[0].provider == "wikipedia":
-                model_used = "wikipedia_summary_fallback"
-                reply = wikipedia_fallback_reply(understanding_message, free_club_sources)
-                tools_used.append("wikipedia_summary_fallback")
-            elif local_structured:
-                model_used = "nexora_local_structured"
-                reply = local_structured
-                tools_used.append("local_structured_fallback")
-            else:
-                model_used = "nexora_local_resilient"
-                reply = local_resilient_reply(
-                    understanding_message,
-                    session_id,
-                    response_lane,
-                    presentation_style,
-                    understanding_state,
-                )
-                tools_used.append("local_resilient_fallback")
+            model_used = "nexora_local_resilient"
+            reply = local_resilient_reply(
+                understanding_message,
+                session_id,
+                response_lane,
+                presentation_style,
+                understanding_state,
+            )
+            tools_used.append("local_resilient_fallback")
 
     quality_flags = answer_quality_flags(original_user_message, reply, response_lane, presentation_style)
     if quality_flags:
@@ -6616,6 +6793,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         and not is_bad_generated_reply(reply)
         and generation_seconds <= FREE_CLUB_REVIEW_BUDGET_SECONDS
         and "quality_guard:pollinations_review" not in tools_used
+        and not (free_club_sources and presentation_style == "short")
         and should_review_free_club_reply(
             reply,
             cleaned_preview,
