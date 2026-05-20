@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.38.0-problem-understanding"
+APP_VERSION = "8.40.0-pollinations-plus"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -83,8 +83,11 @@ DEFAULT_MODEL = FAST_MODEL
 
 FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
+POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "openai").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
 POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "14"))
+POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "10"))
+POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "8"))
 POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -105,6 +108,7 @@ FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "3
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "2600"))
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
 FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "12"))
+POLLINATIONS_QUALITY_GUARD = os.getenv("NEXORA_POLLINATIONS_QUALITY_GUARD", "true").strip().lower() not in {"0", "false", "off", "no"}
 MAX_HISTORY_MESSAGES = 5
 MAX_SESSION_MESSAGES = int(os.getenv("NEXORA_MAX_SESSION_MESSAGES", "240"))
 MAX_RESEARCH_SOURCES = 4
@@ -124,6 +128,7 @@ IMAGE_BASE_URL = os.getenv("NEXORA_IMAGE_BASE_URL", "https://image.pollinations.
 IMAGE_MODEL = os.getenv("NEXORA_IMAGE_MODEL", "").strip()
 IMAGE_DEFAULT_SIZE = os.getenv("NEXORA_IMAGE_DEFAULT_SIZE", "768x768").strip()
 IMAGE_PROMPT_ENHANCE = os.getenv("NEXORA_IMAGE_PROMPT_ENHANCE", "true").strip().lower() not in {"0", "false", "off", "no"}
+IMAGE_PROMPT_POWER_MODE = os.getenv("NEXORA_IMAGE_PROMPT_POWER_MODE", "true").strip().lower() not in {"0", "false", "off", "no"}
 SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 
 HTTP = requests.Session()
@@ -1407,8 +1412,8 @@ def local_resilient_reply(
             "- A fallback answer when the online model is unavailable."
         )
     return (
-        "I am still here. The free text engine had trouble, so I am using the local fallback instead.\n\n"
-        "Ask the question again in normal words, or send the topic directly, and I will answer from the current chat context."
+        "I can still help. I need one clearer target so I can give a useful answer instead of guessing.\n\n"
+        "Send the topic, file, image, or exact problem in one sentence, and I will turn it into a clean answer or workflow."
     )
 
 
@@ -2240,6 +2245,67 @@ def normalize_image_style(style: Optional[str]) -> str:
     return presets.get(raw, clean_text(style or ""))
 
 
+def image_power_prompt_layers(subject: str, style_text: str) -> List[str]:
+    if not IMAGE_PROMPT_POWER_MODE:
+        return []
+    lower = f"{subject}, {style_text}".lower()
+    layers: List[str] = []
+    is_logo_like = re.search(r"\b(logo|icon|brand mark|vector mark)\b", lower)
+    is_poster_like = re.search(r"\b(poster|flyer|banner|cover|thumbnail)\b", lower)
+    is_anime_like = re.search(r"\b(anime|manga|manhwa|naruto|sasuke|gojo|luffy|kakashi)\b", lower)
+    is_photo_like = re.search(r"\b(photo|photoreal|photorealistic|realistic|real life|cinematic)\b", lower)
+    is_portrait_like = re.search(r"\b(portrait|face|headshot|selfie|girl|boy|woman|man|person|character|eyes|close[- ]?up)\b", lower)
+
+    if is_logo_like:
+        layers.extend([
+            "centered symbol",
+            "clean negative space",
+            "balanced geometry",
+            "high contrast",
+            "no readable text unless explicitly requested",
+        ])
+    elif is_poster_like:
+        layers.extend([
+            "strong focal point",
+            "editorial composition",
+            "clean visual hierarchy",
+            "readable empty space for text",
+        ])
+    elif is_anime_like:
+        layers.extend([
+            "premium anime key visual quality",
+            "expressive face and eyes",
+            "clean linework",
+            "soft atmospheric lighting",
+            "detailed hair and fabric rendering",
+            "studio-grade color grading",
+        ])
+        if is_portrait_like:
+            layers.extend(["close portrait composition", "subtle depth of field"])
+    elif is_photo_like:
+        layers.extend([
+            "realistic camera perspective",
+            "natural dynamic lighting",
+            "high fidelity textures",
+            "professional color grading",
+        ])
+        if is_portrait_like:
+            layers.extend(["85mm portrait lens look", "natural skin texture", "catchlights in the eyes"])
+    else:
+        layers.extend([
+            "clear subject silhouette",
+            "balanced foreground and background",
+            "professional composition",
+            "clean visual storytelling",
+        ])
+
+    if not re.search(r"\b(background|environment|scene|setting)\b", lower) and not is_logo_like:
+        layers.append("simple complementary background")
+    if not re.search(r"\b(ultra|high|sharp|detailed|minimal|simple|clean)\b", lower):
+        layers.append("high detail without clutter")
+    return layers
+
+
 def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bool] = True) -> str:
     subject = strip_image_command(prompt)
     style_text = normalize_image_style(style)
@@ -2262,6 +2328,7 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
     additions = []
     if style_text:
         additions.append(style_text)
+    additions.extend(image_power_prompt_layers(subject, style_text))
     is_logo_like = re.search(r"\b(logo|icon|brand mark|vector mark)\b", lower)
     is_poster_like = re.search(r"\b(poster|flyer|banner|cover)\b", lower)
     is_anime_like = re.search(r"\b(anime|manga|manhwa|naruto|sasuke|gojo|luffy|kakashi)\b", lower)
@@ -2339,9 +2406,19 @@ def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[
         "noise",
         "oversaturated",
         "flat lighting",
+        "muddy colors",
+        "poor composition",
+        "cropped face",
+        "uncanny face",
+        "asymmetrical eyes",
+        "wrong proportions",
     ]
+    if re.search(r"\b(anime|manga|manhwa)\b", raw_style):
+        base_items.extend(["lifeless eyes", "messy lineart", "plastic skin", "overly glossy skin"])
     if "logo" not in raw_style:
         base_items.extend(["watermark", "signature", "random logo"])
+    else:
+        base_items.extend(["photo background", "complex texture", "tiny unreadable text"])
     extra = clean_text(negative_prompt or "")
     items = base_items + [item.strip() for item in extra.split(",") if item.strip()]
     deduped = []
@@ -2352,7 +2429,15 @@ def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[
             continue
         seen.add(key)
         deduped.append(item)
-    return clean_text(", ".join(deduped))[:400]
+    output: List[str] = []
+    total = 0
+    for item in deduped:
+        extra_len = len(item) + (2 if output else 0)
+        if total + extra_len > 480:
+            break
+        output.append(item)
+        total += extra_len
+    return clean_text(", ".join(output))
 
 
 def image_cache_key(user_id: str, prompt: str, size_label: str, negative_prompt: str) -> str:
@@ -3871,14 +3956,22 @@ def free_provider_status() -> Dict[str, Any]:
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
             "pollinations_base",
+            "pollinations_backup_model_on_failure",
+            "wikipedia_summary_context_for_stable_facts",
+            "nexora_quality_guard",
             "duckduckgo_realtime_context_for_current_questions",
             "local_structured_fallback_for_common_writing",
+            "pollinations_cleanup_review_when_needed",
+            "strong_image_prompt_enhancer",
         ],
-        "message": "Pollinations stays as the no-key base. Nexora now uses fast local structured fallbacks for common writing and stable table tasks.",
+        "message": "Pollinations stays as the no-key base. Nexora clubs it with corrected intent, Wikipedia context for stable facts, optional realtime search, quality guard, and stronger image prompts.",
         "speed": {
             "pollinations_timeout": POLLINATIONS_TIMEOUT,
+            "pollinations_primary_timeout": POLLINATIONS_PRIMARY_TIMEOUT,
+            "pollinations_backup_timeout": POLLINATIONS_BACKUP_TIMEOUT,
             "pollinations_attempts": POLLINATIONS_ATTEMPTS,
             "local_writing_fast": LOCAL_WRITING_FAST,
+            "quality_guard": POLLINATIONS_QUALITY_GUARD,
         },
         "available": {
             "pollinations": True,
@@ -3889,6 +3982,7 @@ def free_provider_status() -> Dict[str, Any]:
         },
         "models": {
             "pollinations": POLLINATIONS_MODEL,
+            "pollinations_backups": pollinations_model_candidates()[1:],
             "groq": GROQ_MODEL,
             "gemini": GEMINI_MODEL,
             "openrouter": OPENROUTER_MODEL,
@@ -4003,10 +4097,13 @@ def call_openai_compatible_chat(
     model: str,
     messages: List[Dict[str, str]],
     response_mode: str = "instant",
+    timeout_override: Optional[int] = None,
 ) -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
     if provider == "pollinations":
         timeout = min(timeout, POLLINATIONS_TIMEOUT)
+    if timeout_override is not None:
+        timeout = min(timeout, max(3, int(timeout_override)))
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -4048,26 +4145,45 @@ def call_pollinations_simple(messages: List[Dict[str, str]], response_mode: str)
     return response.text.strip()
 
 
+def pollinations_model_candidates() -> List[str]:
+    candidates: List[str] = []
+    for raw in [POLLINATIONS_MODEL] + [part.strip() for part in POLLINATIONS_BACKUP_MODELS.split(",")]:
+        model = clean_text(raw)
+        if model and model not in candidates:
+            candidates.append(model)
+    return candidates or ["openai-fast"]
+
+
+def pollinations_model_timeout(index: int, response_mode: str) -> int:
+    if response_mode == "thinking":
+        return min(POLLINATIONS_TIMEOUT, max(POLLINATIONS_PRIMARY_TIMEOUT, 12))
+    if index == 0:
+        return min(POLLINATIONS_TIMEOUT, POLLINATIONS_PRIMARY_TIMEOUT)
+    return min(POLLINATIONS_TIMEOUT, POLLINATIONS_BACKUP_TIMEOUT)
+
+
 def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = "instant") -> str:
     errors = []
     with POLLINATIONS_LOCK:
-        for attempt in range(POLLINATIONS_ATTEMPTS):
-            try:
-                reply = call_openai_compatible_chat(
-                    "pollinations",
-                    POLLINATIONS_URL,
-                    None,
-                    POLLINATIONS_MODEL,
-                    messages,
-                    response_mode,
-                )
-                if clean_text(reply):
-                    return reply
-                errors.append("pollinations chat returned an empty reply")
-            except Exception as error:
-                errors.append(str(error))
-            if attempt < POLLINATIONS_ATTEMPTS - 1:
-                time.sleep(0.5)
+        for index, model in enumerate(pollinations_model_candidates()):
+            for attempt in range(POLLINATIONS_ATTEMPTS):
+                try:
+                    reply = call_openai_compatible_chat(
+                        "pollinations",
+                        POLLINATIONS_URL,
+                        None,
+                        model,
+                        messages,
+                        response_mode,
+                        timeout_override=pollinations_model_timeout(index, response_mode),
+                    )
+                    if clean_text(reply):
+                        return reply
+                    errors.append(f"pollinations chat returned an empty reply with {model}")
+                except Exception as error:
+                    errors.append(f"{model}: {error}")
+                if attempt < POLLINATIONS_ATTEMPTS - 1:
+                    time.sleep(0.35)
 
         try:
             reply = call_pollinations_simple(messages, response_mode)
@@ -4373,6 +4489,85 @@ def build_research_context(sources: List[SourceItem], question: str, confidence:
     return "\n\n".join(lines)
 
 
+def wikipedia_topic_from_question(question: str) -> str:
+    topic = clean_learning_topic(question)
+    topic = re.sub(r"(?i)\b(current|latest|recent|today|news|price|score|weather|election|result)\b", " ", topic)
+    topic = clean_text(topic).strip(" .,:;-")
+    return title_case_topic(topic) if topic else ""
+
+
+def should_add_wikipedia_context(
+    message: str,
+    response_lane: str,
+    presentation_style: str,
+) -> bool:
+    text = clean_text(message)
+    lower = text.lower()
+    if response_lane not in {"learning", "human_chat"}:
+        return False
+    if presentation_style in {"chart", "table"} and not re.search(r"\b(what is|who is|who was|explain|define|meaning of)\b", lower):
+        return False
+    if re.search(r"\b(latest|current|today|recent|news|live|right now|price|market|score|weather|election|filing)\b", lower):
+        return False
+    if not re.search(r"\b(what is|what are|who is|who are|who was|who were|explain|define|describe|meaning of|tell me about|teach me)\b", lower):
+        return False
+    _, card = find_knowledge_card(clean_learning_topic(text))
+    if card is not None:
+        return False
+    topic = wikipedia_topic_from_question(text)
+    return bool(topic and topic.lower() not in {"this", "that", "it", "the topic"})
+
+
+def fetch_wikipedia_summary(topic: str) -> Optional[Dict[str, Any]]:
+    clean_topic = clean_text(topic)
+    if not clean_topic:
+        return None
+    url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + quote(clean_topic.replace(" ", "_"), safe="")
+    headers = {"User-Agent": "Nexora/1.0 (local assistant; educational summary)"}
+    try:
+        response = HTTP.get(url, headers=headers, timeout=5)
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return None
+    extract = clean_text(str(data.get("extract", "")))
+    if not extract:
+        return None
+    page_url = str(data.get("content_urls", {}).get("desktop", {}).get("page", "")) or url
+    return {
+        "title": clean_text(str(data.get("title", clean_topic))) or clean_topic,
+        "extract": extract[:1200],
+        "url": page_url,
+    }
+
+
+def build_wikipedia_context(question: str) -> Tuple[str, List[SourceItem], str]:
+    topic = wikipedia_topic_from_question(question)
+    item = fetch_wikipedia_summary(topic)
+    if not item:
+        return "", [], "wikipedia_empty"
+    source = SourceItem(
+        id=1,
+        title=str(item["title"]),
+        url=str(item["url"]),
+        domain="wikipedia.org",
+        snippet=str(item["extract"])[:300],
+        score=80,
+        provider="wikipedia",
+    )
+    context = (
+        "Free club stable knowledge context:\n"
+        "Use this only as background for stable facts. Do not treat it as current-news evidence.\n"
+        f"Question: {question}\n\n"
+        f"[1] Title: {source.title}\n"
+        f"URL: {source.url}\n"
+        f"Evidence: {item['extract']}"
+    )
+    return context[:FREE_CLUB_CONTEXT_MAX_CHARS], [source], "wikipedia_context"
+
+
 def free_club_mode_enabled() -> bool:
     return FREE_CLUB_MODE not in {"off", "false", "0", "disabled", "none"}
 
@@ -4393,6 +4588,8 @@ def should_use_free_club(
     if use_research:
         return True
     if response_lane == "realtime_search" or presentation_style == "answer_with_evidence":
+        return True
+    if should_add_wikipedia_context(message, response_lane, presentation_style):
         return True
     if re.search(r"\b(latest|current|today|recent|news|live|right now|2026|2025|price|market|score|weather|election|filing)\b", text):
         return True
@@ -4455,6 +4652,8 @@ def should_review_free_club_reply(
     response_lane: str,
     presentation_style: str,
 ) -> bool:
+    if answer_quality_flags("", raw_reply or cleaned_preview, response_lane, presentation_style):
+        return True
     if use_research or response_lane == "writing":
         return True
     if re.search(r"(?is)^\s*\*\*[^*\n]{1,100}\.\s*\n-\s*[^*\n]{1,100}\*\*", cleaned_preview or ""):
@@ -4493,6 +4692,8 @@ def free_club_review_reply(
     review_prompt = (
         "You are Nexora's free club reviewer. Improve the draft into the final answer.\n"
         "Keep the meaning, but make it clearer, cleaner, and more human.\n"
+        "If the draft is generic, replace it with a specific answer to the user's actual problem.\n"
+        "If the draft exposes backend/tool failure, remove that and answer using the available context.\n"
         "Use ChatGPT-like structure: answer first, then compact sections only when useful.\n"
         "Use smooth writing for emails, letters, and normal chat.\n"
         "Use tables, charts, or text diagrams only when the user's question benefits from them.\n"
@@ -4659,6 +4860,7 @@ def clean_reply(text: str) -> str:
     text = repair_answer_encoding(text)
     text = strip_model_source_dump(text)
     text = structure_answer_text(text)
+    text = re.sub(r"(?m)^\s*:\s*$\n?", "", text)
     text = re.sub(r"(?im)^direct answer\s*:?", "", text)
     text = re.sub(r"(?im)^answer\s*:?", "", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
@@ -4674,6 +4876,48 @@ def is_bad_generated_reply(text: str) -> bool:
         "no reply came from backend.",
         "no reply came from backend",
     }
+
+
+def answer_quality_flags(
+    question: str,
+    reply: str,
+    response_lane: str = "human_chat",
+    presentation_style: str = "balanced",
+) -> List[str]:
+    if not POLLINATIONS_QUALITY_GUARD:
+        return []
+    raw = reply or ""
+    cleaned = clean_text(raw)
+    lower = cleaned.lower()
+    question_lower = clean_text(question).lower()
+    flags: List[str] = []
+    if is_bad_generated_reply(raw):
+        flags.append("empty")
+    if re.search(r"\b(free text engine|backend|pollinations|ollama|api key|rate-limit|rate limit)\b", lower):
+        flags.append("backend_talk")
+    if re.search(r"(?m)^\s*:\s*$", raw):
+        flags.append("colon_line")
+    if any(marker in raw for marker in ("\u00e2", "\u00c2", "\ufffd")):
+        flags.append("encoding_noise")
+    if len(cleaned.split()) < 18 and response_lane not in {"human_chat"} and not re.search(r"\b(hi|hello|thanks|ok|okay)\b", question_lower):
+        flags.append("too_short")
+    if re.search(r"\b(ask the question again|send the topic directly|i am still here|try again once)\b", lower):
+        flags.append("weak_fallback")
+    if response_lane == "planning" and re.search(r"\b(start with the exact outcome|break it into small actions|fix one problem at a time)\b", lower):
+        flags.append("generic_plan")
+    if presentation_style == "table" and "|" not in raw and re.search(r"\b(compare|comparison|table|vs|versus|pros and cons)\b", question_lower):
+        flags.append("missing_table")
+    if response_lane == "writing" and re.search(r"\b(i can help|here'?s|here is|draft answer)\b", lower[:160]):
+        flags.append("not_finished_draft_first")
+    return list(dict.fromkeys(flags))
+
+
+def should_accept_reviewed_reply(question: str, reviewed: str, response_lane: str, presentation_style: str) -> bool:
+    if is_bad_generated_reply(reviewed):
+        return False
+    flags = answer_quality_flags(question, reviewed, response_lane, presentation_style)
+    blocking = {"empty", "backend_talk", "weak_fallback", "encoding_noise"}
+    return not any(flag in blocking for flag in flags)
 
 
 def ensure_inline_citations(text: str, sources: List[SourceItem]) -> str:
@@ -5085,7 +5329,7 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
     usable_sources = sources[:MAX_RESEARCH_SOURCES]
     first_title = clean_text(usable_sources[0].title) if usable_sources else "the available evidence"
     lines = [
-        f"I found live web sources for this, but the text model could not synthesize them cleanly. The safest answer is based on the available evidence, especially {first_title}.",
+        f"Based on the live sources I found, the safest answer should lean on the available evidence, especially {first_title}.",
         "",
         "Key points:",
     ]
@@ -5097,19 +5341,42 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
     lines.extend([
         "",
         "What it means:",
-        "- Treat this as a source-backed fallback, not a full model-written explanation.",
+        "- Treat this as a source-backed answer for the current facts.",
         "- The source cards below are the best places to verify the latest details.",
         "",
         "Bottom line:",
-        "The evidence is available, but the model response failed once. Retry the question if you want a fuller explanation.",
+        "For current information, trust the source-backed points above over guesses.",
+    ])
+    return "\n".join(lines)
+
+
+def wikipedia_fallback_reply(question: str, sources: List[SourceItem]) -> str:
+    source = sources[0] if sources else None
+    if not source:
+        return local_resilient_reply(question, ensure_session(None), "learning", "balanced", {})
+    snippet = clean_text(source.snippet)
+    title = clean_text(source.title) or clean_learning_topic(question)
+    sentences = re.split(r"(?<=[.!?])\s+", snippet)
+    first = sentences[0] if sentences else snippet
+    rest = [sentence for sentence in sentences[1:4] if sentence]
+    lines = [
+        first or f"{title} is best understood by starting with its basic meaning and main details.",
+    ]
+    if rest:
+        lines.extend(["", "Key points:"])
+        lines.extend(f"- {sentence}" for sentence in rest)
+    lines.extend([
+        "",
+        "Bottom line:",
+        f"{title} should be understood from reliable background information first, then checked with current sources if the question needs recent details.",
     ])
     return "\n".join(lines)
 
 
 def setup_error_message(error_text: str) -> str:
     return (
-        "Nexora could not reach the text engine this time.\n\n"
-        "Try again once. If it still happens, ask a simpler version or use a local model for steadier offline replies."
+        "I could not complete that response cleanly.\n\n"
+        "Send the same question once more with the main topic first, and I will answer from the saved context."
     )
 
 
@@ -6214,13 +6481,24 @@ def chat(req: ChatRequest) -> ChatResponse:
         if should_add_free_club_search(understanding_message, use_research, response_lane, presentation_style):
             free_club_context, free_club_sources, club_status = build_free_club_search_context(understanding_message)
             tools_used.append(f"free_club:{club_status}")
+        elif should_add_wikipedia_context(understanding_message, response_lane, presentation_style):
+            free_club_context, free_club_sources, club_status = build_wikipedia_context(understanding_message)
+            tools_used.append(f"free_club:{club_status}")
 
     combined_research_context = "\n\n".join(
         part for part in [research_context, free_club_context] if part
     )
 
+    model_user_message = understanding_message
+    if clean_text(understanding_message).lower() != clean_text(original_user_message).lower():
+        model_user_message = (
+            f"{understanding_message}\n\n"
+            f"Original wording: {original_user_message}\n"
+            "Answer the corrected intent, not the typo."
+        )
+
     messages = build_messages(
-        user_message=user_message,
+        user_message=model_user_message,
         history=history,
         research_context=combined_research_context,
         file_context=file_context,
@@ -6259,6 +6537,10 @@ def chat(req: ChatRequest) -> ChatResponse:
                     model_used = "realtime_search_fallback"
                     reply = search_evidence_fallback_reply(original_user_message, verified_sources)
                     tools_used.append("search_evidence_fallback")
+                elif free_club_sources and free_club_sources[0].provider == "wikipedia":
+                    model_used = "wikipedia_summary_fallback"
+                    reply = wikipedia_fallback_reply(understanding_message, free_club_sources)
+                    tools_used.append("wikipedia_summary_fallback")
                 elif local_structured:
                     model_used = "nexora_local_structured"
                     reply = local_structured
@@ -6278,6 +6560,10 @@ def chat(req: ChatRequest) -> ChatResponse:
                 model_used = "realtime_search_fallback"
                 reply = search_evidence_fallback_reply(original_user_message, verified_sources)
                 tools_used.append("search_evidence_fallback")
+            elif free_club_sources and free_club_sources[0].provider == "wikipedia":
+                model_used = "wikipedia_summary_fallback"
+                reply = wikipedia_fallback_reply(understanding_message, free_club_sources)
+                tools_used.append("wikipedia_summary_fallback")
             elif local_structured:
                 model_used = "nexora_local_structured"
                 reply = local_structured
@@ -6293,6 +6579,29 @@ def chat(req: ChatRequest) -> ChatResponse:
                 )
                 tools_used.append("local_resilient_fallback")
 
+    quality_flags = answer_quality_flags(original_user_message, reply, response_lane, presentation_style)
+    if quality_flags:
+        tools_used.append("quality_guard:" + ",".join(quality_flags[:4]))
+        if (
+            local_structured
+            and not use_research
+            and any(flag in quality_flags for flag in {"generic_plan", "weak_fallback", "too_short", "backend_talk", "missing_table"})
+        ):
+            model_used = "nexora_local_structured"
+            reply = local_structured
+            tools_used.append("quality_guard:local_structured")
+        elif free_club_mode_enabled() and not is_bad_generated_reply(reply):
+            reviewed_reply = free_club_review_reply(
+                original_user_message,
+                reply,
+                combined_research_context,
+                response_lane,
+                presentation_style,
+            )
+            if reviewed_reply and should_accept_reviewed_reply(original_user_message, reviewed_reply, response_lane, presentation_style):
+                reply = reviewed_reply
+                tools_used.append("quality_guard:pollinations_review")
+
     if is_bad_generated_reply(reply) and verified_sources:
         model_used = "realtime_search_fallback"
         reply = search_evidence_fallback_reply(original_user_message, verified_sources)
@@ -6306,6 +6615,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         and model_used != "realtime_search_fallback"
         and not is_bad_generated_reply(reply)
         and generation_seconds <= FREE_CLUB_REVIEW_BUDGET_SECONDS
+        and "quality_guard:pollinations_review" not in tools_used
         and should_review_free_club_reply(
             reply,
             cleaned_preview,
