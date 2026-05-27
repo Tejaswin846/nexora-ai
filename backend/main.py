@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.47.0-heavy-memory-exact-images"
+APP_VERSION = "8.48.0-smart-source-synthesis"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -5082,14 +5082,59 @@ def source_has_real_evidence(source: SourceItem, user_question: str) -> bool:
         return False
     if source.provider.startswith("web_search"):
         return bool(source.url and source.title)
+    if source.provider.startswith("wikipedia_current_role"):
+        return bool(source.url and re.search(r"\b(served as|incumbent|current|since\s+\d{4})\b", hay))
     current_words = ["latest", "today", "current", "recent", "news"]
     if any(word in question for word in current_words):
         return any(word in hay for word in ["2026", "2025", "announced", "reported", "filing", "release", "update", "today", "latest"])
     return True
 
 
+def source_relevance_score(source: SourceItem, user_question: str) -> int:
+    question = clean_text(user_question).lower()
+    hay = f"{source.title} {source.snippet} {source.domain} {source.url}".lower()
+    query_keywords = set(memory_keywords(question))
+    source_keywords = set(memory_keywords(hay))
+    score = int(source.score or 0) + len(query_keywords.intersection(source_keywords)) * 14
+    domain = source.domain.lower()
+    if domain.endswith(".gov") or ".gov." in domain or domain in {"pib.gov.in", "pmindia.gov.in", "india.gov.in"}:
+        score += 26
+    if "wikipedia.org" in domain and re.search(r"\b(who is|who was|what is|explain|define)\b", question):
+        score += 10
+    if re.search(r"\b(current|latest|today|price|weather|score|election|prime minister|president|ceo)\b", question):
+        if re.search(r"\b(today|latest|current|official|live|updated|2026|2025)\b", hay):
+            score += 12
+    if re.search(r"\b(prime minister|president|chief minister|ceo|actor|winner|price)\b", question):
+        for keyword in ["prime minister", "president", "chief minister", "ceo", "winner", "price"]:
+            if keyword in question and keyword in hay:
+                score += 12
+    if re.search(r"\b(video|speech video|youtube|gallery|photo|login|pdf)\b", hay):
+        score -= 8
+    if len(clean_text(source.snippet).split()) < 5:
+        score -= 5
+    return score
+
+
+def clone_source_with_id(source: SourceItem, new_id: int) -> SourceItem:
+    return SourceItem(
+        id=new_id,
+        title=source.title,
+        url=source.url,
+        domain=source.domain,
+        snippet=source.snippet,
+        score=source.score,
+        provider=source.provider,
+    )
+
+
 def verified_sources_only(sources: List[SourceItem], user_question: str) -> List[SourceItem]:
-    return [source for source in sources if source_has_real_evidence(source, user_question)][:MAX_RESEARCH_SOURCES]
+    verified = [source for source in sources if source_has_real_evidence(source, user_question)]
+    ranked = sorted(
+        verified,
+        key=lambda source: source_relevance_score(source, user_question),
+        reverse=True,
+    )[:MAX_RESEARCH_SOURCES]
+    return [clone_source_with_id(source, index) for index, source in enumerate(ranked, start=1)]
 
 
 def build_research_context(sources: List[SourceItem], question: str, confidence: str, rounds: int) -> str:
@@ -5189,6 +5234,31 @@ def build_wikipedia_context(question: str) -> Tuple[str, List[SourceItem], str]:
         f"Evidence: {item['extract']}"
     )
     return context[:FREE_CLUB_CONTEXT_MAX_CHARS], [source], "wikipedia_context"
+
+
+def trusted_current_role_sources(question: str) -> List[SourceItem]:
+    lower = clean_text(question).lower()
+    topics: List[str] = []
+    if re.search(r"\b(prime minister|pm)\b", lower) and re.search(r"\b(india|bharat)\b", lower):
+        topics.append("Narendra Modi")
+    if re.search(r"\bpresident\b", lower) and re.search(r"\b(india|bharat)\b", lower):
+        topics.append("Droupadi Murmu")
+
+    sources: List[SourceItem] = []
+    for topic in topics:
+        item = fetch_wikipedia_summary(topic)
+        if not item:
+            continue
+        sources.append(SourceItem(
+            id=len(sources) + 1,
+            title=str(item["title"]),
+            url=str(item["url"]),
+            domain="wikipedia.org",
+            snippet=str(item["extract"])[:900],
+            score=86,
+            provider="wikipedia_current_role",
+        ))
+    return verified_sources_only(sources, question)
 
 
 def autonomous_research_route(
@@ -5455,6 +5525,7 @@ Style:
 - For letters, emails, applications, notices, proposals, and personal messages, write with smooth, graceful, human prose that is ready to send.
 - For everyday chat, use ChatGPT-like structure and behavior: conversational, emotionally aware, practical, and easy to scan without sounding scripted.
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
+- For source-backed answers, never start with "Based on the live sources I found." State the answer first, then the evidence.
 - Decide the answer shape intelligently: short for simple questions, detailed for complex ones, tables for comparisons, chart-style summaries for trends or rankings, and diagrams for processes or systems.
 - Use a ChatGPT-like rhythm: one clear opening sentence, then useful context, then the practical next point.
 - For reflective, philosophical, opinion, or judgment questions, use a Claude-like reflective rhythm: a thoughtful first sentence, one strong bold thesis, then compact bullets with bold labels where useful.
@@ -5620,6 +5691,8 @@ def answer_quality_flags(
         flags.append("empty")
     if re.search(r"\b(free text engine|backend|pollinations|ollama|api key|rate-limit|rate limit)\b", lower):
         flags.append("backend_talk")
+    if re.search(r"\bbased on the live sources i found\b|\bsafest answer should lean\b", lower):
+        flags.append("weak_source_synthesis")
     if re.search(r"(?m)^\s*:\s*$", raw):
         flags.append("colon_line")
     if any(marker in raw for marker in ("\u00e2", "\u00c2", "\ufffd")):
@@ -6050,27 +6123,133 @@ def append_sources(reply: str, sources: List[SourceItem]) -> str:
     return reply + "\n".join(lines)
 
 
+def compact_evidence_sentence(text: str, max_chars: int = 210) -> str:
+    cleaned = clean_text(text)
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r"(?i)\b(click here|read more|watch video|official website|home page)\b.*$", "", cleaned).strip()
+    sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", cleaned) if sentence.strip()]
+    sentence = sentences[0] if sentences else cleaned
+    if len(sentence) > max_chars:
+        sentence = sentence[: max_chars - 3].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+    return ensure_terminal_punctuation(sentence)
+
+
+def source_ids_matching(sources: List[SourceItem], pattern: str) -> List[int]:
+    regex = re.compile(pattern, re.IGNORECASE)
+    ids = []
+    for source in sources:
+        hay = f"{source.title} {source.snippet}"
+        if regex.search(hay):
+            ids.append(source.id)
+    return ids
+
+
+def citation_text(ids: List[int], limit: int = 2) -> str:
+    clean_ids = []
+    for source_id in ids:
+        if source_id not in clean_ids:
+            clean_ids.append(source_id)
+    return "".join(f"[{source_id}]" for source_id in clean_ids[:limit])
+
+
+def synthesize_direct_current_answer(question: str, sources: List[SourceItem]) -> Optional[str]:
+    lower = clean_text(question).lower()
+    evidence = " ".join(f"{source.title} {source.snippet}" for source in sources)
+    evidence_lower = evidence.lower()
+
+    if re.search(r"\b(prime minister|pm)\b", lower) and re.search(r"\b(india|bharat)\b", lower):
+        if re.search(r"\bnarendra(?:\s+damodardas)?\s+modi\b", evidence_lower):
+            ids = source_ids_matching(sources, r"\bNarendra(?:\s+Damodardas)?\s+Modi\b|Prime Minister of India")
+            cite = citation_text(ids)
+            details = []
+            if re.search(r"\bsince\s+2014\b|2014", evidence_lower):
+                since_cite = citation_text(source_ids_matching(sources, r"\b2014\b"), 1) or cite
+                details.append(f"- He has held the office since 2014, according to the available source context. {since_cite}".strip())
+            if re.search(r"\b10\s+june\s+2024\b|june\s+2024|2024", evidence_lower):
+                term_cite = citation_text(source_ids_matching(sources, r"2024|10\s+June\s+2024"), 1)
+                details.append(f"- The sources also mention his current term after the 2024 election. {term_cite}".strip())
+            if not details:
+                details.append(f"- The most relevant sources identify Narendra Modi with the office of Prime Minister of India. {cite}")
+            return "\n".join([
+                f"Narendra Modi is the current Prime Minister of India. {cite}".strip(),
+                "",
+                "Key points:",
+                *details[:2],
+                "",
+                "Bottom line:",
+                "For a changing public office, use the source button to verify the latest official confirmation.",
+            ])
+
+    if re.search(r"\bpresident\b", lower) and re.search(r"\b(india|bharat)\b", lower):
+        if re.search(r"\bdroupadi\s+murmu\b", evidence_lower):
+            ids = source_ids_matching(sources, r"\bDroupadi\s+Murmu\b|President of India")
+            cite = citation_text(ids)
+            return "\n".join([
+                f"Droupadi Murmu is the current President of India. {cite}".strip(),
+                "",
+                "Bottom line:",
+                "For current public offices, the source button is there for latest confirmation.",
+            ])
+
+    actor_match = re.search(r"\bname\s+(?:an?\s+)?(?:actor|celebrity|singer|scientist|writer|player)\b", lower)
+    if actor_match:
+        direct = local_direct_name_reply(lower)
+        if direct:
+            return direct
+
+    return None
+
+
+def evidence_bullet_from_source(source: SourceItem, question: str) -> str:
+    title = clean_text(source.title)
+    snippet = compact_evidence_sentence(source.snippet)
+    domain = clean_text(source.domain) or "source"
+    if snippet:
+        return f"- {snippet} [{source.id}]"
+    if title:
+        return f"- {title} - {domain}. [{source.id}]"
+    return f"- {domain} has relevant context for this answer. [{source.id}]"
+
+
 def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> str:
     usable_sources = sources[:MAX_RESEARCH_SOURCES]
-    first_title = clean_text(usable_sources[0].title) if usable_sources else "the available evidence"
+    if not usable_sources:
+        return (
+            "I could not verify that from live sources yet.\n\n"
+            "Bottom line:\n"
+            "For current facts, I should not guess without reliable evidence."
+        )
+
+    direct = synthesize_direct_current_answer(question, usable_sources)
+    if direct:
+        return direct
+
+    lower = clean_text(question).lower()
+    if re.search(r"\b(price|stock|share|market|weather|score)\b", lower):
+        lead = "I found live sources, but the exact value can change by location and time, so the safest answer is to use the latest source-backed points below."
+    elif re.search(r"\b(current|latest|today|right now|recent|news)\b", lower):
+        lead = "I found live sources for this, so the answer below is based on the latest evidence available to Nexora."
+    else:
+        lead = "I found source context for this and used it to keep the answer grounded."
+
     lines = [
-        f"Based on the live sources I found, the safest answer should lean on the available evidence, especially {first_title}.",
+        lead,
         "",
-        "Key points:",
+        "Key evidence:",
     ]
     for source in usable_sources:
-        snippet = clean_text(source.snippet)
-        evidence = snippet or clean_text(source.title)
-        if evidence:
-            lines.append(f"- {evidence} [{source.id}]")
+        bullet = evidence_bullet_from_source(source, question)
+        if bullet not in lines:
+            lines.append(bullet)
     lines.extend([
         "",
         "What it means:",
-        "- Treat this as a source-backed answer for the current facts.",
-        "- The source cards below are the best places to verify the latest details.",
+        "- Use the source button for the full links and latest verification.",
+        "- If the sources disagree or lack a clean value, avoid treating any single snippet as final.",
         "",
         "Bottom line:",
-        "For current information, trust the source-backed points above over guesses.",
+        "For current information, source-backed evidence is better than a confident guess.",
     ])
     return "\n".join(lines)
 
@@ -7130,6 +7309,33 @@ def chat(req: ChatRequest) -> ChatResponse:
         provider = str(research.get("provider", "research_engine"))
         tools_used.append(f"{provider}:{confidence}:rounds_{rounds}")
         if not research.get("ok") or not verified_sources:
+            trusted_sources = trusted_current_role_sources(understanding_message)
+            if trusted_sources:
+                reply = clean_reply(search_evidence_fallback_reply(original_user_message, trusted_sources))
+                reply = ensure_inline_citations(reply, trusted_sources)
+                append_session_message(session_id, "user", original_user_message)
+                append_session_message(session_id, "assistant", reply)
+                maybe_store_memory(original_user_message, user_id)
+                learn_long_term_memory_from_chat(
+                    original_user_message,
+                    reply,
+                    user_id,
+                    session_id,
+                    response_lane,
+                    presentation_style,
+                    behavior_signals,
+                )
+                if not skip_response_cache:
+                    set_cached_response(response_cache_key, reply, "trusted_current_role_fallback", trusted_sources)
+                return ChatResponse(
+                    reply=reply,
+                    session_id=session_id,
+                    mode=req.mode or "agent",
+                    model_used="trusted_current_role_fallback",
+                    sources=trusted_sources,
+                    tools_used=tools_used + ["trusted_current_role_fallback"],
+                    created_at=now_iso(),
+                )
             reply = (
                 "I do not have verified current evidence for that yet. "
                 "I will not guess about latest news, prices, filings, results, or dates without a reliable source."
