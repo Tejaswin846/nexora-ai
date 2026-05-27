@@ -9964,8 +9964,10 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function inlineMarkdown(line, sources){
     let html = escapeHtml(line)
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="nx-keyword">$1</strong>')
       .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    html = html.replace(/(^|>|\s)([A-Z][A-Za-z0-9 /+-]{2,32}:)(\s)/g, '$1<span class="nx-key-label">$2</span>$3');
 
     html = html.replace(/\[(\d+)\]/g, function(match, num){
       const src = sources[Number(num) - 1];
@@ -10293,6 +10295,76 @@ document.addEventListener("DOMContentLoaded",()=>{
     return msg;
   }
 
+  function renderStreamingAssistant(){
+    const box = el("chatBox");
+    if(!box) return null;
+    const msg = document.createElement("div");
+    msg.className = "message ai-message nx-streaming-answer";
+    msg.dataset.nxV2Formatted = "true";
+    msg.dataset.nxFinalFormatted = "true";
+    msg.innerHTML = '<div class="nx-human-answer"><p class="nx-answer-lead">Thinking...</p></div>';
+    box.appendChild(msg);
+    box.scrollTop = box.scrollHeight;
+    return msg;
+  }
+
+  function updateStreamingAssistant(msg, text){
+    if(!msg) return;
+    msg.innerHTML = formatHumanAnswer(text || "Thinking...", []);
+    const box = el("chatBox");
+    if(box) box.scrollTop = box.scrollHeight;
+  }
+
+  function finishStreamingAssistant(msg, text, sources){
+    if(!msg) return renderAssistant(text, sources);
+    msg.classList.remove("nx-streaming-answer");
+    msg.innerHTML = formatHumanAnswer(text, sources || []) + actionsHtml();
+    try{
+      window.chatHistory = window.chatHistory || [];
+      window.chatHistory.push({text:String(text || ""), className:"ai-message", role:"assistant", sources:sources || [], meta:null});
+    }catch(e){}
+    const box = el("chatBox");
+    if(box) box.scrollTop = box.scrollHeight;
+    return msg;
+  }
+
+  async function readChatStream(response, streamMsg){
+    if(!response.body || !window.TextDecoder){
+      const data = await response.json();
+      return {reply:data.reply || data.response || data.answer || "", sources:Array.isArray(data.sources) ? data.sources : []};
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let reply = "";
+    let sources = [];
+    while(true){
+      const next = await reader.read();
+      if(next.done) break;
+      buffer += decoder.decode(next.value, {stream:true});
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for(const rawEvent of events){
+        const line = rawEvent.split("\n").find(item => item.startsWith("data:"));
+        if(!line) continue;
+        let data = null;
+        try{ data = JSON.parse(line.slice(5).trim()); }catch(e){ continue; }
+        if(data.type === "meta" && Array.isArray(data.sources)){
+          sources = data.sources;
+        }else if(data.type === "token"){
+          reply += data.text || data.token || "";
+          updateStreamingAssistant(streamMsg, reply);
+        }else if(data.type === "done"){
+          reply = data.reply || reply;
+          sources = Array.isArray(data.sources) ? data.sources : sources;
+        }else if(data.type === "error"){
+          throw new Error(data.message || "stream error");
+        }
+      }
+    }
+    return {reply, sources};
+  }
+
   function buildAgentPrompt(userText){
     const q = String(userText || "").trim();
     if(/^(hi|hello|hey|yo|hii|hlo|ok|okay|thanks|thank you)$/i.test(q)) return q;
@@ -10301,12 +10373,15 @@ document.addEventListener("DOMContentLoaded",()=>{
     const searchMode = /\b(latest|current|today|news|search|searcch|look up|find online|real[- ]?time|realtime|price|weather|score|president|market|crude oil|oil crisis|petrol|diesel|fuel price|energy crisis|inflation|rupee|import bill|sanctions|russia ukraine|ukraine war|israel hamas|gaza war|iran israel|middle east conflict|ongoing war|current war|war news|ongoing conflict|current conflict|conflict news)\b/.test(lower);
     return [
       "Answer directly in a warm, human, polished style.",
+      "Use this Nexora structure when useful: direct answer first, short explanation, important details/examples, sources or links if needed, then a practical next step only when useful.",
       "Keep simple answers short. Use sections, tables, or steps only when they genuinely help.",
+      "Avoid robotic wording, over-formatting, giant walls of text, and generic filler.",
+      "Adapt tone: school = exam-style, coding = developer assistant, research = source-backed, creative = smooth Claude-style, business = strategic and sharp, casual = conversational.",
       "Choose the format automatically: paragraph, steps, compact table, or simple text diagram when it makes the answer clearer.",
       "Never put a colon on its own line. A section heading must stay on one line, like 'Key points:'.",
       "If using a table, output a real markdown table with visible | separators and a separator row. Never use spaced columns.",
       "Use clear punctuation, short paragraphs, and natural rhythm. Avoid filler and backend/tool talk.",
-      "Do not add follow-up suggestions, extra prompts, or generic closing questions.",
+      "Do not add generic closing questions.",
       "End once the answer is complete.",
       writingMode ? "Writing task: give the finished draft first, smooth and ready to send." : "",
       searchMode ? "Current-info task: answer first, cite evidence with [1] when sources are available, and do not guess." : "",
@@ -10393,7 +10468,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     try{
       const backendMode = typeof getBackendModeForRequest === "function" ? getBackendModeForRequest() : "thinking";
-      const response = await fetch(API_BASE_V2 + "/chat", {
+      const response = await fetch(API_BASE_V2 + "/chat/stream", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -10404,7 +10479,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           chat_history: history,
           mode: backendMode,
           model: null,
-          stream: false,
+          stream: true,
           complete: true,
           answer_style: "efficient_polished_structure",
           max_tokens: 900
@@ -10415,10 +10490,11 @@ document.addEventListener("DOMContentLoaded",()=>{
       if(typingEl) typingEl.remove();
 
       if(!response.ok){ renderAssistant("⚠️ Backend connection returned error " + response.status + ".", []); return; }
-      const data = await response.json();
-      const reply = data.reply || data.response || data.answer || "⚠️ Nexora did not return an answer.";
+      const streamMsg = renderStreamingAssistant();
+      const data = await readChatStream(response, streamMsg);
+      const reply = data.reply || data.response || data.answer || "Nexora did not return an answer.";
       const sources = Array.isArray(data.sources) ? data.sources : [];
-      renderAssistant(reply, sources);
+      finishStreamingAssistant(streamMsg, reply, sources);
       if(typeof speakReply === "function") speakReply(reply);
     }catch(err){
       const typingEl = el(typingId);
@@ -10742,6 +10818,44 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-human-answer p{
     overflow-wrap:anywhere !important;
+  }
+
+  .nx-human-answer .nx-keyword,
+  .nx-human-answer .nx-key-label{
+    color:#f8fafc !important;
+    font-weight:800 !important;
+  }
+
+  .nx-human-answer .nx-key-label{
+    padding:1px 4px !important;
+    border-radius:5px !important;
+    background:rgba(96,165,250,.10) !important;
+  }
+
+  .nx-streaming-answer .nx-human-answer{
+    animation:nxAnswerFadeIn .16s ease-out both;
+  }
+
+  .nx-streaming-answer::after{
+    content:"";
+    display:inline-block;
+    width:7px;
+    height:17px;
+    margin-left:5px;
+    border-radius:2px;
+    background:#93c5fd;
+    vertical-align:-3px;
+    animation:nxCursorBlink .9s infinite;
+  }
+
+  @keyframes nxCursorBlink{
+    0%,45%{opacity:1}
+    46%,100%{opacity:.15}
+  }
+
+  @keyframes nxAnswerFadeIn{
+    from{opacity:.72; transform:translateY(2px)}
+    to{opacity:1; transform:translateY(0)}
   }
 
   .nx-source-menu{

@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.49.0-fast-writing-image-precision"
+APP_VERSION = "8.50.0-human-answer-image-accuracy"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -1349,17 +1349,35 @@ def website_goal_plan(topic: str) -> str:
 
 
 def business_goal_plan(topic: str) -> str:
+    clean_topic = clean_text(topic)
+    clean_topic = re.sub(r"(?i)^(write|draft|make|create|prepare|give)\s+(me\s+)?(a\s+)?(short\s+|small\s+|brief\s+|full\s+|complete\s+)?business plan\s*(for|about|on)?\s*", "", clean_topic)
+    clean_topic = re.sub(r"(?i)^(a\s+|an\s+|the\s+)+", "", clean_topic).strip(" .,:;-")
+    business = title_case_topic(clean_topic or "Business")
+    business_lower = business.lower()
+    if re.search(r"\b(stationery|school supplies|notebook|pen|pencil)\b", business_lower):
+        return (
+            "Short answer:\n"
+            f"A {business_lower} can work well if it stays close to students, keeps fast-moving items in stock, and earns trust through fair prices.\n\n"
+            "Plan:\n"
+            "1. Target customers: students, parents, teachers, nearby tuition centers, and small offices.\n"
+            "2. Core products: notebooks, pens, pencils, erasers, geometry boxes, chart paper, files, art supplies, and exam materials.\n"
+            "3. Location strategy: choose a spot near a school, coaching center, bus stop, or residential area with students.\n"
+            "4. Pricing strategy: keep daily-use items affordable, then earn extra margin from bundles, art kits, files, and seasonal exam packs.\n"
+            "5. Marketing: offer school-opening bundles, WhatsApp ordering, small discounts for bulk class orders, and quick home delivery nearby.\n\n"
+            "Next step:\n"
+            "Make a list of the 30 fastest-selling items and estimate the starting stock cost before renting or decorating the shop."
+        )
     return (
         "Short answer:\n"
-        "Start small: validate the idea before spending too much time or money.\n\n"
+        f"Start small with {business_lower}: validate demand before spending too much time or money.\n\n"
         "Plan:\n"
-        "1. Define the customer and the exact problem.\n"
-        "2. Offer one simple solution, not many things at once.\n"
+        "1. Define the exact customer and why they would pay.\n"
+        "2. Offer one simple product or service first, not many things at once.\n"
         "3. Check whether people already pay for similar solutions.\n"
         "4. Build a small first version or service package.\n"
         "5. Talk to real users, improve, then repeat.\n\n"
-        "Bottom line:\n"
-        "A strong business starts with a real problem, a clear customer, and a small solution that people actually want."
+        "Next step:\n"
+        "Write the customer, offer, price, and first sales channel on one page before building anything bigger."
     )
 
 
@@ -2662,6 +2680,38 @@ def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
 
 def strip_image_command(prompt: str) -> str:
     text = clean_text(prompt)
+    styled_match = re.match(
+        r"^(?:please\s+)?(?:create|generate|make|draw|give\s+me)\s+(?:an?\s+)?"
+        r"(?P<style>[a-zA-Z -]{0,70}?)\s*"
+        r"(?P<type>image|picture|photo|art|illustration|poster|logo|icon|thumbnail|banner|wallpaper)"
+        r"\s*(?:of|for|with|about|:)?\s*(?P<rest>.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if styled_match:
+        visual_type = clean_text(styled_match.group("type")).lower()
+        style_words = clean_text(styled_match.group("style"))
+        rest = re.sub(r"(?i)^(an?|the)\s+", "", clean_text(styled_match.group("rest"))).strip()
+        useful_style = "" if style_words.lower() in {"a", "an", "the"} else style_words
+        result = clean_text(" ".join(part for part in [useful_style, rest] if part))
+        if visual_type in {"poster", "logo", "icon", "thumbnail", "banner", "wallpaper", "photo"} and visual_type not in result.lower():
+            result = clean_text(f"{result} {visual_type}")
+        return result or text
+
+    trailing_type_match = re.match(
+        r"^(?:please\s+)?(?:create|generate|make|draw|give\s+me)\s+(?:an?\s+)?"
+        r"(?P<subject>.+?)\s+"
+        r"(?P<type>image|picture|photo|art|illustration|poster|logo|icon|thumbnail|banner|wallpaper)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if trailing_type_match:
+        visual_type = clean_text(trailing_type_match.group("type")).lower()
+        subject = clean_text(trailing_type_match.group("subject"))
+        if visual_type in {"poster", "logo", "icon", "thumbnail", "banner", "wallpaper", "photo"} and visual_type not in subject.lower():
+            subject = clean_text(f"{subject} {visual_type}")
+        return subject or text
+
     match = re.match(
         r"^(?:please\s+)?(?:create|generate|make|draw)\s+(?:an?\s+)?"
         r"(?P<type>image|picture|photo|art|poster|logo|icon|thumbnail|banner|wallpaper)"
@@ -2672,7 +2722,7 @@ def strip_image_command(prompt: str) -> str:
     if not match:
         return text
     visual_type = clean_text(match.group("type")).lower()
-    rest = clean_text(match.group("rest"))
+    rest = re.sub(r"(?i)^(an?|the)\s+", "", clean_text(match.group("rest"))).strip()
     if visual_type in {"poster", "logo", "icon", "thumbnail", "banner", "wallpaper", "photo"} and visual_type not in rest.lower():
         rest = clean_text(f"{rest} {visual_type}")
     return rest or text
@@ -2732,14 +2782,39 @@ def extract_visual_constraints(subject: str) -> List[str]:
     return constraints
 
 
+def extract_prompt_exclusions(subject: str) -> List[str]:
+    lower = clean_text(subject).lower()
+    exclusions: List[str] = []
+    if re.search(r"\b(no text|without text|no words|textless|wordless)\b", lower):
+        exclusions.extend(["text", "lettering", "words", "captions"])
+    if re.search(r"\b(no logo|without logo)\b", lower):
+        exclusions.append("logo")
+    if re.search(r"\b(no background|transparent background)\b", lower):
+        exclusions.append("busy background")
+    for match in re.finditer(r"\b(?:no|without|exclude|avoid)\s+([a-zA-Z][a-zA-Z -]{1,40})(?=,|\.|;|$|\s+and\s+)", lower):
+        phrase = clean_text(match.group(1)).strip(" .,:;-")
+        if phrase and phrase not in {"text", "words"}:
+            exclusions.append(phrase)
+    return list(dict.fromkeys(exclusions))[:8]
+
+
+def trim_image_prompt(text: str, max_chars: int = 860) -> str:
+    clean = clean_text(text)
+    if len(clean) <= max_chars:
+        return clean
+    trimmed = clean[:max_chars].rstrip(" ,;:.")
+    for marker in [". ", "; ", ", "]:
+        cut = trimmed.rfind(marker)
+        if cut >= max_chars * 0.72:
+            return trimmed[:cut].rstrip(" ,;:.")
+    return trimmed.rsplit(" ", 1)[0].rstrip(" ,;:.")
+
+
 def image_subject_priority_layers(subject: str) -> List[str]:
     subject_text = clean_text(subject)
     if not subject_text:
         return []
-    layers = [
-        f"primary subject: {subject_text}",
-        "the primary subject must be clear, centered, and recognizable",
-    ]
+    layers = [f"exact subject: {subject_text}", "clear recognizable main subject"]
     layers.extend(extract_visual_constraints(subject_text))
     return layers
 
@@ -2810,8 +2885,8 @@ def image_exact_match_layers(subject: str) -> List[str]:
         return []
     lower = clean_text(subject).lower()
     layers = [
-        "match the user's requested subject exactly",
-        "preserve requested objects, characters, colors, count, pose, clothing, setting, mood, and composition",
+        "match the request exactly",
+        "preserve objects, characters, colors, count, pose, clothing, setting, mood, and composition",
         "do not replace the subject with a generic alternative",
     ]
     if re.search(r"\b(no text|without text|no words|textless|wordless)\b", lower):
@@ -2842,16 +2917,7 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
         "sketch": "concept sketch",
     }
     subject = style_only_subjects.get(subject.lower(), subject)
-    if not (enhance if enhance is not None else IMAGE_PROMPT_ENHANCE):
-        return clean_text(", ".join(part for part in image_subject_priority_layers(subject) + image_exact_match_layers(subject) + ([style_text] if style_text else [])))[:900]
-
     lower = f"{subject}, {style_text}".lower()
-    additions = []
-    additions.extend(image_subject_priority_layers(subject))
-    additions.extend(image_exact_match_layers(subject))
-    if style_text:
-        additions.append(style_text)
-    additions.extend(image_power_prompt_layers(subject, style_text))
     is_logo_like = re.search(r"\b(logo|icon|brand mark|vector mark)\b", lower)
     is_poster_like = re.search(r"\b(poster|flyer|banner|cover)\b", lower)
     is_anime_like = re.search(r"\b(anime|manga|manhwa|naruto|sasuke|gojo|luffy|kakashi)\b", lower)
@@ -2860,57 +2926,58 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
         r"\b(portrait|face|headshot|selfie|girl|boy|woman|man|person|character|eyes|close[- ]?up)\b",
         lower,
     )
-    if is_anime_like and is_portrait_like:
-        additions.extend([
-            "clean close-up portrait framing",
-            "luminous detailed eyes",
-            "natural skin shading",
-            "soft sunlight and rim light",
-            "crisp hair detail",
-            "smooth painterly rendering",
-        ])
-    elif is_anime_like:
-        additions.extend([
-            "clean anime illustration",
-            "polished painterly rendering",
-            "cinematic lighting",
-            "crisp subject edges",
-        ])
-    elif is_photo_like and is_portrait_like:
-        additions.extend([
-            "realistic portrait lighting",
-            "natural skin texture",
-            "sharp facial detail",
-            "clean background separation",
-        ])
-    elif not is_logo_like and not is_poster_like:
-        additions.append("clean professional finish")
-    if not re.search(r"\b(close[- ]?up|wide shot|portrait|landscape|top view|isometric|centered|composition)\b", lower):
-        additions.append("clear composition")
-    if not re.search(r"\b(light|lighting|sunset|night|daylight|studio|cinematic)\b", lower):
-        additions.append("balanced lighting")
-    if not re.search(r"\b(detail|detailed|minimal|simple|clean)\b", lower):
-        additions.append("high detail")
-    if not re.search(r"\b(blurry|low quality|bad quality)\b", lower):
-        additions.append("sharp focus")
 
-    final_parts = []
+    should_enhance = enhance if enhance is not None else IMAGE_PROMPT_ENHANCE
+    must = image_subject_priority_layers(subject) + image_exact_match_layers(subject)
+    quality = []
+    if should_enhance:
+        if style_text:
+            quality.append(f"style: {style_text}")
+        quality.extend(image_power_prompt_layers(subject, style_text))
+        if is_anime_like and is_portrait_like:
+            quality.extend(["close portrait framing", "luminous detailed eyes", "soft sunlight", "crisp hair detail"])
+        elif is_anime_like:
+            quality.extend(["clean anime illustration", "cinematic lighting", "crisp subject edges"])
+        elif is_photo_like and is_portrait_like:
+            quality.extend(["realistic portrait lighting", "natural skin texture", "sharp facial detail", "clean background separation"])
+        elif not is_logo_like and not is_poster_like:
+            quality.append("clean professional finish")
+        if not re.search(r"\b(close[- ]?up|wide shot|portrait|landscape|top view|isometric|centered|composition)\b", lower):
+            quality.append("clear composition")
+        if not re.search(r"\b(light|lighting|sunset|night|daylight|studio|cinematic)\b", lower):
+            quality.append("balanced lighting")
+        if not re.search(r"\b(detail|detailed|minimal|simple|clean)\b", lower):
+            quality.append("high detail")
+        quality.append("sharp focus")
+    elif style_text:
+        quality.append(f"style: {style_text}")
+
+    avoid = extract_prompt_exclusions(subject)
+    final_parts = [subject]
+    if must:
+        final_parts.append("must: " + "; ".join(must[:8]))
+    if quality:
+        final_parts.append("quality: " + "; ".join(quality[:10]))
+    if avoid:
+        final_parts.append("avoid: " + ", ".join(avoid))
+
+    compact_parts = []
     seen_parts = set()
-    for part in [subject] + additions:
+    for part in final_parts:
         cleaned = clean_text(part)
         if not cleaned:
             continue
         key = cleaned.lower()
-        current_text = " ".join(final_parts).lower()
+        current_text = " ".join(compact_parts).lower()
         if key in seen_parts or key in current_text:
             continue
         seen_parts.add(key)
-        final_parts.append(cleaned)
-    final_prompt = ", ".join(final_parts)
-    return clean_text(final_prompt)[:900]
+        compact_parts.append(cleaned)
+    final_prompt = ". ".join(compact_parts)
+    return trim_image_prompt(final_prompt)
 
 
-def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[str] = None) -> str:
+def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[str] = None, subject: str = "") -> str:
     raw_style = clean_text(style or "").lower()
     base_items = [
         "wrong subject",
@@ -2953,7 +3020,7 @@ def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[
     else:
         base_items.extend(["photo background", "complex texture", "tiny unreadable text"])
     extra = clean_text(negative_prompt or "")
-    items = base_items + [item.strip() for item in extra.split(",") if item.strip()]
+    items = base_items + extract_prompt_exclusions(subject) + [item.strip() for item in extra.split(",") if item.strip()]
     deduped = []
     seen = set()
     for item in items:
@@ -3738,7 +3805,9 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "Presentation planner:",
         f"- Preferred format: {style}",
         "- Choose the clearest format automatically; do not mention this planner.",
-        "- Open with the answer itself. Do not open with meta phrases like 'Here is' or 'Based on your question'.",
+        "- Nexora answer structure: direct answer first, short explanation, important details/examples, sources or links if needed, then a useful next step only when it genuinely helps.",
+        "- Keep the output simple, smart, natural, and clean. Avoid robotic wording, over-formatting, giant walls of text, and generic filler.",
+        "- Open with the answer itself. Do not open with meta phrases like 'Here is', 'Based on your question', or 'I can help'.",
         "- Default serious-answer blueprint: one compact lead paragraph, then short sections only if they help.",
         "- Use this section order for explainers: 'Short answer:', 'Key points:', 'Why it matters:' or 'How it works:', then 'Bottom line:'.",
         "- Use this section order for how-to/planning tasks: 'Short answer:', concrete steps or workflow, optional checklist, then 'Bottom line:'.",
@@ -3751,7 +3820,8 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "- Use a diagram or flow only for processes, cycles, systems, architecture, or cause-and-effect relationships.",
         "- Put exactly one blank line between major sections. Avoid giant text blocks and avoid bullet dumping.",
         "- Bullets should be parallel, compact, and meaningful. Numbered lists are for ordered steps only.",
-        "- Do not add follow-up suggestions, extra prompts, or generic closing questions after the answer.",
+        "- Add a 'Next step:' only when the user is likely trying to act, build, study, choose, or continue a workflow.",
+        "- Do not add generic closing questions after the answer.",
         "- End once the answer is complete.",
         "- Do not force tables, charts, or diagrams into normal conversation.",
     ]
@@ -3806,10 +3876,20 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
 
 def build_response_lane_context(user_message: str, use_research: bool) -> str:
     lane = classify_response_lane(user_message, use_research)
+    lower_message = clean_text(user_message).lower()
     base = [
         "Adaptive response lane:",
         f"- Lane: {lane}",
     ]
+    base.extend([
+        "- Tone adaptation map:",
+        "  - School question: exam-style, clear definitions, key terms, examples, and a simple final takeaway.",
+        "  - Coding: developer assistant; be precise, practical, test-aware, and code-first when useful.",
+        "  - Research: Perplexity-style synthesis with citations and uncertainty handling.",
+        "  - Creative: Claude-style prose with rhythm, clarity, and emotional intelligence.",
+        "  - Business: strategic, sharp, concise, and action-oriented.",
+        "  - Casual: conversational, warm, and light without becoming sloppy.",
+    ])
     if lane == "writing":
         base.extend([
             "- Write with Claude-like smoothness: composed, natural, elegant, and easy to read.",
@@ -3820,12 +3900,23 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
             "- Match the relationship and situation: respectful for teachers/officials, warm for personal messages, concise for business.",
             "- Avoid overexplaining the draft unless the user asks for notes or alternatives.",
         ])
+        if re.search(r"\b(story|poem|creative|scene|dialogue|emotional|beautiful|smooth|letter|personal)\b", lower_message):
+            base.extend([
+                "- Creative writing mode: use natural rhythm, emotional clarity, and vivid but controlled wording.",
+                "- Avoid generic motivational filler; make the wording feel intentional.",
+            ])
     elif lane == "realtime_search":
         base.extend([
             "- Use Perplexity-style search synthesis: answer first, then key evidence, then compact context.",
             "- Use inline citations like [1] and [2] for claims based on sources.",
             "- Compare sources when they disagree. State uncertainty clearly instead of forcing a confident answer.",
             "- Do not dump raw source lists; the app renders source cards separately.",
+        ])
+    elif lane == "build":
+        base.extend([
+            "- Use developer-assistant mode: identify the bug or goal, give the concrete fix, and mention verification.",
+            "- Prefer commands, filenames, and code snippets when they help. Keep explanations short and accurate.",
+            "- If the task is implementation, give steps in execution order and avoid vague advice.",
         ])
     elif lane == "human_chat":
         base.extend([
@@ -3848,6 +3939,7 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
     elif lane == "planning":
         base.extend([
             "- Understand the user's real goal, then turn it into a practical action plan.",
+            "- Business or workflow mode: be strategic, sharp, and action-oriented. State tradeoffs plainly.",
             "- Avoid generic templates like 'break it into small steps' unless followed by domain-specific steps.",
             "- Start with the best first move, then give a concrete workflow, checklist, or timeline.",
             "- If the request is vague but still answerable, make a reasonable assumption and state it briefly.",
@@ -5720,9 +5812,18 @@ Style:
 - Start with the useful answer, not a preface.
 - Sound warm, intelligent, and natural, like a capable teammate sitting beside the user.
 - Keep the tone professional, calm, and polished: no hype, no messy phrasing, no overuse of emojis.
+- Do not sound robotic, over-formatted, generic, or like a wall of text.
 - Behave like a real assistant inside the app: infer the user's practical intent, adapt to saved preferences, be proactive with the next useful step, and ask a short clarifying question only when guessing would be risky.
 - Think before answering: identify what the user really wants, decide whether stable knowledge, memory, file context, image context, or web evidence is needed, then choose the shortest reliable answer path.
 - Do research by default only when accuracy needs it. Do not slow down simple questions with unnecessary web context.
+- Use this default structure when it fits: direct answer first, short explanation, important details or examples, sources or links if needed, and a practical next step only when useful.
+- Tone adaptation:
+  - School question: exam-style, clear, keyword-rich, and easy to revise.
+  - Coding: developer-assistant style with concrete fixes, file paths, commands, tests, and tradeoffs.
+  - Research: Perplexity-style, source-backed, careful with uncertainty.
+  - Creative: Claude-style writing with rhythm, clarity, and emotional intelligence.
+  - Business: strategic, sharp, concise, and action-oriented.
+  - Casual: conversational, warm, and simple.
 - For letters, emails, applications, notices, proposals, and personal messages, write with smooth, graceful, human prose that is ready to send.
 - For everyday chat, use ChatGPT-like structure and behavior: conversational, emotionally aware, practical, and easy to scan without sounding scripted.
 - For current or searched facts, use Perplexity-like synthesis: cite evidence, compare sources when needed, and separate facts from uncertainty.
@@ -5763,7 +5864,7 @@ Style:
 - Avoid stiff phrases like "It is important to note", "In conclusion", "As an AI", "Based on your query", and "Here is the answer".
 - Use short paragraphs, crisp bullets, or small tables when they improve clarity.
 - Keep casual answers concise; expand only when the task genuinely needs depth.
-- Do not add follow-up suggestions, extra prompts, or generic closing questions after the answer. The only exception is reflective human chat, where one natural curiosity question may be useful.
+- Add a short "Next step:" only when the answer naturally leads to action, study, coding, research, business, or workflow progress. Do not add generic closing questions. The only exception is reflective human chat, where one natural curiosity question may be useful.
 - End once the answer is complete.
 - Never write "Direct Answer" or expose backend/system details.
 - Do not output raw LaTeX delimiters like \[...\] unless the user explicitly asks for LaTeX. For equations, prefer readable plain text such as "6 CO2 + 6 H2O -> C6H12O6 + 6 O2" or simple Unicode subscripts when possible.
@@ -6689,7 +6790,7 @@ def execute_agent_action_from_chat(
         prompt = strip_image_command(text)
         style = infer_image_style(text, "auto", user_id)
         enhanced = enhance_image_prompt(prompt, style, True)
-        negative = build_image_negative_prompt("", style)
+        negative = build_image_negative_prompt("", style, prompt)
         image_size = infer_image_size(text, IMAGE_DEFAULT_SIZE, style)
         url, width, height = build_image_url(enhanced, image_size, negative, user_id)
         artifact = create_artifact(
@@ -7246,7 +7347,7 @@ def generate_image(req: ImageRequest) -> ImageResponse:
     original_prompt = strip_image_command(req.prompt)
     style = infer_image_style(req.prompt, req.style, user_id)
     enhanced_prompt = enhance_image_prompt(original_prompt, style, req.enhance)
-    negative_prompt = build_image_negative_prompt(req.negative_prompt, style)
+    negative_prompt = build_image_negative_prompt(req.negative_prompt, style, original_prompt)
     image_size = infer_image_size(req.prompt, req.size, style)
     width, height = parse_image_size(image_size)
     size_label = f"{width}x{height}"
