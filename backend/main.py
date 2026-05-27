@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.48.0-smart-source-synthesis"
+APP_VERSION = "8.49.0-fast-writing-image-precision"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -811,45 +811,182 @@ def build_fathers_day_essay(length: str = "balanced") -> str:
     )
 
 
-def build_generic_writing(topic: str, kind: str = "essay", length: str = "balanced") -> str:
-    topic_lower = topic.lower()
-    if length == "short" or kind == "paragraph":
+def writing_topic_frame(topic: str) -> Dict[str, str]:
+    lower = topic.lower()
+    core_match = re.match(r"(?i)^(?:importance|value|role|benefits?)\s+of\s+(.+)$", topic.strip())
+    core_topic = title_case_topic(core_match.group(1)) if core_match else topic
+    core_lower = core_topic.lower()
+    if re.search(r"\b(environment|pollution|climate|nature|tree|water|air|earth|plastic)\b", lower):
+        return {
+            "thesis": f"The importance of {core_lower} comes from its direct effect on health, nature, and the quality of life for future generations.",
+            "human": "It is not only a science topic; it is connected to the air people breathe, the water they drink, and the places they call home.",
+            "detail": "Small daily choices, responsible public action, and better awareness can reduce damage and create cleaner surroundings.",
+            "action": "The real solution begins when people treat protection of nature as a shared responsibility, not someone else's problem.",
+        }
+    if re.search(r"\b(ai|artificial intelligence|technology|internet|computer|mobile|digital|robot|science)\b", lower):
+        return {
+            "thesis": f"The importance of {core_lower} comes from the way it changes how people learn, work, communicate, and solve problems.",
+            "human": "Its value depends on how wisely people use it, because powerful tools can help society only when they are guided by human judgment.",
+            "detail": "Technology can save time, improve access to knowledge, and create new opportunities, but it also demands responsibility and balance.",
+            "action": "The best approach is to use it as a support for clear thinking, not as a replacement for effort, creativity, or values.",
+        }
+    if re.search(r"\b(education|school|student|teacher|learning|knowledge|study|exam|discipline)\b", lower):
+        return {
+            "thesis": f"The importance of {core_lower} lies in the way it builds knowledge, confidence, discipline, and the ability to make better choices.",
+            "human": "True learning is not only about marks or memorizing facts; it is about understanding life more clearly.",
+            "detail": "A good education develops curiosity, patience, communication, and the courage to solve difficult problems.",
+            "action": "When learning becomes connected with real life, it helps a person grow in both skill and character.",
+        }
+    if re.search(r"\b(independence|republic|india|nation|country|freedom|patriotism)\b", lower):
+        return {
+            "thesis": f"The importance of {core_lower} is that it reminds people of responsibility, unity, sacrifice, and respect for the nation.",
+            "human": "It connects the present generation with the struggles and hopes of those who worked for a better future.",
+            "detail": "National progress depends not only on leaders, but also on citizens who act with honesty, discipline, and care for others.",
+            "action": "The strongest form of respect is to contribute through good actions, awareness, and responsible citizenship.",
+        }
+    if re.search(r"\b(friendship|family|kindness|honesty|discipline|respect|responsibility|time|success|hard work)\b", lower):
+        return {
+            "thesis": f"The importance of {core_lower} is seen in how it shapes character and influences the way people treat others.",
+            "human": "Its importance is often seen in ordinary moments: choices, relationships, habits, and the way people respond to difficulty.",
+            "detail": "A strong value becomes meaningful when it is practiced consistently, not only spoken about in good words.",
+            "action": "Real growth begins when a person turns the idea into daily action.",
+        }
+    return {
+        "thesis": f"The importance of {core_lower} is that it helps people understand life, choices, and the world around them more clearly.",
+        "human": "A good understanding of this subject connects knowledge with real situations instead of keeping it as a memorized idea.",
+        "detail": "It encourages awareness, better judgment, and the ability to look at a problem from more than one side.",
+        "action": "The topic becomes truly useful when it is explained simply and applied thoughtfully in daily life.",
+    }
+
+
+def writing_sentence_subject(topic: str) -> str:
+    core_match = re.match(r"(?i)^(?:importance|value|role|benefits?)\s+of\s+(.+)$", topic.strip())
+    if core_match:
+        lead_word = clean_text(topic).split(" ", 1)[0].lower()
+        if lead_word == "benefits":
+            return "The benefits of " + title_case_topic(core_match.group(1)).lower()
+        return f"The {lead_word} of " + title_case_topic(core_match.group(1)).lower()
+    return topic
+
+
+def build_polished_paragraph(topic: str, length: str) -> str:
+    frame = writing_topic_frame(topic)
+    subject = writing_sentence_subject(topic)
+    if length == "long":
         return (
-            f"{topic} is an important subject because it helps us understand the world more clearly. "
-            f"It shows why ideas, values, and actions matter in daily life. When we think about {topic_lower}, "
-            "we learn to connect knowledge with real situations and make better choices.\n\n"
-            "Bottom line:\n"
-            f"{topic} becomes meaningful when we understand it clearly and use that understanding in life."
+            f"{subject} is meaningful because it affects the way people think, act, and understand the world. "
+            f"{frame['thesis']} {frame['human']} {frame['detail']} {frame['action']}"
+        )
+    return (
+        f"{subject} is meaningful because it helps people think more clearly and act more responsibly. "
+        f"{frame['thesis']} {frame['action']}"
+    )
+
+
+def build_polished_essay(topic: str, length: str) -> str:
+    frame = writing_topic_frame(topic)
+    title = f"Title: {topic}"
+    if length == "short":
+        return (
+            f"{title}\n\n"
+            f"{frame['thesis']} {frame['human']}\n\n"
+            f"{frame['detail']}\n\n"
+            "Conclusion:\n"
+            f"{frame['action']}"
         )
     if length == "long":
         return (
-            f"{topic} is an important subject because it helps us think more clearly about life, society, and human values. "
-            f"When we study {topic_lower}, we do not only learn facts. We also learn how those facts connect with real people, "
-            "real problems, and real choices.\n\n"
-            f"One of the main reasons {topic_lower} matters is that it shapes the way people understand the world around them. "
-            "A good understanding of this topic can build awareness, responsibility, and better judgment. It can also help us "
-            "see the difference between surface-level knowledge and true understanding.\n\n"
-            f"In daily life, {topic_lower} can influence our thoughts, habits, and decisions. It teaches us to look beyond simple "
-            "answers and think about causes, effects, and consequences. This makes learning more useful because it becomes connected "
-            "to practical life.\n\n"
-            "Another important point is that every subject becomes stronger when we explain it in simple language. Clear thinking "
-            "is more powerful than complicated wording. A well-written answer should help the reader understand the idea step by step, "
-            "without confusion or unnecessary detail.\n\n"
-            f"Overall, {topic_lower} is valuable because it encourages learning, reflection, and better action. It reminds us that "
-            "education is not only about memorizing information, but also about understanding meaning and applying it wisely.\n\n"
-            "Bottom line:\n"
-            f"{topic} becomes truly useful when we understand it clearly, connect it with real life, and explain it in a simple, thoughtful way."
+            f"{title}\n\n"
+            f"{frame['thesis']} It deserves thoughtful attention because it is connected with real life, human behavior, "
+            "and the choices people make every day.\n\n"
+            f"{frame['human']} This is why the topic should not be understood only in a bookish way. It becomes clearer when "
+            "we connect it with daily experiences, personal responsibility, and the needs of society.\n\n"
+            f"{frame['detail']} A clear understanding of the topic helps people avoid careless thinking and make wiser decisions. "
+            "It also encourages discipline, awareness, and respect for consequences.\n\n"
+            "Another important point is that strong ideas become useful only when they are put into practice. Words are easy, "
+            "but steady action shows real understanding. When people apply the lesson in ordinary situations, the topic becomes "
+            "part of character, not just information.\n\n"
+            "Conclusion:\n"
+            f"{frame['action']} In this way, {topic.lower()} becomes more than a subject to write about; it becomes a guide for "
+            "clearer thinking and better living."
         )
     return (
-        f"{topic} is an important subject because it helps us understand values, responsibility, and the world around us. "
-        f"When we think about {topic_lower}, we learn not only facts, but also the meaning behind them.\n\n"
-        f"One of the main reasons {topic_lower} matters is that it affects people's thoughts, choices, and actions. "
-        "It can teach discipline, kindness, awareness, and better decision-making, depending on the situation.\n\n"
-        f"In daily life, {topic_lower} reminds us that learning is not only about memorizing information. "
-        "It is also about understanding ideas clearly and using them in the right way.\n\n"
-        "Bottom line:\n"
-        f"{topic} becomes valuable when we understand it clearly and connect it with real life."
+        f"{title}\n\n"
+        f"{frame['thesis']} It deserves attention because it is connected with real life and human understanding.\n\n"
+        f"{frame['human']} This makes the topic useful for students, families, and society because it teaches people to think "
+        "beyond simple answers.\n\n"
+        f"{frame['detail']}\n\n"
+        "Conclusion:\n"
+        f"{frame['action']}"
     )
+
+
+def build_polished_speech(topic: str, length: str) -> str:
+    frame = writing_topic_frame(topic)
+    middle = (
+        f"{frame['thesis']}\n\n"
+        f"{frame['human']} {frame['detail']}\n\n"
+    )
+    if length == "short":
+        middle = f"{frame['thesis']} {frame['action']}\n\n"
+    elif length == "long":
+        middle += (
+            "We often understand important ideas only when they touch our own lives. That is why this topic should make us "
+            "pause, think, and act with more responsibility.\n\n"
+        )
+    return (
+        "Good morning everyone,\n\n"
+        f"Today, I would like to speak about {topic.lower()}.\n\n"
+        f"{middle}"
+        f"{frame['action']}\n\n"
+        "Thank you."
+    )
+
+
+def build_polished_article(topic: str, length: str) -> str:
+    frame = writing_topic_frame(topic)
+    if length == "short":
+        return (
+            f"{topic}: Why It Matters\n\n"
+            f"{frame['thesis']} {frame['human']}\n\n"
+            f"{frame['action']}"
+        )
+    return (
+        f"{topic}: Why It Matters\n\n"
+        f"{frame['thesis']} {frame['human']}\n\n"
+        f"{frame['detail']}\n\n"
+        f"In practice, the value of {topic.lower()} depends on awareness and action. {frame['action']}"
+    )
+
+
+def build_polished_note(topic: str, length: str) -> str:
+    frame = writing_topic_frame(topic)
+    points = [
+        frame["thesis"],
+        frame["human"],
+        frame["detail"],
+        frame["action"],
+    ]
+    if length == "short":
+        points = [points[0], points[-1]]
+    return "\n".join([
+        f"Notes on {topic}:",
+        "",
+        *[f"- {point}" for point in points],
+    ])
+
+
+def build_generic_writing(topic: str, kind: str = "essay", length: str = "balanced") -> str:
+    normalized_kind = normalize_person_kind(kind) if kind in {"articles", "notes"} else clean_text(kind).lower()
+    if normalized_kind in {"paragraph"} or length == "short" and normalized_kind == "writing":
+        return build_polished_paragraph(topic, length)
+    if normalized_kind == "speech":
+        return build_polished_speech(topic, length)
+    if normalized_kind == "article":
+        return build_polished_article(topic, length)
+    if normalized_kind in {"note", "notes"}:
+        return build_polished_note(topic, length)
+    return build_polished_essay(topic, length)
 
 
 def local_writing_reply(message: str, session_id: Optional[str] = None) -> Optional[str]:
@@ -2525,13 +2662,33 @@ def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
 
 def strip_image_command(prompt: str) -> str:
     text = clean_text(prompt)
-    text = re.sub(
-        r"^(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|with|about|:)?\s*",
-        "",
+    match = re.match(
+        r"^(?:please\s+)?(?:create|generate|make|draw)\s+(?:an?\s+)?"
+        r"(?P<type>image|picture|photo|art|poster|logo|icon|thumbnail|banner|wallpaper)"
+        r"\s*(?:of|for|with|about|:)?\s*(?P<rest>.*)$",
         text,
         flags=re.IGNORECASE,
     )
-    return clean_text(text) or clean_text(prompt)
+    if not match:
+        return text
+    visual_type = clean_text(match.group("type")).lower()
+    rest = clean_text(match.group("rest"))
+    if visual_type in {"poster", "logo", "icon", "thumbnail", "banner", "wallpaper", "photo"} and visual_type not in rest.lower():
+        rest = clean_text(f"{rest} {visual_type}")
+    return rest or text
+
+
+def infer_image_size(prompt: str, requested_size: Optional[str], style: str) -> str:
+    raw_size = clean_text(requested_size or "")
+    lower = clean_text(prompt).lower()
+    default_size = clean_text(IMAGE_DEFAULT_SIZE)
+    if raw_size and raw_size != default_size:
+        return raw_size
+    if re.search(r"\b(wallpaper|banner|wide|landscape|youtube thumbnail|cover)\b", lower):
+        return "landscape"
+    if re.search(r"\b(portrait|profile picture|pfp|headshot|close[- ]?up|phone wallpaper)\b", lower):
+        return "portrait"
+    return raw_size or default_size or "fast"
 
 
 def normalize_image_style(style: Optional[str]) -> str:
@@ -2550,6 +2707,41 @@ def normalize_image_style(style: Optional[str]) -> str:
         "sketch": "clean concept sketch, expressive lines, clear subject",
     }
     return presets.get(raw, clean_text(style or ""))
+
+
+def extract_visual_constraints(subject: str) -> List[str]:
+    lower = clean_text(subject).lower()
+    constraints: List[str] = []
+    count_match = re.search(r"\b(one|two|three|four|five|single|solo|pair of|group of \d+|\d+)\b", lower)
+    if count_match:
+        constraints.append(f"respect the requested count: {count_match.group(0)}")
+    color_words = re.findall(
+        r"\b(red|blue|green|yellow|black|white|gold|golden|silver|purple|pink|orange|brown|grey|gray|cyan|teal)\b",
+        lower,
+    )
+    if color_words:
+        constraints.append("preserve requested colors: " + ", ".join(dict.fromkeys(color_words)))
+    if re.search(r"\b(no|without|exclude|avoid)\b", lower):
+        constraints.append("follow all exclusions exactly")
+    if re.search(r"\b(front view|side view|top view|low angle|high angle|close[- ]?up|wide shot|full body|half body)\b", lower):
+        constraints.append("preserve the requested camera angle and framing")
+    if re.search(r"\b(smiling|angry|sad|serious|calm|happy|dark|cute|scary|epic|peaceful)\b", lower):
+        constraints.append("preserve the requested mood and expression")
+    if re.search(r"\b(classroom|city|forest|space|beach|mountain|street|room|temple|school|office)\b", lower):
+        constraints.append("preserve the requested setting")
+    return constraints
+
+
+def image_subject_priority_layers(subject: str) -> List[str]:
+    subject_text = clean_text(subject)
+    if not subject_text:
+        return []
+    layers = [
+        f"primary subject: {subject_text}",
+        "the primary subject must be clear, centered, and recognizable",
+    ]
+    layers.extend(extract_visual_constraints(subject_text))
+    return layers
 
 
 def image_power_prompt_layers(subject: str, style_text: str) -> List[str]:
@@ -2618,11 +2810,13 @@ def image_exact_match_layers(subject: str) -> List[str]:
         return []
     lower = clean_text(subject).lower()
     layers = [
-        "exactly match the user's requested subject",
-        "preserve all requested objects, characters, colors, count, pose, clothing, setting, mood, and composition",
+        "match the user's requested subject exactly",
+        "preserve requested objects, characters, colors, count, pose, clothing, setting, mood, and composition",
         "do not replace the subject with a generic alternative",
     ]
-    if re.search(r"\b(text|word|title|logo|sign|label|lettering)\b", lower):
+    if re.search(r"\b(no text|without text|no words|textless|wordless)\b", lower):
+        layers.append("no readable text or lettering")
+    elif re.search(r"\b(text|word|title|logo|sign|label|lettering)\b", lower):
         layers.append("include only the text explicitly requested by the user")
     else:
         layers.append("no random text")
@@ -2649,10 +2843,11 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
     }
     subject = style_only_subjects.get(subject.lower(), subject)
     if not (enhance if enhance is not None else IMAGE_PROMPT_ENHANCE):
-        return clean_text(", ".join(part for part in [subject] + image_exact_match_layers(subject) + ([style_text] if style_text else [])))[:900]
+        return clean_text(", ".join(part for part in image_subject_priority_layers(subject) + image_exact_match_layers(subject) + ([style_text] if style_text else [])))[:900]
 
     lower = f"{subject}, {style_text}".lower()
     additions = []
+    additions.extend(image_subject_priority_layers(subject))
     additions.extend(image_exact_match_layers(subject))
     if style_text:
         additions.append(style_text)
@@ -2719,9 +2914,14 @@ def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[
     raw_style = clean_text(style or "").lower()
     base_items = [
         "wrong subject",
+        "generic subject",
+        "subject mismatch",
         "missing requested details",
         "changed character",
         "changed colors",
+        "wrong count",
+        "wrong pose",
+        "wrong setting",
         "extra unwanted objects",
         "low quality",
         "low resolution",
@@ -2808,6 +3008,7 @@ def infer_image_style(prompt: str, requested_style: Optional[str], user_id: str)
         return style
     text = clean_text(prompt).lower()
     style_patterns = [
+        ("anime-realistic", r"\b(anime[- ]?realistic|realistic anime|semi[- ]?realistic anime)\b"),
         ("anime", r"\b(anime|manga|sasuke|naruto|kakashi|gojo|luffy)\b"),
         ("realistic", r"\b(realistic|real life|photo|photoreal|photorealistic)\b"),
         ("cinematic", r"\b(cinematic|movie|dramatic|film)\b"),
@@ -6098,6 +6299,8 @@ def ensure_terminal_punctuation(text: str, allow_colon: bool = False, allow_comm
     if not stripped:
         return stripped
 
+    if re.match(r"(?i)^(title|subject|topic):\s+\S", stripped):
+        return stripped
     if re.search(r"(`|\]|\)|\}|[.!?])$", stripped):
         return stripped
     if allow_colon and stripped.endswith(":"):
@@ -6484,10 +6687,11 @@ def execute_agent_action_from_chat(
 
     if re.search(r"\b(create|generate|make|draw|give me)\b", lower) and re.search(r"\b(image|picture|photo|art|poster|logo|wallpaper)\b", lower):
         prompt = strip_image_command(text)
-        style = infer_image_style(prompt, "auto", user_id)
+        style = infer_image_style(text, "auto", user_id)
         enhanced = enhance_image_prompt(prompt, style, True)
         negative = build_image_negative_prompt("", style)
-        url, width, height = build_image_url(enhanced, IMAGE_DEFAULT_SIZE, negative, user_id)
+        image_size = infer_image_size(text, IMAGE_DEFAULT_SIZE, style)
+        url, width, height = build_image_url(enhanced, image_size, negative, user_id)
         artifact = create_artifact(
             title=prompt[:70] or "Generated image",
             artifact_type="Image",
@@ -7040,10 +7244,11 @@ def generate_image(req: ImageRequest) -> ImageResponse:
     if req.session_id:
         bind_session_user(ensure_session(req.session_id), user_id)
     original_prompt = strip_image_command(req.prompt)
-    style = infer_image_style(original_prompt, req.style, user_id)
+    style = infer_image_style(req.prompt, req.style, user_id)
     enhanced_prompt = enhance_image_prompt(original_prompt, style, req.enhance)
     negative_prompt = build_image_negative_prompt(req.negative_prompt, style)
-    width, height = parse_image_size(req.size)
+    image_size = infer_image_size(req.prompt, req.size, style)
+    width, height = parse_image_size(image_size)
     size_label = f"{width}x{height}"
     cached_item = find_cached_image(user_id, enhanced_prompt, size_label, negative_prompt)
     if cached_item:
@@ -7075,7 +7280,7 @@ def generate_image(req: ImageRequest) -> ImageResponse:
             created_at=str(cached_item.get("created_at") or now_iso()),
         )
 
-    url, width, height = build_image_url(enhanced_prompt, req.size, negative_prompt, user_id)
+    url, width, height = build_image_url(enhanced_prompt, image_size, negative_prompt, user_id)
     size_label = f"{width}x{height}"
     artifact = create_artifact(
         title=original_prompt[:70] or "Generated image",
