@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import html as html_lib
 import json
+import logging
 import os
 import re
 import threading
@@ -16,10 +17,10 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import requests
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -89,11 +90,11 @@ OLLAMA_KEEP_ALIVE = os.getenv("NEXORA_OLLAMA_KEEP_ALIVE", "10m").strip()
 
 FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
-POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "openai").strip()
+POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
-POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "10"))
-POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "7"))
-POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "4"))
+POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "18"))
+POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "14"))
+POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "8"))
 POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -106,31 +107,31 @@ HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
 REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "45"))
 SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "8"))
-MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "850"))
+MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "1600"))
 INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "30"))
 THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "45"))
 FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
-FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "2600"))
-FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "2600"))
-FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "6"))
+FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "4200"))
+FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "5200"))
+FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "12"))
 POLLINATIONS_QUALITY_GUARD = os.getenv("NEXORA_POLLINATIONS_QUALITY_GUARD", "true").strip().lower() not in {"0", "false", "off", "no"}
 AUTONOMOUS_RESEARCH_ENABLED = os.getenv("NEXORA_AUTONOMOUS_RESEARCH", "true").strip().lower() not in {"0", "false", "off", "no"}
 AUTONOMOUS_RESEARCH_MAX_RESULTS = max(1, min(int(os.getenv("NEXORA_AUTONOMOUS_RESEARCH_MAX_RESULTS", "2")), 3))
-MAX_HISTORY_MESSAGES = 5
+MAX_HISTORY_MESSAGES = 8
 MAX_SESSION_MESSAGES = int(os.getenv("NEXORA_MAX_SESSION_MESSAGES", "240"))
 MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
 MAX_MEMORY_ITEMS = int(os.getenv("NEXORA_MAX_MEMORY_ITEMS", "600"))
-MAX_MEMORY_CONTEXT_ITEMS = int(os.getenv("NEXORA_MAX_MEMORY_CONTEXT_ITEMS", "18"))
-MAX_MEMORY_CONTEXT_CHARS = int(os.getenv("NEXORA_MEMORY_CONTEXT_CHARS", "4200"))
+MAX_MEMORY_CONTEXT_ITEMS = int(os.getenv("NEXORA_MAX_MEMORY_CONTEXT_ITEMS", "24"))
+MAX_MEMORY_CONTEXT_CHARS = int(os.getenv("NEXORA_MEMORY_CONTEXT_CHARS", "6200"))
 MAX_IMAGE_MEMORY_ITEMS = int(os.getenv("NEXORA_MAX_IMAGE_MEMORY_ITEMS", "600"))
 MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = int(os.getenv("NEXORA_RESPONSE_CACHE_TTL", "600"))
 RESPONSE_CACHE_MAX = int(os.getenv("NEXORA_RESPONSE_CACHE_MAX", "180"))
-LOCAL_WRITING_FAST = os.getenv("NEXORA_LOCAL_WRITING_FAST", "true").strip().lower() not in {"0", "false", "off", "no"}
+LOCAL_WRITING_FAST = os.getenv("NEXORA_LOCAL_WRITING_FAST", "false").strip().lower() not in {"0", "false", "off", "no"}
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
 IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
 IMAGE_BASE_URL = os.getenv("NEXORA_IMAGE_BASE_URL", "https://image.pollinations.ai/prompt").strip().rstrip("/")
@@ -146,6 +147,10 @@ HTTP = requests.Session()
 RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
 POLLINATIONS_LOCK = threading.Lock()
 JSON_WRITE_LOCK = threading.RLock()
+PROVIDER_COOLDOWNS: Dict[str, float] = {}
+LOG_LEVEL = os.getenv("NEXORA_LOG_LEVEL", "INFO").strip().upper() or "INFO"
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+LOGGER = logging.getLogger("nexora")
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -163,6 +168,36 @@ async def add_private_network_header(request, call_next):
     response = await call_next(request)
     response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
+
+
+@app.exception_handler(Exception)
+async def runtime_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    LOGGER.exception("Unhandled backend error on %s %s", request.method, request.url.path)
+    if request.url.path.startswith("/chat"):
+        return JSONResponse(
+            status_code=200,
+            content={
+                "reply": (
+                    "I hit a temporary backend problem while answering, but the app is still running. "
+                    "Try the same message once more; if it keeps happening, send a shorter version and I will recover from there."
+                ),
+                "session_id": ensure_session(None),
+                "mode": "agent",
+                "model_used": "nexora_runtime_guard",
+                "sources": [],
+                "tools_used": ["runtime_guard"],
+                "created_at": now_iso(),
+            },
+        )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "ok": False,
+            "error": "temporary_backend_error",
+            "message": "The backend caught an unexpected error and stayed online.",
+            "path": request.url.path,
+        },
+    )
 
 
 class ChatMessage(BaseModel):
@@ -677,7 +712,11 @@ def local_reflective_reply(message: str) -> Optional[str]:
         return None
     if not re.search(r"\b(powerful|power|best|better|good|useful|trust|trusted|trustworthy|safe|safety|dangerous|wisdom|intelligent|smart|human|understand|capable|capability)\b", lower):
         return None
-    if re.search(r"\b(code|bug|fix|install|run|api|backend|frontend|html|css|javascript|python|deploy)\b", lower):
+    if re.search(r"\b(code|bug|fix|install|run|running|api|backend|frontend|html|css|javascript|python|deploy)\b", lower):
+        return None
+    if re.search(r"\b(compare|comparison|vs|versus|explain|analyze|analyse|how|why|steps?|guide|practical answer)\b", lower):
+        return None
+    if re.search(r"\b(ram|cpu|gpu|memory|hardware|performance|latency|tokens?|context window|inference|training|server|hosting|docker|hugging face|space)\b", lower):
         return None
 
     if re.search(r"\b(powerful|power|capability|capable)\b", lower):
@@ -1281,6 +1320,13 @@ def local_knowledge_reply(message: str, presentation_style: str = "balanced") ->
 
 def split_comparison_subjects(message: str) -> Optional[Tuple[str, str]]:
     text = clean_text(message)
+
+    def clean_subject(raw: str) -> str:
+        subject = clean_text(raw).strip(" .,:;-")
+        subject = re.sub(r"(?i)\b(?:for|when|while|during|in order to)\b.+$", "", subject).strip(" .,:;-")
+        subject = re.sub(r"(?i)\b(?:give|include|with checks?|in bullets?|in points?)\b.+$", "", subject).strip(" .,:;-")
+        return title_case_topic(subject)
+
     patterns = [
         r"(?i)\b(?:difference between|compare)\s+(.+?)\s+(?:and|with|vs\.?|versus)\s+(.+?)[?.!]*$",
         r"(?i)^(.+?)\s+(?:vs\.?|versus)\s+(.+?)[?.!]*$",
@@ -1288,8 +1334,8 @@ def split_comparison_subjects(message: str) -> Optional[Tuple[str, str]]:
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
-            left = title_case_topic(match.group(1).strip(" .,:;-"))
-            right = title_case_topic(match.group(2).strip(" .,:;-"))
+            left = clean_subject(match.group(1))
+            right = clean_subject(match.group(2))
             if left and right and left.lower() != right.lower():
                 return left, right
     return None
@@ -1301,6 +1347,22 @@ def local_comparison_reply(message: str) -> Optional[str]:
         return None
     left, right = subjects
     pair = f"{left} {right}".lower()
+    if "ram" in pair and "cpu" in pair:
+        return (
+            "RAM and CPU both matter for running an AI assistant, but they solve different bottlenecks: RAM decides what can stay loaded, while the CPU decides how fast work gets processed.\n\n"
+            "| Check | RAM | CPU |\n"
+            "|---|---|---|\n"
+            "| Main job | Holds the model, chat history, files, cache, and active app data in memory | Runs the calculations, server code, routing, and response generation work |\n"
+            "| When it becomes the bottleneck | The app slows badly, crashes, or swaps to disk when the model/context does not fit | Replies feel slow even though memory is not full |\n"
+            "| Helps most with | Larger models, longer context, more browser tabs/files, and multiple users | Faster inference, smoother API handling, search/file processing, and concurrent requests |\n"
+            "| Upgrade priority | Upgrade first if memory usage is near full or the system is swapping | Upgrade first if RAM has headroom but generation is still slow |\n\n"
+            "Practical check:\n"
+            "- If RAM usage is above about 85-90%, add RAM or use a smaller model/context.\n"
+            "- If CPU stays near 100% while RAM has room, use a faster CPU, fewer concurrent tasks, or a remote model.\n"
+            "- If both are high, reduce model size, context length, and background services first.\n\n"
+            "Bottom line:\n"
+            "RAM keeps the AI assistant stable; CPU makes it responsive. For local AI, enough RAM comes first, then CPU speed decides how pleasant it feels."
+        )
     if re.search(r"\belectric (car|cars|vehicle|vehicles|ev|evs)\b", pair) and re.search(
         r"\b(petrol|gasoline|fuel) (car|cars|vehicle|vehicles)?\b|\bpetrol\b|\bgasoline\b",
         pair,
@@ -1782,6 +1844,10 @@ def local_vague_improvement_reply(message: str, focus: Dict[str, Any]) -> Option
 
 def local_capability_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
+    if re.search(r"\b(compare|comparison|vs|versus|explain|analyze|analyse|how|why|steps?|guide)\b", lower):
+        return None
+    if re.search(r"\b(ram|cpu|gpu|memory|hardware|performance|latency|tokens?|context window|inference|training|server|hosting|docker|hugging face|space)\b", lower):
+        return None
     if not re.search(r"\b(powerful|capability|understand|understanding|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b", lower):
         return None
     return (
@@ -1975,19 +2041,19 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "cache_items": 160,
         },
         "balanced": {
-            "instant_max_tokens": 520,
-            "thinking_max_tokens": 900,
+            "instant_max_tokens": 700,
+            "thinking_max_tokens": 1300,
             "ollama_context_tokens": 3072,
-            "history_messages": 5,
-            "file_context_chars": 4000,
+            "history_messages": 8,
+            "file_context_chars": 5200,
             "cache_items": 180,
         },
         "strong": {
-            "instant_max_tokens": 760,
-            "thinking_max_tokens": 1200,
+            "instant_max_tokens": 900,
+            "thinking_max_tokens": 1600,
             "ollama_context_tokens": 4096,
-            "history_messages": 7,
-            "file_context_chars": 6000,
+            "history_messages": 10,
+            "file_context_chars": 7200,
             "cache_items": 220,
         },
     }
@@ -4822,6 +4888,9 @@ def free_provider_status() -> Dict[str, Any]:
             "local_writing_fast": LOCAL_WRITING_FAST,
             "quality_guard": POLLINATIONS_QUALITY_GUARD,
         },
+        "cooldowns": {
+            "pollinations_seconds": int(provider_cooldown_remaining("pollinations")),
+        },
         "available": {
             "ollama": bool(ollama_info.get("ready")),
             "pollinations": True,
@@ -4961,6 +5030,114 @@ def save_free_ai_settings(req: FreeAISettingsRequest) -> Tuple[bool, str]:
     return True, f"Free AI provider set to {FREE_PROVIDER_LABELS.get(provider, provider)}."
 
 
+def extract_openai_chat_content(data: Any) -> str:
+    if not isinstance(data, dict):
+        return ""
+    direct = data.get("output_text")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    choices = data.get("choices")
+    if not isinstance(choices, list):
+        return ""
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+            if isinstance(content, list):
+                parts: List[str] = []
+                for part in content:
+                    if isinstance(part, str):
+                        parts.append(part)
+                    elif isinstance(part, dict):
+                        text = part.get("text") or part.get("content")
+                        if isinstance(text, str):
+                            parts.append(text)
+                joined = "\n".join(part.strip() for part in parts if part and part.strip())
+                if joined:
+                    return joined
+        text = choice.get("text")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    return ""
+
+
+def truncate_for_model(content: str, limit: int) -> str:
+    text = str(content or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n[context truncated]"
+
+
+def provider_cooldown_remaining(provider: str) -> float:
+    until = PROVIDER_COOLDOWNS.get(provider, 0.0)
+    remaining = until - time.time()
+    if remaining <= 0:
+        PROVIDER_COOLDOWNS.pop(provider, None)
+        return 0.0
+    return remaining
+
+
+def note_provider_cooldown(provider: str, seconds: int = 60) -> None:
+    PROVIDER_COOLDOWNS[provider] = max(PROVIDER_COOLDOWNS.get(provider, 0.0), time.time() + seconds)
+
+
+def is_rate_limit_error(error: Exception) -> bool:
+    return "429" in str(error) or "too many requests" in str(error).lower() or "rate limit" in str(error).lower()
+
+
+def compact_provider_messages(
+    provider: str,
+    messages: List[Dict[str, str]],
+    response_mode: str,
+) -> List[Dict[str, str]]:
+    if provider != "pollinations":
+        return messages
+
+    compact_system = (
+        "You are Nexora, a ChatGPT-like AI assistant. Answer the user's actual request with strong reasoning, "
+        "clear judgment, and natural wording.\n"
+        "Think privately before writing, but do not reveal hidden chain-of-thought. Give the conclusion, the useful rationale, checks, and steps.\n"
+        "Respect every user constraint. If the user says not to change something, preserve it.\n"
+        "Use provided memory, file, image, and research context when relevant. For current facts, cite supplied source markers like [1].\n"
+        "Do not invent facts, prices, dates, laws, medical claims, or sources. Say what is uncertain when evidence is weak.\n"
+        "Prefer direct answers, practical examples, and verification checks over generic advice.\n"
+        "For coding, give exact files/commands/tests. For learning, explain simply then add examples. For writing, provide the finished draft first.\n"
+    )
+    if response_mode == "thinking":
+        compact_system += "Use deeper reasoning and a clean structure, but keep the final answer compact and useful."
+    else:
+        compact_system += "Keep the final answer concise unless the user asks for detail."
+
+    compact: List[Dict[str, str]] = [{"role": "system", "content": compact_system}]
+    system_budget = 5200 if response_mode == "thinking" else 3600
+    system_used = 0
+    conversation: List[Dict[str, str]] = []
+
+    for message in messages:
+        role = message.get("role", "user")
+        content = str(message.get("content", "") or "").strip()
+        if not content:
+            continue
+        if role == "system":
+            if content.startswith(SYSTEM_PROMPT[:80]):
+                continue
+            remaining = system_budget - system_used
+            if remaining <= 200:
+                continue
+            clipped = truncate_for_model(content, min(1000, remaining))
+            system_used += len(clipped)
+            compact.append({"role": "system", "content": clipped})
+        elif role in {"user", "assistant"}:
+            conversation.append({"role": role, "content": truncate_for_model(content, 1400)})
+
+    compact.extend(conversation[-8:])
+    return compact
+
+
 def call_openai_compatible_chat(
     provider: str,
     base_url: str,
@@ -4981,9 +5158,10 @@ def call_openai_compatible_chat(
     if provider == "openrouter":
         headers["HTTP-Referer"] = "http://127.0.0.1:8000"
         headers["X-Title"] = APP_NAME
+    provider_messages = compact_provider_messages(provider, messages, response_mode)
     payload = {
         "model": model,
-        "messages": messages,
+        "messages": provider_messages,
         "temperature": temperature,
         "top_p": 0.9,
         "max_tokens": max_tokens,
@@ -4991,8 +5169,11 @@ def call_openai_compatible_chat(
     }
     response = HTTP.post(base_url, headers=headers, json=payload, timeout=timeout)
     response.raise_for_status()
-    data = response.json()
-    return data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+    try:
+        data = response.json()
+    except ValueError:
+        return response.text.strip()
+    return extract_openai_chat_content(data)
 
 
 def build_plain_pollinations_prompt(messages: List[Dict[str, str]]) -> str:
@@ -5009,7 +5190,7 @@ def build_plain_pollinations_prompt(messages: List[Dict[str, str]]) -> str:
 def call_pollinations_simple(messages: List[Dict[str, str]], response_mode: str) -> str:
     _, timeout, _ = mode_limits(response_mode)
     timeout = min(timeout, POLLINATIONS_BACKUP_TIMEOUT)
-    prompt = build_plain_pollinations_prompt(messages)
+    prompt = build_plain_pollinations_prompt(compact_provider_messages("pollinations", messages, response_mode))
     url = "https://text.pollinations.ai/" + requests.utils.quote(prompt, safe="")
     response = HTTP.get(url, params={"model": POLLINATIONS_MODEL}, timeout=timeout)
     response.raise_for_status()
@@ -5034,6 +5215,9 @@ def pollinations_model_timeout(index: int, response_mode: str) -> int:
 
 
 def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = "instant") -> str:
+    cooldown = provider_cooldown_remaining("pollinations")
+    if cooldown:
+        raise RuntimeError(f"pollinations cooling down after rate limit for {int(cooldown)}s")
     errors = []
     with POLLINATIONS_LOCK:
         for index, model in enumerate(pollinations_model_candidates()):
@@ -5053,8 +5237,14 @@ def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = 
                     errors.append(f"pollinations chat returned an empty reply with {model}")
                 except Exception as error:
                     errors.append(f"{model}: {error}")
+                    if is_rate_limit_error(error):
+                        note_provider_cooldown("pollinations", 60)
+                        raise RuntimeError("; ".join(errors))
                 if attempt < POLLINATIONS_ATTEMPTS - 1:
                     time.sleep(0.35)
+
+        if response_mode == "thinking" and errors:
+            raise RuntimeError("; ".join(errors))
 
         try:
             reply = call_pollinations_simple(messages, response_mode)
@@ -5063,6 +5253,8 @@ def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = 
             errors.append("pollinations text endpoint returned an empty reply")
         except Exception as error:
             errors.append(str(error))
+            if is_rate_limit_error(error):
+                note_provider_cooldown("pollinations", 60)
 
     raise RuntimeError("; ".join(errors))
 
@@ -5665,6 +5857,12 @@ def autonomous_research_route(
     if should_add_free_club_search(text, False, response_lane, presentation_style):
         return "web_current"
 
+    if re.search(r"\b(compare|comparison|vs\.?|versus|difference between)\b", lower) and not re.search(
+        r"\b(current|latest|today|recent|news|sources?|citations?|evidence|price|market|2025|2026)\b",
+        lower,
+    ):
+        return "none"
+
     research_intent = re.search(
         r"\b(research|sources?|citations?|evidence|verify|fact[- ]?check|accurate|"
         r"analy[sz]e|impact|causes?|effects?|crisis|policy|economy|market|"
@@ -5742,6 +5940,10 @@ def should_use_free_club(
     if use_research:
         return True
     if response_lane == "realtime_search" or presentation_style == "answer_with_evidence":
+        return True
+    if response_mode == "thinking" and response_lane in {"writing", "learning", "planning", "build"}:
+        return True
+    if response_mode == "thinking" and len(text.split()) >= 14 and response_lane != "human_chat":
         return True
     if should_add_wikipedia_context(message, response_lane, presentation_style):
         return True
@@ -5847,6 +6049,9 @@ def free_club_review_reply(
         "You are Nexora's free club reviewer. Improve the draft into the final answer.\n"
         "Keep the meaning, but make it clearer, cleaner, and more human.\n"
         "If the draft is generic, replace it with a specific answer to the user's actual problem.\n"
+        "Check the user's constraints, fix shallow reasoning, fill missing steps, and remove guesses.\n"
+        "For coding, math, planning, and explanations, verify the logic before polishing the wording.\n"
+        "Preserve useful citations and source markers when supporting context provides them.\n"
         "If the draft exposes backend/tool failure, remove that and answer using the available context.\n"
         "Use ChatGPT-like structure: answer first, then compact sections only when useful.\n"
         "Use smooth writing for emails, letters, and normal chat.\n"
@@ -5897,6 +6102,9 @@ Style:
 - Do not sound robotic, over-formatted, generic, or like a wall of text.
 - Behave like a real assistant inside the app: infer the user's practical intent, adapt to saved preferences, be proactive with the next useful step, and ask a short clarifying question only when guessing would be risky.
 - Think before answering: identify what the user really wants, decide whether stable knowledge, memory, file context, image context, or web evidence is needed, then choose the shortest reliable answer path.
+- Treat every non-trivial answer as a small reasoning task: parse the request, respect constraints, solve the core problem, check for missing assumptions, then write the final answer clearly.
+- If the user gives constraints like "do not change HTML" or "make it like before", preserve those constraints explicitly in the solution path.
+- Prefer substance over templates. Avoid canned advice when the user needs actual reasoning, diagnosis, comparison, code, planning, or writing.
 - Do research by default only when accuracy needs it. Do not slow down simple questions with unnecessary web context.
 - Use this default structure when it fits: direct answer first, short explanation, important details or examples, sources or links if needed, and a practical next step only when useful.
 - Tone adaptation:
@@ -5965,6 +6173,47 @@ Coding:
 """.strip()
 
 
+def reasoning_quality_context(response_mode: str, response_lane: str, presentation_style: str) -> str:
+    lines = [
+        "Reasoning quality guard:",
+        "- Work out the answer internally before writing. Do not reveal hidden chain-of-thought; give only the useful conclusion, concise rationale, and checks.",
+        "- Track the user's exact constraints and satisfy them before adding extras.",
+        "- If the question has multiple parts, answer every part in a logical order.",
+        "- If information is missing, make the safest useful assumption and state it briefly; ask only when the missing detail blocks a reliable answer.",
+        "- Prefer concrete examples, edge cases, and verification steps over generic advice.",
+        "- Before finalizing, check for contradictions, unsupported facts, and steps that would fail in practice.",
+    ]
+    if response_mode == "thinking":
+        lines.append("- For thinking mode, solve deeply enough to catch hidden traps, then compress the final response into clear sections.")
+    if response_lane == "build":
+        lines.extend([
+            "- For code or deployment work, identify the likely failure mode, give exact files/commands, and include a test or smoke check.",
+            "- Do not invent APIs. If unsure, mark the assumption and give the safest runnable path.",
+        ])
+    elif response_lane == "planning":
+        lines.extend([
+            "- For planning, separate the goal, constraints, risks, and next actions.",
+            "- Prefer a practical sequence the user can execute today.",
+        ])
+    elif response_lane == "learning":
+        lines.extend([
+            "- For learning, teach from simple definition to intuition to example, then finish with the main takeaway.",
+            "- Use exam-friendly wording when the question sounds like schoolwork.",
+        ])
+    elif response_lane == "writing":
+        lines.extend([
+            "- For writing, produce the finished draft first. Match the requested tone and avoid meta commentary.",
+            "- Preserve the user's topic, audience, length, and purpose.",
+        ])
+    elif response_lane == "realtime_search":
+        lines.append("- For current facts, use evidence only; separate confirmed facts from inference.")
+    if presentation_style == "table":
+        lines.append("- If a table is expected, use a valid markdown table and keep each cell short enough to scan.")
+    elif presentation_style == "diagram":
+        lines.append("- If a diagram is expected, use a compact text diagram, then explain the key parts.")
+    return "\n".join(lines)
+
+
 def build_messages(
     user_message: str,
     history: List[ChatMessage],
@@ -5990,12 +6239,15 @@ def build_messages(
         "Use the same natural sentence rhythm as a premium assistant: clear, calm, and conversational. "
         "Skip headings unless they genuinely improve clarity."
     )
+    message_lane = classify_response_lane(user_message, use_research)
+    message_style = classify_presentation_style(user_message, message_lane, use_research)
+    quality_context = reasoning_quality_context(response_mode, message_lane, message_style)
     messages: List[Dict[str, str]] = [
         {
             "role": "system",
             "content": (
                 SYSTEM_PROMPT
-                + f"\n\n{mode_instruction}\n\n{runtime_efficiency_context()}\n"
+                + f"\n\n{mode_instruction}\n\n{quality_context}\n\n{runtime_efficiency_context()}\n"
                 + f"Current date: {datetime.now().date().isoformat()}"
             ),
         }
