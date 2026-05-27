@@ -490,6 +490,28 @@ def local_fast_reply(message: str) -> Optional[str]:
         return "Hey, I am here. What are we building or solving today?"
     if re.fullmatch(r"(thanks|thank you|thx|ty|ok|okay|cool|nice)[!. ]*", text):
         return "Anytime. Send me the next thing and I will help you move it forward."
+    if re.fullmatch(
+        r"(what can you do|what all can you do|what are your capabilities|what can nexora do|what can u do|what do you do)[?.! ]*",
+        text,
+    ):
+        return (
+            "Short answer:\n"
+            "I can help you think, write, code, research, plan, and create. The useful version is not just listing features; "
+            "it is giving you a clear answer, checking assumptions, and turning messy ideas into something you can use.\n\n"
+            "What I can help with:\n"
+            "- Explain topics in simple or detailed form, including study-friendly answers.\n"
+            "- Write, rewrite, summarize, and polish messages, essays, emails, scripts, and plans.\n"
+            "- Help with code by finding bugs, improving structure, explaining errors, and suggesting tests.\n"
+            "- Research current topics when needed and separate confirmed facts from uncertainty.\n"
+            "- Turn goals into checklists, timelines, options, or practical next steps.\n"
+            "- Create prompts and ideas for images, websites, apps, presentations, and creative work.\n\n"
+            "How to use me well:\n"
+            "- Ask for the result you want, not just the topic.\n"
+            "- Tell me the audience, style, deadline, or constraints if they matter.\n"
+            "- For current facts, ask me to verify instead of guessing.\n\n"
+            "Bottom line:\n"
+            "Give me a task, question, file, idea, or bug, and I will choose the clearest format: short answer, steps, table, checklist, explanation, or polished draft."
+        )
     if text in {"who are you", "who are you?", "what are you", "what are you?"}:
         return "I am Nexora, your AI assistant for clear answers, coding help, research-aware reasoning, files, and project work."
     direct_name = local_direct_name_reply(text)
@@ -6051,6 +6073,8 @@ def free_club_review_reply(
         "If the draft is generic, replace it with a specific answer to the user's actual problem.\n"
         "Check the user's constraints, fix shallow reasoning, fill missing steps, and remove guesses.\n"
         "For coding, math, planning, and explanations, verify the logic before polishing the wording.\n"
+        "Make the answer feel trustworthy: explain assumptions, avoid exaggeration, and prefer practical checks over vague claims.\n"
+        "Make the final answer engaging: crisp lead, useful sections, concrete examples, and a clear bottom line when helpful.\n"
         "Preserve useful citations and source markers when supporting context provides them.\n"
         "If the draft exposes backend/tool failure, remove that and answer using the available context.\n"
         "Use ChatGPT-like structure: answer first, then compact sections only when useful.\n"
@@ -6105,6 +6129,9 @@ Style:
 - Treat every non-trivial answer as a small reasoning task: parse the request, respect constraints, solve the core problem, check for missing assumptions, then write the final answer clearly.
 - If the user gives constraints like "do not change HTML" or "make it like before", preserve those constraints explicitly in the solution path.
 - Prefer substance over templates. Avoid canned advice when the user needs actual reasoning, diagnosis, comparison, code, planning, or writing.
+- Be reasonable before being impressive. State what is true, what depends on context, and what the user can check.
+- Make answers attractive to read: strong opening, short paragraphs, clean section labels, concrete examples, and a useful final takeaway.
+- For broad questions like "what can you do", answer with realistic capabilities, useful examples, and honest limits instead of inflated claims.
 - Do research by default only when accuracy needs it. Do not slow down simple questions with unnecessary web context.
 - Use this default structure when it fits: direct answer first, short explanation, important details or examples, sources or links if needed, and a practical next step only when useful.
 - Tone adaptation:
@@ -6182,6 +6209,8 @@ def reasoning_quality_context(response_mode: str, response_lane: str, presentati
         "- If information is missing, make the safest useful assumption and state it briefly; ask only when the missing detail blocks a reliable answer.",
         "- Prefer concrete examples, edge cases, and verification steps over generic advice.",
         "- Before finalizing, check for contradictions, unsupported facts, and steps that would fail in practice.",
+        "- Make the answer useful to interact with: include choices, checks, or follow-up paths when they genuinely help.",
+        "- Avoid overclaiming. If a claim depends on tools, current data, or configuration, say that briefly.",
     ]
     if response_mode == "thinking":
         lines.append("- For thinking mode, solve deeply enough to catch hidden traps, then compress the final response into clear sections.")
