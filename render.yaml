@@ -17,3 +17,15 @@ services:
         value: pollinations
       - key: NEXORA_FREE_CLUB_MODE
         value: auto
+      - key: NEXORA_MAX_MEMORY_ITEMS
+        value: "600"
+      - key: NEXORA_MAX_MEMORY_CONTEXT_ITEMS
+        value: "18"
+      - key: NEXORA_MEMORY_CONTEXT_CHARS
+        value: "4200"
+      - key: NEXORA_MAX_IMAGE_MEMORY_ITEMS
+        value: "600"
+      - key: NEXORA_IMAGE_EXACT_MATCH
+        value: "true"
+      - key: NEXORA_IMAGE_PROVIDER_ENHANCE
+        value: "false"

@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.46.0-public-website-deploy"
+APP_VERSION = "8.47.0-heavy-memory-exact-images"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -118,9 +118,10 @@ MAX_SESSION_MESSAGES = int(os.getenv("NEXORA_MAX_SESSION_MESSAGES", "240"))
 MAX_RESEARCH_SOURCES = 4
 MAX_SEARCH_RESULTS = int(os.getenv("NEXORA_MAX_SEARCH_RESULTS", "5"))
 MAX_FILE_CONTEXT_CHARS = 4000
-MAX_MEMORY_ITEMS = 80
-MAX_MEMORY_CONTEXT_ITEMS = 8
-MAX_IMAGE_MEMORY_ITEMS = 160
+MAX_MEMORY_ITEMS = int(os.getenv("NEXORA_MAX_MEMORY_ITEMS", "600"))
+MAX_MEMORY_CONTEXT_ITEMS = int(os.getenv("NEXORA_MAX_MEMORY_CONTEXT_ITEMS", "18"))
+MAX_MEMORY_CONTEXT_CHARS = int(os.getenv("NEXORA_MEMORY_CONTEXT_CHARS", "4200"))
+MAX_IMAGE_MEMORY_ITEMS = int(os.getenv("NEXORA_MAX_IMAGE_MEMORY_ITEMS", "600"))
 MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = int(os.getenv("NEXORA_RESPONSE_CACHE_TTL", "600"))
@@ -133,6 +134,8 @@ IMAGE_MODEL = os.getenv("NEXORA_IMAGE_MODEL", "").strip()
 IMAGE_DEFAULT_SIZE = os.getenv("NEXORA_IMAGE_DEFAULT_SIZE", "768x768").strip()
 IMAGE_PROMPT_ENHANCE = os.getenv("NEXORA_IMAGE_PROMPT_ENHANCE", "true").strip().lower() not in {"0", "false", "off", "no"}
 IMAGE_PROMPT_POWER_MODE = os.getenv("NEXORA_IMAGE_PROMPT_POWER_MODE", "true").strip().lower() not in {"0", "false", "off", "no"}
+IMAGE_EXACT_MATCH_MODE = os.getenv("NEXORA_IMAGE_EXACT_MATCH", "true").strip().lower() not in {"0", "false", "off", "no"}
+IMAGE_PROVIDER_ENHANCE_PARAM = os.getenv("NEXORA_IMAGE_PROVIDER_ENHANCE", "false").strip().lower()
 SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 
 HTTP = requests.Session()
@@ -1790,9 +1793,9 @@ def system_profile() -> Dict[str, Any]:
             "avoid": avoid_models,
         },
         "self_learning": {
-            "mode": "lightweight_memory_persona_and_behavior",
+            "mode": "ranked_long_term_memory_persona_and_behavior",
             "uses_model_weight_training": False,
-            "description": "Nexora learns preferences, behavior signals, and feedback by saving memory/persona/behavior rules, not by retraining a large model on this laptop.",
+            "description": "Nexora learns preferences, behavior signals, feedback, corrections, image preferences, and project context by saving ranked memory/persona/behavior rules, not by retraining a large model on this laptop.",
         },
     }
     return SYSTEM_PROFILE_CACHE
@@ -1809,7 +1812,7 @@ def runtime_efficiency_context() -> str:
         "Runtime capability profile:\n"
         f"- Level: {profile['level']}\n"
         f"- Reason: {profile['reason']}\n"
-        "- Self-learning mode: lightweight saved memory/persona/behavior profile, not local model-weight training.\n"
+        f"- Self-learning mode: ranked saved memory/persona/behavior profile, up to {MAX_MEMORY_ITEMS} memories with {MAX_MEMORY_CONTEXT_ITEMS} selected per answer; not local model-weight training.\n"
         f"- Keep normal answers efficient for this computer: instant <= {limits['instant_max_tokens']} tokens, "
         f"thinking <= {limits['thinking_max_tokens']} tokens unless the user explicitly needs more."
     )
@@ -2076,8 +2079,84 @@ def load_memory() -> List[Dict[str, Any]]:
     return raw if isinstance(raw, list) else []
 
 
+def parse_memory_timestamp(value: Any) -> float:
+    text = str(value or "").strip()
+    if not text:
+        return 0.0
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.timestamp()
+    except Exception:
+        return 0.0
+
+
+def memory_item_importance(item: Dict[str, Any]) -> float:
+    content = clean_text(str(item.get("content", "")))
+    if not content:
+        return -1000.0
+    category = clean_text(str(item.get("category", "general"))).lower()
+    source = clean_text(str(item.get("source", "auto"))).lower()
+    hits = max(1, int(item.get("hits", 1) or 1))
+    sessions = item.get("sessions", [])
+    session_count = len(sessions) if isinstance(sessions, list) else 0
+    keyword_count = len(item.get("keywords", []) or [])
+    last_seen = parse_memory_timestamp(item.get("last_seen") or item.get("created_at"))
+    age_days = max(0.0, (time.time() - last_seen) / 86400.0) if last_seen else 90.0
+    category_weight = {
+        "explicit": 32,
+        "identity": 28,
+        "project": 24,
+        "preference": 22,
+        "workflow": 18,
+        "correction": 18,
+        "image_preference": 18,
+        "interaction_pattern": 6,
+    }.get(category, 10)
+    source_weight = 18 if source == "user_instruction" else 10 if source.startswith("auto") else 4
+    recency = max(0.0, 18.0 - min(18.0, age_days / 3.0))
+    return category_weight + source_weight + min(35, hits * 3) + min(12, session_count * 2) + min(10, keyword_count) + recency
+
+
+def prune_memory_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    valid = [item for item in items if isinstance(item, dict) and clean_text(str(item.get("content", "")))]
+    deduped: Dict[str, Dict[str, Any]] = {}
+    for item in valid:
+        normalized_user = normalize_user_id(str(item.get("user_id", "default")))
+        category = clean_text(str(item.get("category", "general"))).lower() or "general"
+        content = clean_text(str(item.get("content", "")))[:1000]
+        item["user_id"] = normalized_user
+        item["category"] = category
+        item["content"] = content
+        item.setdefault("created_at", now_iso())
+        item.setdefault("last_seen", item.get("created_at"))
+        item["keywords"] = memory_keywords(" ".join([content, " ".join(map(str, item.get("keywords", []) or []))]))
+        key = str(item.get("memory_key") or f"{normalized_user}|{category}|{content.lower()}")
+        item["memory_key"] = key
+        existing = deduped.get(key)
+        if not existing:
+            deduped[key] = item
+            continue
+        existing["hits"] = max(int(existing.get("hits", 1) or 1), int(item.get("hits", 1) or 1))
+        existing["last_seen"] = max(str(existing.get("last_seen", "")), str(item.get("last_seen", "")))
+        existing["keywords"] = sorted(set(existing.get("keywords", []) + item.get("keywords", [])))[:40]
+        sessions = []
+        for value in (existing.get("sessions", []) or []) + (item.get("sessions", []) or []):
+            if value and value not in sessions:
+                sessions.append(value)
+        existing["sessions"] = sessions[-24:]
+
+    sorted_items = sorted(deduped.values(), key=memory_item_importance, reverse=True)
+    kept = sorted_items[:MAX_MEMORY_ITEMS]
+    kept.sort(key=lambda item: str(item.get("last_seen", item.get("created_at", ""))), reverse=True)
+    return kept
+
+
 def save_memory(items: List[Dict[str, Any]]) -> None:
-    safe_write_json(MEMORY_FILE, items[-MAX_MEMORY_ITEMS:])
+    safe_write_json(MEMORY_FILE, prune_memory_items(items))
 
 
 MEMORY_STOPWORDS = {
@@ -2097,7 +2176,7 @@ def memory_keywords(text: str) -> List[str]:
             continue
         if word not in keywords:
             keywords.append(word)
-    return keywords[:18]
+    return keywords[:36]
 
 
 def upsert_memory_item(
@@ -2108,7 +2187,7 @@ def upsert_memory_item(
     session_id: Optional[str] = None,
     strength: int = 1,
 ) -> None:
-    clean_content = clean_text(content)[:500]
+    clean_content = clean_text(content)[:1000]
     if not clean_content:
         return
     normalized_user = normalize_user_id(user_id)
@@ -2128,14 +2207,14 @@ def upsert_memory_item(
             item["content"] = clean_content
             item["category"] = normalized_category
             item["source"] = source or item.get("source", "auto")
-            item["keywords"] = sorted(set(item.get("keywords", []) + keywords))[:24]
+            item["keywords"] = sorted(set(item.get("keywords", []) + keywords))[:40]
             item["hits"] = int(item.get("hits", 1) or 1) + max(1, strength)
             item["last_seen"] = now
             if session_id:
                 sessions = item.setdefault("sessions", [])
                 if session_id not in sessions:
                     sessions.append(session_id)
-                item["sessions"] = sessions[-12:]
+                item["sessions"] = sessions[-24:]
             save_memory(items)
             return
     items.append({
@@ -2447,7 +2526,7 @@ def parse_image_size(size: Optional[str]) -> Tuple[int, int]:
 def strip_image_command(prompt: str) -> str:
     text = clean_text(prompt)
     text = re.sub(
-        r"^(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*",
+        r"^(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|with|about|:)?\s*",
         "",
         text,
         flags=re.IGNORECASE,
@@ -2466,7 +2545,7 @@ def normalize_image_style(style: Optional[str]) -> str:
         "anime-realistic": "semi-realistic anime portrait, expressive detailed eyes, natural skin shading, soft cinematic lighting, polished painterly finish",
         "anime realistic": "semi-realistic anime portrait, expressive detailed eyes, natural skin shading, soft cinematic lighting, polished painterly finish",
         "poster": "poster design, strong composition, bold readable layout",
-        "logo": "simple logo mark, clean vector-like design, centered, minimal background",
+        "logo": "simple logo mark, clean vector-like design, centered",
         "3d": "3D render, smooth materials, studio lighting",
         "sketch": "clean concept sketch, expressive lines, clear subject",
     }
@@ -2534,6 +2613,26 @@ def image_power_prompt_layers(subject: str, style_text: str) -> List[str]:
     return layers
 
 
+def image_exact_match_layers(subject: str) -> List[str]:
+    if not IMAGE_EXACT_MATCH_MODE:
+        return []
+    lower = clean_text(subject).lower()
+    layers = [
+        "exactly match the user's requested subject",
+        "preserve all requested objects, characters, colors, count, pose, clothing, setting, mood, and composition",
+        "do not replace the subject with a generic alternative",
+    ]
+    if re.search(r"\b(text|word|title|logo|sign|label|lettering)\b", lower):
+        layers.append("include only the text explicitly requested by the user")
+    else:
+        layers.append("no random text")
+    if re.search(r"\b(transparent|no background|plain background|white background|black background)\b", lower):
+        layers.append("respect the requested background exactly")
+    if re.search(r"\b(only|single|one|two|three|without|no )\b", lower):
+        layers.append("respect requested quantity and exclusions exactly")
+    return layers
+
+
 def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bool] = True) -> str:
     subject = strip_image_command(prompt)
     style_text = normalize_image_style(style)
@@ -2550,10 +2649,11 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
     }
     subject = style_only_subjects.get(subject.lower(), subject)
     if not (enhance if enhance is not None else IMAGE_PROMPT_ENHANCE):
-        return clean_text(", ".join(part for part in [subject, style_text] if part))[:900]
+        return clean_text(", ".join(part for part in [subject] + image_exact_match_layers(subject) + ([style_text] if style_text else [])))[:900]
 
     lower = f"{subject}, {style_text}".lower()
     additions = []
+    additions.extend(image_exact_match_layers(subject))
     if style_text:
         additions.append(style_text)
     additions.extend(image_power_prompt_layers(subject, style_text))
@@ -2618,6 +2718,11 @@ def enhance_image_prompt(prompt: str, style: Optional[str], enhance: Optional[bo
 def build_image_negative_prompt(negative_prompt: Optional[str], style: Optional[str] = None) -> str:
     raw_style = clean_text(style or "").lower()
     base_items = [
+        "wrong subject",
+        "missing requested details",
+        "changed character",
+        "changed colors",
+        "extra unwanted objects",
         "low quality",
         "low resolution",
         "blurry",
@@ -2675,6 +2780,8 @@ def image_cache_key(user_id: str, prompt: str, size_label: str, negative_prompt:
         size_label,
         compact_for_cache(negative_prompt),
         IMAGE_MODEL or "provider_default",
+        "exact" if IMAGE_EXACT_MATCH_MODE else "flex",
+        IMAGE_PROVIDER_ENHANCE_PARAM,
     ])
     return stable_hash(packed)
 
@@ -2712,6 +2819,8 @@ def infer_image_style(prompt: str, requested_style: Optional[str], user_id: str)
     for candidate, pattern in style_patterns:
         if re.search(pattern, text):
             return candidate
+    if not re.search(r"\b(same style|like before|same as before|as last|again|similar style)\b", text):
+        return "auto"
     memory = load_image_memory()
     prefs = memory.get("preferences", {}).get(normalize_user_id(user_id), {})
     if isinstance(prefs, dict):
@@ -2739,6 +2848,7 @@ def remember_image_workflow(
     user_prefs["last_style"] = style or user_prefs.get("last_style", "auto")
     user_prefs["last_size"] = size_label
     user_prefs["last_negative_prompt"] = negative_prompt
+    user_prefs["exact_match_mode"] = IMAGE_EXACT_MATCH_MODE
     user_prefs["total_images"] = int(user_prefs.get("total_images", 0)) + (0 if cached else 1)
     user_prefs["updated_at"] = now_iso()
     prefs[normalized] = user_prefs
@@ -2759,6 +2869,7 @@ def remember_image_workflow(
             "style": style,
             "size": size_label,
             "negative_prompt": negative_prompt,
+            "exact_match_mode": IMAGE_EXACT_MATCH_MODE,
             "url": url,
             "artifact_id": artifact_id,
             "uses": 1,
@@ -2788,7 +2899,7 @@ def build_image_url(prompt: str, size: Optional[str], negative_prompt: Optional[
         "height": height,
         "seed": seed,
         "nologo": "true",
-        "enhance": "true",
+        "enhance": "true" if IMAGE_PROVIDER_ENHANCE_PARAM in {"1", "true", "yes", "on"} else "false",
         "negative": clean_negative,
     }
     if IMAGE_MODEL:
@@ -3651,20 +3762,34 @@ def maybe_store_memory(user_message: str, user_id: str = "default") -> None:
     lower = text.lower()
     triggers = [
         "remember",
+        "remember that",
         "save this",
         "store this",
         "from now on",
         "always",
         "my project",
+        "my goal",
+        "my name is",
+        "call me",
+        "i prefer",
+        "i like",
+        "i want you to",
         "nexora should",
         "i want nexora",
     ]
     if not any(trigger in lower for trigger in triggers):
         return
+    category = "explicit"
+    if re.search(r"\b(my name is|call me|i am|i'm)\b", lower):
+        category = "identity"
+    elif re.search(r"\b(my project|my goal|building|website|app|nexora)\b", lower):
+        category = "project"
+    elif re.search(r"\b(i prefer|i like|always|from now on|style|answer|format|image)\b", lower):
+        category = "preference"
     upsert_memory_item(
         content=text[:1200],
         user_id=user_id,
-        category="explicit",
+        category=category,
         source="user_instruction",
         strength=3,
     )
@@ -3677,14 +3802,22 @@ def score_memory_item(item: Dict[str, Any], query_keywords: List[str]) -> int:
     item_keywords = set(str(value).lower() for value in item.get("keywords", []) if value)
     if not item_keywords:
         item_keywords = set(memory_keywords(content))
-    overlap = len(item_keywords.intersection(query_keywords))
+    query_set = set(query_keywords)
+    overlap = len(item_keywords.intersection(query_set))
     category = str(item.get("category", "general")).lower()
     source = str(item.get("source", "auto")).lower()
-    score = overlap * 4 + min(6, int(item.get("hits", 1) or 1))
-    if category in {"preference", "explicit", "identity", "project", "workflow"}:
-        score += 3
+    content_lower = content.lower()
+    phrase_bonus = 0
+    if query_keywords:
+        phrase_bonus = sum(2 for keyword in query_keywords[:12] if keyword in content_lower)
+    score = overlap * 8 + phrase_bonus + min(18, int(item.get("hits", 1) or 1) * 2)
+    if category in {"preference", "explicit", "identity", "project", "workflow", "correction", "image_preference"}:
+        score += 8
     if source == "user_instruction":
-        score += 4
+        score += 10
+    if not query_keywords and category in {"explicit", "identity", "project", "preference"}:
+        score += 6
+    score += int(min(12, memory_item_importance(item) / 8))
     return score
 
 
@@ -3697,27 +3830,64 @@ def build_memory_context(user_id: str = "default", current_message: str = "") ->
     ]
     scored = sorted(
         user_items,
-        key=lambda item: (score_memory_item(item, query_keywords), str(item.get("last_seen", item.get("created_at", "")))),
+        key=lambda item: (
+            score_memory_item(item, query_keywords),
+            memory_item_importance(item),
+            str(item.get("last_seen", item.get("created_at", ""))),
+        ),
         reverse=True,
     )
-    items = scored[:MAX_MEMORY_CONTEXT_ITEMS]
+    persistent = [
+        item for item in user_items
+        if str(item.get("category", "")).lower() in {"explicit", "identity", "project", "preference"}
+    ]
+    persistent = sorted(persistent, key=memory_item_importance, reverse=True)[:6]
+    recent = sorted(
+        user_items,
+        key=lambda item: str(item.get("last_seen", item.get("created_at", ""))),
+        reverse=True,
+    )[:5]
+    selected: List[Dict[str, Any]] = []
+    seen = set()
+    for item in scored + persistent + recent:
+        key = str(item.get("memory_key") or item.get("content", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        selected.append(item)
+        if len(selected) >= MAX_MEMORY_CONTEXT_ITEMS:
+            break
     lines = []
-    for index, item in enumerate(items, start=1):
+    total_chars = 0
+    for index, item in enumerate(selected, start=1):
         content = clean_text(str(item.get("content", "")))
         if content:
             category = clean_text(str(item.get("category", "memory"))) or "memory"
-            lines.append(f"{index}. [{category}] {content}")
+            hits = int(item.get("hits", 1) or 1)
+            line = f"{index}. [{category}; hits={hits}] {content}"
+            if total_chars + len(line) > MAX_MEMORY_CONTEXT_CHARS:
+                break
+            lines.append(line)
+            total_chars += len(line)
     if not lines:
         return ""
     return (
-        "Long-term user memory relevant to this request:\n"
+        "Long-term user memory relevant to this request (ranked by relevance, explicit preference, recency, and repeated use):\n"
         + "\n".join(lines)
-        + "\nUse these memories to infer intent and continuity. Do not mention memory unless it helps the answer."
+        + "\nUse these memories to infer intent and continuity. Prefer explicit user instructions over automatic guesses. Do not mention memory unless it helps the answer."
     )
 
 
 def memory_signature_for_user(user_id: str) -> str:
     normalized = normalize_user_id(user_id)
+    ranked = sorted(
+        [
+            item for item in load_memory()
+            if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+        ],
+        key=lambda item: (memory_item_importance(item), str(item.get("last_seen", item.get("created_at", "")))),
+        reverse=True,
+    )
     stable = [
         {
             "content": clean_text(str(item.get("content", "")))[:160],
@@ -3725,9 +3895,8 @@ def memory_signature_for_user(user_id: str) -> str:
             "hits": item.get("hits", 1),
             "last_seen": item.get("last_seen", item.get("created_at", "")),
         }
-        for item in load_memory()
-        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
-    ][-MAX_MEMORY_CONTEXT_ITEMS:]
+        for item in ranked[:MAX_MEMORY_CONTEXT_ITEMS]
+    ]
     return stable_hash(json.dumps(stable, ensure_ascii=False, sort_keys=True))
 
 
@@ -3757,6 +3926,8 @@ def learn_long_term_memory_from_chat(
         (r"\b(detailed|long answer|deep|explain fully)\b", "User wants detailed answers when the topic is complex or asks for depth.", "preference"),
         (r"\b(realtime|real time|search|perplexity|current|latest)\b", "User expects realtime search for current facts and accuracy-sensitive questions.", "workflow"),
         (r"\b(image|create image|generate image)\b", "User cares about clean image generation workflow with minimal extra text.", "workflow"),
+        (r"\b(exact image|exactly match|match the user|as asked|user'?s needs|same as asked)\b", "For image generation, preserve the user's exact subject, style, count, colors, pose, and composition before adding quality details.", "image_preference"),
+        (r"\b(heavy memory|more memory|more data|memory handling|long memory)\b", "User wants heavier long-term memory handling with more retained context and better relevance ranking.", "preference"),
         (r"\b(github|website|official website|pages)\b", "User is building or publishing Nexora as a website/GitHub Pages project.", "project"),
         (r"\b(nexora|independent ai|self learning|real ai)\b", "User is building Nexora as a personal AI assistant with memory, adaptation, and useful autonomy.", "project"),
         (r"\b(class|study|exam|homework|chapter|notes)\b", "User may ask study questions and prefers simple, exam-friendly explanations.", "preference"),
@@ -3768,6 +3939,16 @@ def learn_long_term_memory_from_chat(
 
     if any(phrase in lower for phrase in ["from now on", "always", "remember", "i want nexora", "nexora should"]):
         upsert_memory_item(text[:500], user_id, "explicit", "user_instruction", session_id, strength=3)
+
+    if signals.get("correction") or re.search(r"\b(fix this|not like this|wrong|doesn'?t understand|should be|wasn'?t supposed)\b", lower):
+        upsert_memory_item(
+            f"User correction to remember: {text[:700]}",
+            user_id,
+            "correction",
+            "auto_behavior",
+            session_id,
+            strength=2,
+        )
 
     if response_lane:
         upsert_memory_item(
@@ -4238,6 +4419,7 @@ def free_provider_status() -> Dict[str, Any]:
             "fast_direct_answers_for_simple_stable_questions",
             "answer_strategy_planner",
             "autonomous_research_router",
+            "heavy_ranked_long_term_memory",
             "reflective_human_answer_style",
             "ollama_local_reasoning_engine",
             "pollinations_base",
@@ -4248,6 +4430,7 @@ def free_provider_status() -> Dict[str, Any]:
             "local_structured_fallback_for_common_writing",
             "pollinations_cleanup_review_when_needed",
             "strong_image_prompt_enhancer",
+            "exact_match_image_prompt_guard",
         ],
         "message": "Nexora clubs Pollinations for speed, Ollama for local fallback or optional primary mode, autonomous research routing, Wikipedia context, realtime search, memory, and quality guard.",
         "speed": {
@@ -4259,6 +4442,8 @@ def free_provider_status() -> Dict[str, Any]:
             "pollinations_attempts": POLLINATIONS_ATTEMPTS,
             "autonomous_research": AUTONOMOUS_RESEARCH_ENABLED,
             "autonomous_research_max_results": AUTONOMOUS_RESEARCH_MAX_RESULTS,
+            "max_memory_items": MAX_MEMORY_ITEMS,
+            "max_memory_context_items": MAX_MEMORY_CONTEXT_ITEMS,
             "local_writing_fast": LOCAL_WRITING_FAST,
             "quality_guard": POLLINATIONS_QUALITY_GUARD,
         },
@@ -6206,10 +6391,19 @@ def health() -> Dict[str, Any]:
             "provider": IMAGE_PROVIDER,
             "mode": "remote_url_lightweight",
             "prompt_enhancement": IMAGE_PROMPT_ENHANCE,
+            "exact_match_mode": IMAGE_EXACT_MATCH_MODE,
+            "provider_enhance": IMAGE_PROVIDER_ENHANCE_PARAM,
             "model": IMAGE_MODEL or "provider_default",
             "default_size": IMAGE_DEFAULT_SIZE,
             "workflow_memory": True,
             "per_user_cache": True,
+        },
+        "memory": {
+            "max_items": MAX_MEMORY_ITEMS,
+            "context_items": MAX_MEMORY_CONTEXT_ITEMS,
+            "context_chars": MAX_MEMORY_CONTEXT_CHARS,
+            "image_memory_items": MAX_IMAGE_MEMORY_ITEMS,
+            "ranking": "keyword_overlap + explicit_preferences + importance + recency",
         },
         "strict_verification": True,
         "performance": performance,
