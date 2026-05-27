@@ -35,7 +35,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.50.0-human-answer-image-accuracy"
+APP_VERSION = "8.51.0-fast-human-writing"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "nexora_data"
@@ -478,13 +478,14 @@ def local_fast_reply(message: str) -> Optional[str]:
     return None
 
 
-WRITING_KIND_RE = r"(essay|paragraph|speech|article|note)"
+WRITING_KIND_RE = r"(essay|paragraph|speech|article|note|letter|application|notice)"
 WRITING_LENGTH_RE = r"(long|short|brief|small|detailed|full|complete)"
 WRITING_TOPIC_FILLERS = {
     "a", "an", "and", "about", "article", "brief", "can", "complete", "could",
     "create", "detailed", "draft", "essay", "for", "full", "give", "i", "in",
     "long", "make", "me", "need", "note", "of", "on", "paragraph", "please",
-    "prepare", "short", "small", "speech", "the", "want", "write", "you",
+    "prepare", "short", "small", "speech", "letter", "application", "notice",
+    "reason", "the", "want", "write", "you",
 }
 TITLE_ACRONYMS = {
     "ai", "api", "bjp", "cpu", "css", "gdp", "gpu", "hdd", "html", "http",
@@ -976,6 +977,70 @@ def build_polished_note(topic: str, length: str) -> str:
     ])
 
 
+def extract_leave_reason(message: str, topic: str = "") -> str:
+    text = clean_text(message)
+    lower = text.lower()
+    reason_match = re.search(
+        r"(?i)\b(?:reason|because|as|for)\s*(?:is|:)?\s+(.+)$",
+        text,
+    )
+    reason = clean_text(reason_match.group(1)) if reason_match else clean_text(topic)
+    reason = re.sub(r"(?i)\b(leave|letter|application|notice|request|please|kindly)\b", " ", reason)
+    reason = re.sub(r"\s+", " ", reason).strip(" .,:;-")
+    if re.search(r"\b(sick|ill|unwell|fever|medical|health)\b", f"{lower} {reason.lower()}"):
+        return "sick leave"
+    if reason and reason.lower() not in {"the topic", "reason"}:
+        return reason.lower()
+    return "personal leave"
+
+
+def build_leave_letter(message: str, topic: str, kind: str = "letter") -> str:
+    lower = clean_text(message).lower()
+    reason = extract_leave_reason(message, topic)
+    is_office = bool(re.search(r"\b(office|company|manager|work|job|employee|team lead|hr)\b", lower))
+    recipient = "The Manager" if is_office else "The Class Teacher"
+    place = "office" if is_office else "school"
+    signoff = "Yours sincerely" if is_office else "Yours obediently"
+    subject = "Application for Sick Leave" if "sick" in reason else "Leave Application"
+    body_reason = (
+        "I am not feeling well and need time to rest and recover."
+        if "sick" in reason
+        else f"I need leave due to {reason}."
+    )
+    return (
+        "Date: [DD/MM/YYYY]\n\n"
+        f"To\n{recipient}\n[School/Organization Name]\n\n"
+        f"Subject: {subject}\n\n"
+        "Respected Sir/Madam\n\n"
+        f"I am writing to request leave because {body_reason} "
+        f"Due to this, I will not be able to attend {place} for the required period.\n\n"
+        "Kindly grant me leave. I will complete any missed work as soon as I return.\n\n"
+        "Thank you for your understanding.\n\n"
+        f"{signoff}\n"
+        "[Your Name]"
+    )
+
+
+def build_polished_letter(message: str, topic: str, kind: str = "letter") -> str:
+    lower = clean_text(message).lower()
+    topic = title_case_topic(topic) if topic and topic != "the topic" else "Your Request"
+    if re.search(r"\b(leave|sick|ill|unwell|fever|medical|absent)\b", lower + " " + topic.lower()):
+        return build_leave_letter(message, topic, kind)
+    return (
+        "Date: [DD/MM/YYYY]\n\n"
+        "To\n"
+        "[Recipient Name/Designation]\n"
+        "[Organization Name]\n\n"
+        f"Subject: {topic}\n\n"
+        "Respected Sir/Madam\n\n"
+        f"I am writing this letter regarding {topic.lower()}. I request you to kindly consider the matter and take the necessary action.\n\n"
+        "I would be grateful for your support and understanding.\n\n"
+        "Thank you.\n\n"
+        "Yours sincerely\n"
+        "[Your Name]"
+    )
+
+
 def build_generic_writing(topic: str, kind: str = "essay", length: str = "balanced") -> str:
     normalized_kind = normalize_person_kind(kind) if kind in {"articles", "notes"} else clean_text(kind).lower()
     if normalized_kind in {"paragraph"} or length == "short" and normalized_kind == "writing":
@@ -986,6 +1051,8 @@ def build_generic_writing(topic: str, kind: str = "essay", length: str = "balanc
         return build_polished_article(topic, length)
     if normalized_kind in {"note", "notes"}:
         return build_polished_note(topic, length)
+    if normalized_kind in {"letter", "application", "notice"}:
+        return build_polished_letter(topic, topic, normalized_kind)
     return build_polished_essay(topic, length)
 
 
@@ -1009,6 +1076,12 @@ def local_writing_reply(message: str, session_id: Optional[str] = None) -> Optio
     topic_lower = topic.lower()
     if "father" in topic_lower and "day" in topic_lower:
         return build_fathers_day_essay(str(request.get("length", "balanced")))
+    if str(request.get("kind", "")).lower() in {"letter", "application", "notice"}:
+        return build_polished_letter(
+            text,
+            topic,
+            str(request.get("kind", "letter")),
+        )
 
     return build_generic_writing(
         topic,
@@ -1798,8 +1871,12 @@ def local_resilient_reply(
             "- A fallback answer when the online model is unavailable."
         )
     return (
-        "I can still help. I need one clearer target so I can give a useful answer instead of guessing.\n\n"
-        "Send the topic, file, image, or exact problem in one sentence, and I will turn it into a clean answer or workflow."
+        "Send one clear target, and I will turn it into a clean answer or workflow.\n\n"
+        "Useful examples:\n"
+        "- Write a sick leave letter.\n"
+        "- Explain photosynthesis for class 8.\n"
+        "- Create an image of a blue robot in a classroom.\n"
+        "- Make a study plan for maths."
     )
 
 
@@ -6401,6 +6478,10 @@ def ensure_terminal_punctuation(text: str, allow_colon: bool = False, allow_comm
         return stripped
 
     if re.match(r"(?i)^(title|subject|topic):\s+\S", stripped):
+        return stripped
+    if stripped in {"To", "Respected Sir/Madam", "Yours obediently", "Yours sincerely", "The Class Teacher", "The Manager", "The Principal"}:
+        return stripped
+    if re.match(r"^\[[^\]]+\]$", stripped):
         return stripped
     if re.search(r"(`|\]|\)|\}|[.!?])$", stripped):
         return stripped
