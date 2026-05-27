@@ -2348,8 +2348,7 @@ body.chat-mode .top-right {
   </div>
 
   <script>
-    const API_BASE = window.API_BASE || (window.location.protocol === "file:" ? "http://127.0.0.1:8000" : window.location.origin);
-    window.API_BASE = API_BASE;
+    const API_BASE = "http://127.0.0.1:8000";
 
     const sendBtn = document.getElementById("sendBtn");
     const input = document.getElementById("userInput");
@@ -3139,7 +3138,6 @@ body.chat-mode .top-right {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
             session_id: sessionId,
             message: userText,
             chat_history: historyForBackend,
@@ -4216,9 +4214,7 @@ body.chat-mode .top-right {
       closeHandSocket();
       setHandStatus("connecting...");
       try {
-        const handProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const handHost = window.location.protocol === "file:" ? "127.0.0.1:8000" : window.location.host;
-        handSocket = new WebSocket(handProtocol + "//" + handHost + "/ws/hand");
+        handSocket = new WebSocket("ws://127.0.0.1:8000/ws/hand");
       } catch (e) {
         setHandStatus("bridge unavailable");
         return;
@@ -9348,7 +9344,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function buildCleanPrompt(userText){
     const q = String(userText || "").trim();
-    const wantsSearch = /\b(latest|current|today|right now|live|recent|news|price|weather|who won|result|election|score|schedule|source|sources|link|links|2026|2027|2028)\b/i.test(q);
+    const wantsSearch = /\b(latest|current|today|now|right now|live|recent|news|price|weather|who won|result|election|score|schedule|source|sources|link|links|2026|2027|2028)\b/i.test(q);
 
     if(/^(hi|hello|hey|yo|hii|hlo|ok|okay|thanks|thank you)$/i.test(q)){
       return q;
@@ -9360,9 +9356,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       "Do not say 'check the link' or only list sources.",
       "Do not show backend steps, search process, or tool/debug text.",
       "Use a premium ChatGPT-like sentence rhythm: direct opening, natural transitions, varied sentence length, and calm confident wording.",
-      "Use a ChatGPT-like answer structure: answer first, then clear sections only when useful, with compact bullets and tables when they genuinely help.",
-      "Do not over-style the answer. Keep it clean, familiar, and easy to scan.",
-      "Make the answer clean and ChatGPT-like: precise punctuation, calm tone, no messy fragments, no hype.",
+      "Make the answer clean, professional, and Claude-like: precise punctuation, calm tone, no messy fragments, no hype.",
       "Use polished grammar and punctuation: correct commas, periods, apostrophes, capitalization, and sentence boundaries.",
       "When introducing a list, end the lead-in with a colon and keep the bullet grammar parallel.",
       "Prefer paragraph-led answers over bullet dumping; use bullets only for steps, comparisons, options, or compact lists.",
@@ -9430,7 +9424,6 @@ document.addEventListener("DOMContentLoaded",()=>{
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({
-          user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
           session_id: typeof sessionId !== "undefined" ? sessionId : null,
           message: buildCleanPrompt(userText),
           original_message: userText,
@@ -9508,7 +9501,6 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function cleanExistingAiMessages(){
     document.querySelectorAll(".ai-message").forEach(msg => {
-      if(msg.classList.contains("nx-image-message") || msg.dataset.nxImageMessage === "true" || msg.querySelector(".nx-image-result")) return;
       if(msg.dataset.nxFinalFormatted === "true") return;
 
       const text = msg.innerText.trim();
@@ -9549,7 +9541,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     color:#f4f4f5 !important;
     line-height:1.78 !important;
     font-size:16px !important;
-    letter-spacing:0 !important;
+    letter-spacing:-.012em !important;
     white-space:normal !important;
   }
 
@@ -9557,7 +9549,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   .nx-human-answer h3{
     color:#fff !important;
     font-weight:780 !important;
-    letter-spacing:0 !important;
+    letter-spacing:-.03em !important;
     line-height:1.32 !important;
   }
 
@@ -9603,10 +9595,10 @@ document.addEventListener("DOMContentLoaded",()=>{
   .nx-table-wrap{
     width:100% !important;
     overflow:auto !important;
-    margin:10px 0 18px !important;
+    margin:12px 0 18px !important;
     border:1px solid rgba(255,255,255,.10) !important;
-    border-radius:10px !important;
-    background:rgba(255,255,255,.025) !important;
+    border-radius:12px !important;
+    background:rgba(255,255,255,.035) !important;
   }
 
   .nx-smart-table{
@@ -9620,7 +9612,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-smart-table th,
   .nx-smart-table td{
-    padding:11px 13px !important;
+    padding:10px 12px !important;
     border-bottom:1px solid rgba(255,255,255,.08) !important;
     text-align:left !important;
     vertical-align:top !important;
@@ -9628,16 +9620,9 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-smart-table th{
     color:#dbeafe !important;
-    background:rgba(96,165,250,.08) !important;
+    background:rgba(96,165,250,.10) !important;
     font-weight:800 !important;
-    white-space:normal !important;
-  }
-
-  .nx-smart-table th:first-child,
-  .nx-smart-table td:first-child{
-    color:#ffffff !important;
-    font-weight:760 !important;
-    width:22% !important;
+    white-space:nowrap !important;
   }
 
   .nx-smart-table tr:last-child td{
@@ -9756,30 +9741,37 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-human-answer .nx-answer-lead{
-    margin:0 0 16px !important;
-    padding:0 !important;
-    border-radius:0 !important;
-    background:transparent !important;
-    border:0 !important;
-    box-shadow:none !important;
+    margin:0 0 14px !important;
+    padding:16px 18px !important;
+    border-radius:18px !important;
+    background:linear-gradient(135deg, rgba(96,165,250,.12), rgba(255,255,255,.045)) !important;
+    border:1px solid rgba(147,197,253,.20) !important;
+    box-shadow:0 14px 42px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.06) !important;
     color:#f8fafc !important;
     font-size:16.5px !important;
     line-height:1.72 !important;
   }
 
   .nx-answer-section-title{
-    display:block !important;
-    margin:22px 0 8px !important;
+    display:flex !important;
+    align-items:center !important;
+    gap:10px !important;
+    margin:22px 0 10px !important;
     color:#f8fafc !important;
-    font-size:16px !important;
-    font-weight:780 !important;
-    text-transform:none !important;
-    letter-spacing:0 !important;
+    font-size:14px !important;
+    font-weight:850 !important;
+    text-transform:uppercase !important;
+    letter-spacing:.055em !important;
   }
 
   .nx-answer-section-title::before{
-    display:none !important;
-    content:none !important;
+    content:"" !important;
+    width:8px !important;
+    height:8px !important;
+    border-radius:999px !important;
+    background:#93c5fd !important;
+    box-shadow:0 0 0 5px rgba(147,197,253,.12) !important;
+    flex:0 0 auto !important;
   }
 
   .nx-section-what-it-means::before,
@@ -9797,29 +9789,32 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-human-answer .nx-answer-list{
     margin:8px 0 16px !important;
-    padding-left:22px !important;
-    list-style:disc !important;
-    display:block !important;
+    padding:0 !important;
+    list-style:none !important;
+    display:grid !important;
+    gap:8px !important;
   }
 
   .nx-human-answer .nx-answer-list li{
-    position:static !important;
-    margin:6px 0 !important;
-    padding:0 !important;
-    border-radius:0 !important;
-    background:transparent !important;
-    border:0 !important;
+    position:relative !important;
+    margin:0 !important;
+    padding:11px 13px 11px 36px !important;
+    border-radius:14px !important;
+    background:rgba(255,255,255,.047) !important;
+    border:1px solid rgba(255,255,255,.08) !important;
     color:#eef2ff !important;
     line-height:1.55 !important;
   }
 
-  .nx-human-answer ol.nx-answer-list{
-    list-style:decimal !important;
-  }
-
   .nx-human-answer .nx-answer-list li::before{
-    display:none !important;
-    content:none !important;
+    content:"" !important;
+    position:absolute !important;
+    left:14px !important;
+    top:19px !important;
+    width:7px !important;
+    height:7px !important;
+    border-radius:999px !important;
+    background:#93c5fd !important;
   }
 
   .nx-human-answer .nx-answer-paragraph{
@@ -9829,11 +9824,10 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   .nx-human-answer .nx-answer-bottom{
     margin:10px 0 16px !important;
-    padding:10px 0 10px 14px !important;
-    border-radius:0 !important;
-    background:transparent !important;
-    border:0 !important;
-    border-left:3px solid rgba(250,204,21,.55) !important;
+    padding:14px 16px !important;
+    border-radius:16px !important;
+    background:rgba(250,204,21,.09) !important;
+    border:1px solid rgba(250,204,21,.18) !important;
     color:#fff7d6 !important;
     line-height:1.65 !important;
   }
@@ -9952,7 +9946,6 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(key === "how") text = "How it works";
     if(key === "example") text = "Examples";
     if(key === "quick summary") text = "Summary";
-    if(text === line || text.toUpperCase() === text) text = key;
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
@@ -9966,10 +9959,8 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function inlineMarkdown(line, sources){
     let html = escapeHtml(line)
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="nx-keyword">$1</strong>')
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
       .replace(/`([^`]+)`/g, "<code>$1</code>");
-
-    html = html.replace(/(^|>|\s)([A-Z][A-Za-z0-9 /+-]{2,32}:)(\s)/g, '$1<span class="nx-key-label">$2</span>$3');
 
     html = html.replace(/\[(\d+)\]/g, function(match, num){
       const src = sources[Number(num) - 1];
@@ -9981,7 +9972,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function isMarkdownTableLine(line){
     const text = normalizeMarkdownTableLine(line);
-    return text.includes("|") && text.split("|").filter(Boolean).length >= 2;
+    return text.startsWith("|") && text.endsWith("|") && text.split("|").length >= 4;
   }
 
   function normalizeMarkdownTableLine(line){
@@ -9998,52 +9989,6 @@ document.addEventListener("DOMContentLoaded",()=>{
       .replace(/\|$/, "")
       .split("|")
       .map(cell => cell.trim());
-  }
-
-  function isPunctuationOnlyLine(line){
-    return /^[:;.,\-–—]+$/.test(String(line || "").trim());
-  }
-
-  function parseLooseAnimeStyleRow(line){
-    const styles = [
-      "Slice of life", "Magical girl", "Kishotenketsu", "Kishōtenketsu",
-      "Shounen", "Shonen", "Shōnen", "Shojo", "Shoujo", "Shōjo",
-      "Seinen", "Josei", "Kodomo", "Gekiga", "Isekai", "Mecha",
-      "Sports", "Horror", "Fantasy", "Romance", "Cyberpunk"
-    ];
-    const text = String(line || "").replace(/\s+/g, " ").trim();
-    const style = styles.find(name => text.toLowerCase().startsWith(name.toLowerCase() + " "));
-    if(!style) return null;
-    let rest = text.slice(style.length).trim();
-    const audienceMatch = rest.match(/\b(Teens(?:,\s*(?:boys|girls))?|Boys|Girls|Adults|General|Kids|Children|Young adults|All ages|Everyone)\s*$/i);
-    if(!audienceMatch) return null;
-    const audience = audienceMatch[1];
-    rest = rest.slice(0, audienceMatch.index).trim();
-    const themeIndex = rest.search(/\b(Action|Romance|Mature drama|Psychological|Story-driven|Social issues|Friendship|Growth|Emotion|Inner life|Adventure|Comedy|Drama|Fantasy|Mystery|Realism|Competition|Identity)\b/i);
-    if(themeIndex <= 0) return [style, rest, "", audience];
-    return [style, rest.slice(0, themeIndex).trim(), rest.slice(themeIndex).trim(), audience];
-  }
-
-  function renderLooseTable(lines, startIndex, sources){
-    const header = String(lines[startIndex] || "").trim().replace(/\s+/g, " ").toLowerCase();
-    if(header !== "style typical look common themes audience") return null;
-    const rows = [];
-    let index = startIndex + 1;
-    while(index < lines.length){
-      const line = String(lines[index] || "").trim();
-      if(!line || isPunctuationOnlyLine(line) || normalizeStructuredHeading(line) || isMarkdownTableLine(line)) break;
-      const parsed = parseLooseAnimeStyleRow(line);
-      if(!parsed) break;
-      rows.push(parsed);
-      index += 1;
-    }
-    if(rows.length < 2) return null;
-    const tableLines = [
-      "| Style | Typical look | Common themes | Audience |",
-      "|---|---|---|---|",
-      ...rows.map(row => "| " + row.map(cell => String(cell || "").replace(/\|/g, "/")).join(" | ") + " |")
-    ];
-    return { html: renderMarkdownTable(tableLines, sources), endIndex: index - 1 };
   }
 
   function renderMarkdownTable(tableLines, sources){
@@ -10081,30 +10026,18 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function sourceRowHtml(sources){
     if(!sources.length) return "";
-    const visibleSources = sources.slice(0, 8);
-    return `<details class="nx-source-menu">
-      <summary aria-label="Show sources">
-        <span class="nx-source-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 4.5h9a3 3 0 0 1 3 3v12H8a3 3 0 0 0-3 3z"></path>
-            <path d="M5 4.5a3 3 0 0 1 3-3h11v18h-2"></path>
-          </svg>
-        </span>
-        <span>Sources</span>
-        <span class="nx-source-count">${visibleSources.length}</span>
-      </summary>
-      <div class="nx-source-panel">
-        <div class="nx-source-row">${visibleSources.map((src, i) => `
-          <a class="nx-source-card" href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(src.title)}">
-            <span class="nx-source-num">${i + 1}</span>
-            <span class="nx-source-text">
-              <span class="nx-source-domain">${escapeHtml(src.domain)}</span>
-              <span class="nx-source-title">${escapeHtml(src.title)}</span>
-            </span>
-          </a>
-        `).join("")}</div>
-      </div>
-    </details>`;
+    return `<div class="nx-source-panel">
+      <div class="nx-source-heading">Sources</div>
+      <div class="nx-source-row">${sources.slice(0, 5).map((src, i) => `
+        <a class="nx-source-card" href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(src.title)}">
+          <span class="nx-source-num">${i + 1}</span>
+          <span class="nx-source-text">
+            <span class="nx-source-domain">${escapeHtml(src.domain)}</span>
+            <span class="nx-source-title">${escapeHtml(src.title)}</span>
+          </span>
+        </a>
+      `).join("")}</div>
+    </div>`;
   }
 
   function actionsHtml(){
@@ -10132,7 +10065,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           question: lastUser ? (lastUser.text || lastUser.content || "") : "",
           answer: lastAssistant ? (lastAssistant.text || lastAssistant.content || "") : ""
         })
-      });
+[+]      });
       if(button) button.classList.add("active");
       if(typeof nxFinalToast === "function"){
         nxFinalToast(rating === "bad" ? "Feedback saved. I will adjust." : "Feedback saved. I will keep that style.");
@@ -10186,7 +10119,9 @@ document.addEventListener("DOMContentLoaded",()=>{
       inCode = false; codeLines = []; codeLang = "";
     }
     function maybeSources(){
-      return "";
+      if(rowInserted || !sources.length || !firstParaDone) return "";
+      rowInserted = true;
+      return sourceRowHtml(sources);
     }
 
     for(let lineIndex = 0; lineIndex < lines.length; lineIndex++){
@@ -10201,7 +10136,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       }
       if(inCode){ codeLines.push(raw); continue; }
 
-      if(!line || isPunctuationOnlyLine(line)){ closeList(); continue; }
+      if(!line){ closeList(); continue; }
 
       if(/^#{1,6}\s+/.test(line)) line = line.replace(/^#{1,6}\s+/, "");
       if(/^direct answer:?$/i.test(line)) continue;
@@ -10227,15 +10162,6 @@ document.addEventListener("DOMContentLoaded",()=>{
         }
         lineIndex--;
         html += renderMarkdownTable(tableLines, sources);
-        if(!firstParaDone) firstParaDone = true;
-        continue;
-      }
-
-      const looseTable = renderLooseTable(lines, lineIndex, sources);
-      if(looseTable){
-        closeList();
-        html += looseTable.html;
-        lineIndex = looseTable.endIndex;
         if(!firstParaDone) firstParaDone = true;
         continue;
       }
@@ -10268,7 +10194,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       }else{
         const paraClass = !firstParaDone ? "nx-answer-lead" : /nx-section-(bottom-line|takeaway|summary|result)/.test(currentSection) ? "nx-answer-bottom" : "nx-answer-paragraph";
         html += `<p class="${paraClass} ${currentSection}">${inlineMarkdown(line, sources)}</p>`;
-        if(!firstParaDone){ firstParaDone = true; }
+        if(!firstParaDone){ firstParaDone = true; html += maybeSources(); }
       }
     }
     closeList();
@@ -10278,15 +10204,12 @@ document.addEventListener("DOMContentLoaded",()=>{
     return html;
   }
 
-  window.nxFormatHumanAnswer = formatHumanAnswer;
-
   function renderAssistant(text, sources){
     const box = el("chatBox");
     if(!box) return;
     const msg = document.createElement("div");
     msg.className = "message ai-message";
     msg.dataset.nxV2Formatted = "true";
-    msg.dataset.nxFinalFormatted = "true";
     msg.innerHTML = formatHumanAnswer(text, sources) + actionsHtml();
     box.appendChild(msg);
     box.scrollTop = box.scrollHeight;
@@ -10297,98 +10220,46 @@ document.addEventListener("DOMContentLoaded",()=>{
     return msg;
   }
 
-  function renderStreamingAssistant(){
-    const box = el("chatBox");
-    if(!box) return null;
-    const msg = document.createElement("div");
-    msg.className = "message ai-message nx-streaming-answer";
-    msg.dataset.nxV2Formatted = "true";
-    msg.dataset.nxFinalFormatted = "true";
-    msg.innerHTML = '<div class="nx-human-answer"><p class="nx-answer-lead">Thinking...</p></div>';
-    box.appendChild(msg);
-    box.scrollTop = box.scrollHeight;
-    return msg;
-  }
-
-  function updateStreamingAssistant(msg, text){
-    if(!msg) return;
-    msg.innerHTML = formatHumanAnswer(text || "Thinking...", []);
-    const box = el("chatBox");
-    if(box) box.scrollTop = box.scrollHeight;
-  }
-
-  function finishStreamingAssistant(msg, text, sources){
-    if(!msg) return renderAssistant(text, sources);
-    msg.classList.remove("nx-streaming-answer");
-    msg.innerHTML = formatHumanAnswer(text, sources || []) + actionsHtml();
-    try{
-      window.chatHistory = window.chatHistory || [];
-      window.chatHistory.push({text:String(text || ""), className:"ai-message", role:"assistant", sources:sources || [], meta:null});
-    }catch(e){}
-    const box = el("chatBox");
-    if(box) box.scrollTop = box.scrollHeight;
-    return msg;
-  }
-
-  async function readChatStream(response, streamMsg){
-    if(!response.body || !window.TextDecoder){
-      const data = await response.json();
-      return {reply:data.reply || data.response || data.answer || "", sources:Array.isArray(data.sources) ? data.sources : []};
-    }
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let reply = "";
-    let sources = [];
-    while(true){
-      const next = await reader.read();
-      if(next.done) break;
-      buffer += decoder.decode(next.value, {stream:true});
-      const events = buffer.split("\n\n");
-      buffer = events.pop() || "";
-      for(const rawEvent of events){
-        const line = rawEvent.split("\n").find(item => item.startsWith("data:"));
-        if(!line) continue;
-        let data = null;
-        try{ data = JSON.parse(line.slice(5).trim()); }catch(e){ continue; }
-        if(data.type === "meta" && Array.isArray(data.sources)){
-          sources = data.sources;
-        }else if(data.type === "token"){
-          reply += data.text || data.token || "";
-          updateStreamingAssistant(streamMsg, reply);
-        }else if(data.type === "done"){
-          reply = data.reply || reply;
-          sources = Array.isArray(data.sources) ? data.sources : sources;
-        }else if(data.type === "error"){
-          throw new Error(data.message || "stream error");
-        }
-      }
-    }
-    return {reply, sources};
-  }
-
   function buildAgentPrompt(userText){
     const q = String(userText || "").trim();
     if(/^(hi|hello|hey|yo|hii|hlo|ok|okay|thanks|thank you)$/i.test(q)) return q;
     const lower = q.toLowerCase();
     const writingMode = /\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|apology|invitation|complaint|request|proposal|draft)\b/.test(lower);
     const searchMode = /\b(latest|current|today|news|search|searcch|look up|find online|real[- ]?time|realtime|price|weather|score|president|market|crude oil|oil crisis|petrol|diesel|fuel price|energy crisis|inflation|rupee|import bill|sanctions|russia ukraine|ukraine war|israel hamas|gaza war|iran israel|middle east conflict|ongoing war|current war|war news|ongoing conflict|current conflict|conflict news)\b/.test(lower);
+    const chatMode = !writingMode && !searchMode;
     return [
-      "Answer directly in a warm, human, polished style.",
-      "Use this Nexora structure when useful: direct answer first, short explanation, important details/examples, sources or links if needed, then a practical next step only when useful.",
-      "Keep simple answers short. Use sections, tables, or steps only when they genuinely help.",
-      "Avoid robotic wording, over-formatting, giant walls of text, and generic filler.",
-      "Adapt tone: school = exam-style, coding = developer assistant, research = source-backed, creative = smooth Claude-style, business = strategic and sharp, casual = conversational.",
-      "Choose the format automatically: paragraph, steps, compact table, or simple text diagram when it makes the answer clearer.",
-      "Never put a colon on its own line. A section heading must stay on one line, like 'Key points:'.",
-      "If using a table, output a real markdown table with visible | separators and a separator row. Never use spaced columns.",
-      "Use clear punctuation, short paragraphs, and natural rhythm. Avoid filler and backend/tool talk.",
-      "Do not add generic closing questions.",
-      "End once the answer is complete.",
-      writingMode ? "Writing task: give the finished draft first, smooth and ready to send." : "",
-      searchMode ? "Current-info task: answer first, cite evidence with [1] when sources are available, and do not guess." : "",
-      "For study or explanation: simple idea first, key points next, bottom line last.",
-      "For comparison: use a compact markdown table.",
+      "Answer the user's real question, not the prompt instructions.",
+      "Use a premium ChatGPT-like sentence rhythm: direct opening, natural transitions, varied sentence length, and calm confident wording.",
+      "Make the answer clean, professional, and Claude-like: precise punctuation, calm tone, no messy fragments, no hype.",
+      "Writing quality is rhythm and clarity, not just grammar. Use commas as small pauses, periods for completion and impact, and dashes only when emphasis feels natural.",
+      "Use short sentences for confidence. Use longer sentences only when explanation needs flow.",
+      "Use spacing as part of the answer: small paragraphs, breathing room, and clear separation between thought changes.",
+      "Use numbered steps only when order matters. Use bullets when scanning matters. Avoid bullet dumping.",
+      "Remove filler. Prefer direct cause and effect over formal wording.",
+      "Make the answer sound like clear thinking, not like someone trying to sound intelligent.",
+      "Choose the answer structure before writing it.",
+      "Structure rules: simple fact or normal chat = 1-3 short paragraphs with no forced heading.",
+      "Structure rules: explanation or study answer = Short answer, Key points, How it works or Why it matters, Bottom line.",
+      "Structure rules: ordered task or tutorial = Goal, numbered Steps, Check, Bottom line.",
+      "Structure rules: comparison or options = short lead, valid markdown table, Takeaway.",
+      "Structure rules: process, cycle, architecture, or cause/effect = short lead, compact fenced text diagram, key bullets, Bottom line.",
+      writingMode ? "WRITING MODE: For emails, letters, applications, and messages, write a finished draft first. Make it smooth, human, polished, and ready to send. Include a subject line for email when useful. Do not over-explain unless asked." : "",
+      searchMode ? "SEARCH MODE: Use Perplexity-style synthesis: answer first, cite evidence with [1] and [2], avoid guessing, and keep sources as evidence rather than raw link dumps." : "",
+      chatMode ? "CHAT MODE: Behave like a thoughtful human assistant: warm, attentive, practical, emotionally aware, and concise unless depth is needed." : "",
+      "Use polished grammar and punctuation: correct commas, periods, apostrophes, capitalization, and sentence boundaries.",
+      "When introducing a list, end the lead-in with a colon and keep the bullet grammar parallel.",
+      "Prefer paragraph-led answers over bullet dumping; use bullets only for steps, comparisons, options, or compact lists.",
+      "Do not write the heading 'Direct Answer'.",
+      "Start with the actual answer in a human sentence, then add context only if it helps.",
+      "Use clear headings only when useful.",
+      "For science and math, explain the idea in clean human language before formulas.",
+      "Do not output raw LaTeX delimiters like \\[...\\]. If a formula is needed, use readable plain text.",
+      "Do not use decorative emojis unless the user asks for them.",
+      "Never dump links. Use sources only as evidence, with citation markers like [1] and [2].",
+      "If current facts are needed, synthesize from search evidence and answer first.",
+      "Decide the best format automatically: short for simple questions, detailed for complex questions, markdown tables for comparisons, chart-style text for trends, and compact text diagrams for processes.",
+      "If you use a table, output a valid markdown table. If you use a diagram, put it in a fenced code block.",
+      "Do not show backend logs, model setup text, search process, raw JSON, or tool steps.",
       "User question: " + q
     ].join("\n");
   }
@@ -10470,21 +10341,20 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     try{
       const backendMode = typeof getBackendModeForRequest === "function" ? getBackendModeForRequest() : "thinking";
-      const response = await fetch(API_BASE_V2 + "/chat/stream", {
+      const response = await fetch(API_BASE_V2 + "/chat", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
           session_id: typeof sessionId !== "undefined" ? sessionId : null,
           message: buildAgentPrompt(userText),
           original_message: userText,
           chat_history: history,
           mode: backendMode,
           model: null,
-          stream: true,
+          stream: false,
           complete: true,
-          answer_style: "efficient_polished_structure",
-          max_tokens: 900
+          answer_style: "polished_human_with_perplexity_sources",
+          max_tokens: 1800
         })
       });
 
@@ -10492,16 +10362,15 @@ document.addEventListener("DOMContentLoaded",()=>{
       if(typingEl) typingEl.remove();
 
       if(!response.ok){ renderAssistant("⚠️ Backend connection returned error " + response.status + ".", []); return; }
-      const streamMsg = renderStreamingAssistant();
-      const data = await readChatStream(response, streamMsg);
-      const reply = data.reply || data.response || data.answer || "Nexora did not return an answer.";
+      const data = await response.json();
+      const reply = data.reply || data.response || data.answer || "⚠️ Nexora did not return an answer.";
       const sources = Array.isArray(data.sources) ? data.sources : [];
-      finishStreamingAssistant(streamMsg, reply, sources);
+      renderAssistant(reply, sources);
       if(typeof speakReply === "function") speakReply(reply);
     }catch(err){
       const typingEl = el(typingId);
       if(typingEl) typingEl.remove();
-      renderAssistant("⚠️ Error connecting to backend. Make sure the Nexora service is running for this domain.", []);
+      renderAssistant("⚠️ Error connecting to backend. Make sure the FastAPI server is running at `http://127.0.0.1:8000`.", []);
       console.error(err);
     }finally{
       clearPendingQuestion(input);
@@ -10542,14 +10411,12 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function reformatOldMessages(){
     document.querySelectorAll(".ai-message").forEach(msg => {
-      if(msg.classList.contains("nx-image-message") || msg.dataset.nxImageMessage === "true" || msg.querySelector(".nx-image-result")) return;
       if(msg.dataset.nxV2Formatted === "true") return;
       const text = msg.innerText.trim();
       if(!text) return;
       msg.querySelectorAll(".source-card,.source-list,.source-item,.tool-badge-row,.thinking,.debug,.backend-log,.process-log,.source-dump,.raw-sources").forEach(x => x.remove());
       msg.innerHTML = formatHumanAnswer(text, []) + actionsHtml();
       msg.dataset.nxV2Formatted = "true";
-      msg.dataset.nxFinalFormatted = "true";
     });
   }
 
@@ -10822,117 +10689,27 @@ document.addEventListener("DOMContentLoaded",()=>{
     overflow-wrap:anywhere !important;
   }
 
-  .nx-human-answer .nx-keyword,
-  .nx-human-answer .nx-key-label{
-    color:#f8fafc !important;
-    font-weight:800 !important;
-  }
-
-  .nx-human-answer .nx-key-label{
-    padding:1px 4px !important;
-    border-radius:5px !important;
-    background:rgba(96,165,250,.10) !important;
-  }
-
-  .nx-streaming-answer .nx-human-answer{
-    animation:nxAnswerFadeIn .16s ease-out both;
-  }
-
-  .nx-streaming-answer::after{
-    content:"";
-    display:inline-block;
-    width:7px;
-    height:17px;
-    margin-left:5px;
-    border-radius:2px;
-    background:#93c5fd;
-    vertical-align:-3px;
-    animation:nxCursorBlink .9s infinite;
-  }
-
-  @keyframes nxCursorBlink{
-    0%,45%{opacity:1}
-    46%,100%{opacity:.15}
-  }
-
-  @keyframes nxAnswerFadeIn{
-    from{opacity:.72; transform:translateY(2px)}
-    to{opacity:1; transform:translateY(0)}
-  }
-
-  .nx-source-menu{
-    position:relative !important;
-    display:inline-block !important;
-    margin:10px 0 18px !important;
-  }
-
-  .nx-source-menu > summary{
-    list-style:none !important;
-    display:inline-flex !important;
-    align-items:center !important;
-    gap:8px !important;
-    height:32px !important;
-    padding:0 12px !important;
-    border-radius:999px !important;
-    background:rgba(255,255,255,.06) !important;
-    border:1px solid rgba(255,255,255,.12) !important;
-    color:#f8fafc !important;
-    font-size:13px !important;
-    font-weight:760 !important;
-    cursor:pointer !important;
-    user-select:none !important;
-  }
-
-  .nx-source-menu > summary::-webkit-details-marker{
-    display:none !important;
-  }
-
-  .nx-source-menu > summary:hover,
-  .nx-source-menu[open] > summary{
-    background:rgba(96,165,250,.13) !important;
-    border-color:rgba(96,165,250,.32) !important;
-  }
-
-  .nx-source-icon{
-    width:16px !important;
-    height:16px !important;
-    display:inline-flex !important;
-    color:#e0f2fe !important;
-  }
-
-  .nx-source-count{
-    min-width:18px !important;
-    height:18px !important;
-    padding:0 6px !important;
-    border-radius:999px !important;
-    display:inline-flex !important;
-    align-items:center !important;
-    justify-content:center !important;
-    background:rgba(96,165,250,.20) !important;
-    color:#dbeafe !important;
-    font-size:11px !important;
-    font-weight:850 !important;
-  }
-
   .nx-source-panel{
-    position:absolute !important;
-    left:0 !important;
-    bottom:calc(100% + 8px) !important;
-    z-index:50 !important;
-    width:min(460px, calc(100vw - 56px)) !important;
-    max-height:320px !important;
-    overflow:auto !important;
-    padding:8px !important;
-    border:1px solid rgba(255,255,255,.13) !important;
+    margin:14px 0 20px !important;
+    padding:12px !important;
+    border:1px solid rgba(255,255,255,.10) !important;
     border-radius:14px !important;
-    background:#202123 !important;
-    box-shadow:0 18px 60px rgba(0,0,0,.48) !important;
+    background:rgba(255,255,255,.035) !important;
+  }
+
+  .nx-source-heading{
+    margin:0 0 10px !important;
+    color:#cbd5e1 !important;
+    font-size:12px !important;
+    font-weight:800 !important;
+    text-transform:uppercase !important;
+    letter-spacing:.04em !important;
   }
 
   .nx-source-panel .nx-source-row{
     display:grid !important;
-    grid-template-columns:1fr !important;
-    gap:6px !important;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr)) !important;
+    gap:8px !important;
     margin:0 !important;
   }
 
@@ -10942,17 +10719,17 @@ document.addEventListener("DOMContentLoaded",()=>{
     align-items:start !important;
     gap:9px !important;
     padding:10px !important;
-    border-radius:10px !important;
-    background:rgba(255,255,255,.055) !important;
-    border:1px solid rgba(255,255,255,.08) !important;
+    border-radius:12px !important;
+    background:rgba(255,255,255,.06) !important;
+    border:1px solid rgba(255,255,255,.10) !important;
     color:#f8fafc !important;
     text-decoration:none !important;
     min-width:0 !important;
   }
 
   .nx-source-panel .nx-source-card:hover{
-    background:rgba(96,165,250,.13) !important;
-    border-color:rgba(96,165,250,.30) !important;
+    background:rgba(96,165,250,.12) !important;
+    border-color:rgba(96,165,250,.28) !important;
   }
 
   .nx-source-panel .nx-source-num{
@@ -11193,69 +10970,26 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-image-message{
-    max-width:min(720px, calc(100% - 56px)) !important;
+    max-width:min(760px, calc(100% - 80px)) !important;
   }
 
   .nx-image-result{
     border:1px solid rgba(255,255,255,.12);
     border-radius:18px;
-    background:#111;
+    background:#1f2024;
     overflow:hidden;
-  }
-
-  .nx-image-result-media{
-    position:relative;
-    min-height:260px;
-    background:#111;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-
-  .nx-image-loading{
-    position:absolute;
-    inset:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    color:#a1a1aa;
-    font-size:14px;
-    background:linear-gradient(110deg,#141414,#202125,#141414);
   }
 
   .nx-image-result img{
     display:block;
     width:100%;
-    min-height:240px;
-    max-height:620px;
+    max-height:560px;
     object-fit:contain;
     background:#111;
-    position:relative;
-    z-index:1;
-  }
-
-  .nx-image-result.image-loaded .nx-image-loading{
-    display:none;
-  }
-
-  .nx-image-result.image-error img{
-    display:none;
-  }
-
-  .nx-image-error{
-    display:none;
-    padding:28px;
-    color:#f4f4f5;
-    text-align:center;
-    line-height:1.5;
-  }
-
-  .nx-image-result.image-error .nx-image-error{
-    display:block;
   }
 
   .nx-image-result-info{
-    display:none;
+    padding:13px 14px 14px;
   }
 
   .nx-image-result-title{
@@ -11271,49 +11005,10 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   .nx-image-result-actions{
-    display:none;
+    display:flex;
     gap:8px;
     flex-wrap:wrap;
     margin-top:12px;
-  }
-
-  .nx-image-overlay-actions{
-    position:absolute;
-    right:10px;
-    bottom:10px;
-    z-index:2;
-    display:flex;
-    gap:7px;
-    opacity:0;
-    transform:translateY(4px);
-    transition:opacity .16s ease, transform .16s ease;
-  }
-
-  .nx-image-result:hover .nx-image-overlay-actions,
-  .nx-image-result:focus-within .nx-image-overlay-actions{
-    opacity:1;
-    transform:translateY(0);
-  }
-
-  .nx-image-overlay-actions a,
-  .nx-image-overlay-actions button{
-    border:1px solid rgba(255,255,255,.18);
-    border-radius:999px;
-    background:rgba(20,20,22,.78);
-    color:#fff;
-    padding:7px 10px;
-    text-decoration:none;
-    font-size:12px;
-    font-weight:720;
-    cursor:pointer;
-    backdrop-filter:blur(10px);
-  }
-
-  @media (hover:none){
-    .nx-image-overlay-actions{
-      opacity:1;
-      transform:none;
-    }
   }
 
   .nx-image-result-actions a,
@@ -11329,54 +11024,6 @@ document.addEventListener("DOMContentLoaded",()=>{
     cursor:pointer;
   }
 
-  .nx-image-options{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:10px;
-    margin-top:12px;
-  }
-
-  .nx-image-toggle{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    color:#d4d4d8;
-    font-size:13px;
-    margin-top:12px;
-  }
-
-  .nx-image-toggle input{
-    accent-color:#60a5fa;
-  }
-
-  .nx-followup-row{
-    display:none !important;
-    gap:8px;
-    flex-wrap:wrap;
-    margin:12px 0 4px;
-  }
-
-  .nx-followup-row button{
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:999px;
-    background:#25262a;
-    color:#f4f4f5;
-    padding:7px 10px;
-    font-size:13px;
-    font-weight:650;
-    cursor:pointer;
-  }
-
-  .nx-followup-row button:hover{
-    background:#303136;
-  }
-
-  @media (max-width:720px){
-    .nx-image-options{
-      grid-template-columns:1fr;
-    }
-  }
-
   .nx-chatgpt-sidebar .nx-cgpt-item svg{
     flex:0 0 auto;
   }
@@ -11389,7 +11036,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   const IMAGE_KEY = "nexora_images_v1";
   const CHAT_KEY = "nexora_chat_snapshots_v1";
   const PROJECT_KEY = "nexora_projects_v2";
-  const USER_KEY = "nexoraUserId";
 
   const icon = {
     search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>',
@@ -11404,18 +11050,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   };
 
   function $(id){ return document.getElementById(id); }
-
-  function getNexoraUserId(){
-    let id = localStorage.getItem(USER_KEY) || "";
-    if(!/^[a-zA-Z0-9_-]{4,80}$/.test(id)){
-      id = "user_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
-      localStorage.setItem(USER_KEY, id);
-    }
-    window.nexoraUserId = id;
-    return id;
-  }
-
-  window.getNexoraUserId = getNexoraUserId;
 
   function escapeHtml(value){
     const div = document.createElement("div");
@@ -11546,7 +11180,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   async function fetchProjects(){
     const local = getProjectsLocal();
     try{
-      const res = await fetch(API + "/projects?user_id=" + encodeURIComponent(getNexoraUserId()));
+      const res = await fetch(API + "/projects");
       if(res.ok){
         const data = await res.json();
         const backend = Array.isArray(data.projects) ? data.projects.map(p => typeof p === "string" ? p : p.name).filter(Boolean) : [];
@@ -11564,7 +11198,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       await fetch(API + "/projects/create", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:clean, user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+        body:JSON.stringify({name:clean, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
       });
     }catch(e){}
     renderSidebar();
@@ -11599,7 +11233,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const local = readList(CHAT_KEY);
       let backend = [];
       try{
-        const res = await fetch(API + "/sessions?user_id=" + encodeURIComponent(getNexoraUserId()));
+        const res = await fetch(API + "/sessions");
         if(res.ok){
           const data = await res.json();
           backend = Array.isArray(data.sessions) ? data.sessions : [];
@@ -11672,7 +11306,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const images = readList(IMAGE_KEY);
     let backend = [];
     try{
-      const res = await fetch(API + "/artifacts?user_id=" + encodeURIComponent(getNexoraUserId()));
+      const res = await fetch(API + "/artifacts");
       if(res.ok){
         const data = await res.json();
         backend = Array.isArray(data.artifacts) ? data.artifacts : [];
@@ -11704,115 +11338,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     });
   }
 
-  function openFreeAISetupPanel(){
-    openToolModal("Free AI", "Club Pollinations, Ollama, and realtime context into one stronger no-cost engine.", '<div class="nx-tool-grid"><div class="nx-tool-card"><div class="nx-tool-card-title">Provider</div><div class="nx-tool-card-meta" id="nxFreeAiStatus">Loading current setup...</div></div></div><div class="nx-tool-row" style="margin-top:14px;"><select class="nx-tool-select" id="nxFreeProvider"><option value="auto">Auto: fast online plus local fallback</option><option value="ollama">Ollama: local primary</option><option value="pollinations">Pollinations: no key fallback</option><option value="groq">Groq: free key</option><option value="gemini">Gemini: free key</option><option value="openrouter">OpenRouter: free key</option><option value="huggingface">Hugging Face: free key</option></select></div><input class="nx-tool-input" id="nxFreeApiKey" type="password" placeholder="Paste free API key only if the provider needs one"><input class="nx-tool-input" id="nxFreeModel" style="margin-top:10px;" placeholder="Optional model name"><div class="nx-tool-row" style="margin-top:12px;"><button class="nx-tool-btn" id="nxSaveFreeAi">Save provider</button><button class="nx-tool-btn secondary" id="nxRefreshFreeAi">Refresh</button></div><div class="nx-tool-card-meta">Club mode is automatic: Pollinations answers fast, Ollama is ready as local fallback or primary mode, and search/context improves accuracy.</div>', async function(){
-      const statusEl = $("nxFreeAiStatus");
-      const providerEl = $("nxFreeProvider");
-      const modelEl = $("nxFreeModel");
-      async function refresh(){
-        try{
-          const res = await fetch(API + "/settings/free-ai");
-          const data = await res.json();
-          const status = data.status || {};
-          if(providerEl) providerEl.value = status.selected || "auto";
-          if(modelEl && status.models && providerEl) modelEl.placeholder = "Optional model, current: " + (status.models[providerEl.value] || "default");
-          if(statusEl) statusEl.textContent = "Current order: " + ((status.priority || status.configured || []).join(" -> ") || "pollinations") + " | Club mode: " + (status.club_mode || "auto");
-        }catch(e){
-          if(statusEl) statusEl.textContent = "Could not load provider status.";
-        }
-      }
-      if(providerEl && modelEl){
-        providerEl.onchange = () => refresh();
-      }
-      $("nxRefreshFreeAi").onclick = refresh;
-      $("nxSaveFreeAi").onclick = async () => {
-        const provider = providerEl ? providerEl.value : "auto";
-        const apiKey = ($("nxFreeApiKey") && $("nxFreeApiKey").value || "").trim();
-        const model = (modelEl && modelEl.value || "").trim();
-        try{
-          const res = await fetch(API + "/settings/free-ai", {
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({provider, api_key:apiKey || null, model:model || null})
-          });
-          const data = await res.json();
-          toast(data.message || (data.ok ? "Free AI updated" : "Free AI setup needs a key"));
-          refresh();
-        }catch(e){
-          toast("Could not save Free AI setup");
-        }
-      };
-      refresh();
-    });
-  }
-
-  function addAssistantText(text){
-    ensureChat();
-    if(typeof window.addMessage === "function") window.addMessage(text || "", "ai-message", "assistant");
-    closeToolModal();
-  }
-
-  function openPowerToolsPanel(){
-    openToolModal("Power tools", "Files, study plans, websites, reminders, workflows, email drafts, and automation plans.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxPowerFile"><div class="nx-tool-card-title">Summarize file</div><div class="nx-tool-card-meta">Summarize the latest uploaded PDF or document.</div></button></div><div class="nx-tool-card"><button id="nxPowerStudy"><div class="nx-tool-card-title">Study planner</div><div class="nx-tool-card-meta">Create a day-by-day revision plan.</div></button></div><div class="nx-tool-card"><button id="nxPowerWebsite"><div class="nx-tool-card-title">Website</div><div class="nx-tool-card-meta">Generate a single-file website artifact.</div></button></div><div class="nx-tool-card"><button id="nxPowerReminder"><div class="nx-tool-card-title">Reminder</div><div class="nx-tool-card-meta">Save a local reminder.</div></button></div><div class="nx-tool-card"><button id="nxPowerWorkflow"><div class="nx-tool-card-title">Workflow</div><div class="nx-tool-card-meta">Create a reusable checklist.</div></button></div><div class="nx-tool-card"><button id="nxPowerEmail"><div class="nx-tool-card-title">Email draft</div><div class="nx-tool-card-meta">Draft a clean email.</div></button></div><div class="nx-tool-card"><button id="nxPowerAutomation"><div class="nx-tool-card-title">Automation plan</div><div class="nx-tool-card-meta">Plan safe browser/task actions.</div></button></div></div>', function(){
-      $("nxPowerFile").onclick = async () => {
-        try{
-          const res = await fetch(API + "/files/summarize", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || "", user_id:getNexoraUserId(), max_points:6})});
-          const data = await res.json();
-          if(!data.ok) return toast(data.message || "Upload a file first");
-          addAssistantText((data.artifact && data.artifact.content) || (data.summary && data.summary.summary) || "Summary ready.");
-        }catch(e){ toast("Could not summarize file"); }
-      };
-      $("nxPowerStudy").onclick = () => openToolModal("Study planner", "Create a focused plan.", '<input class="nx-tool-input" id="nxStudyTopic" placeholder="Topic"><div class="nx-tool-row" style="margin-top:10px;"><input class="nx-tool-input" id="nxStudyDays" value="7" placeholder="Days"><input class="nx-tool-input" id="nxStudyMinutes" value="45" placeholder="Minutes/day"></div><button class="nx-tool-btn" id="nxStudyCreate" style="margin-top:12px;">Create plan</button>', function(){
-        $("nxStudyCreate").onclick = async () => {
-          const res = await fetch(API + "/study/plan", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("nxStudyTopic").value || "Study topic", days:Number($("nxStudyDays").value || 7), daily_minutes:Number($("nxStudyMinutes").value || 45), user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
-          const data = await res.json();
-          addAssistantText(data.plan || "Study plan created.");
-        };
-      });
-      $("nxPowerWebsite").onclick = () => openToolModal("Generate website", "Create a single-file website artifact.", '<textarea class="nx-tool-textarea" id="nxWebsitePrompt" placeholder="Example: portfolio website for a student designer"></textarea><input class="nx-tool-input" id="nxWebsiteTitle" style="margin-top:10px;" placeholder="Optional title"><button class="nx-tool-btn" id="nxWebsiteCreate" style="margin-top:12px;">Generate website</button>', function(){
-        $("nxWebsiteCreate").onclick = async () => {
-          const res = await fetch(API + "/website/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({prompt:$("nxWebsitePrompt").value || "modern website", title:$("nxWebsiteTitle").value || "", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
-          const data = await res.json();
-          addAssistantText("Website artifact created: " + ((data.artifact && data.artifact.title) || "Website"));
-        };
-      });
-      $("nxPowerReminder").onclick = () => openToolModal("Reminder", "Save a local reminder.", '<input class="nx-tool-input" id="nxReminderTitle" placeholder="Reminder"><input class="nx-tool-input" id="nxReminderDue" style="margin-top:10px;" placeholder="Due, e.g. tomorrow 7 PM"><button class="nx-tool-btn" id="nxReminderCreate" style="margin-top:12px;">Save reminder</button>', function(){
-        $("nxReminderCreate").onclick = async () => {
-          const res = await fetch(API + "/reminders/create", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:$("nxReminderTitle").value || "Reminder", due_at:$("nxReminderDue").value || "", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
-          const data = await res.json();
-          toast(data.ok ? "Reminder saved" : "Could not save reminder");
-          closeToolModal();
-        };
-      });
-      $("nxPowerWorkflow").onclick = () => openToolModal("Workflow", "Create a reusable checklist.", '<input class="nx-tool-input" id="nxWorkflowName" placeholder="Workflow name"><textarea class="nx-tool-textarea" id="nxWorkflowSteps" style="margin-top:10px;" placeholder="One step per line"></textarea><button class="nx-tool-btn" id="nxWorkflowCreate" style="margin-top:12px;">Create workflow</button>', function(){
-        $("nxWorkflowCreate").onclick = async () => {
-          const steps = ($("nxWorkflowSteps").value || "").split("\\n").map(s => s.trim()).filter(Boolean);
-          const res = await fetch(API + "/workflows/create", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:$("nxWorkflowName").value || "Workflow", steps, user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
-          const data = await res.json();
-          addAssistantText("Workflow created: " + ((data.workflow && data.workflow.name) || "Workflow"));
-        };
-      });
-      $("nxPowerEmail").onclick = () => openToolModal("Email draft", "Draft a clean email.", '<textarea class="nx-tool-textarea" id="nxEmailPurpose" placeholder="Purpose of the email"></textarea><input class="nx-tool-input" id="nxEmailRecipient" style="margin-top:10px;" placeholder="Recipient"><button class="nx-tool-btn" id="nxEmailCreate" style="margin-top:12px;">Draft email</button>', function(){
-        $("nxEmailCreate").onclick = async () => {
-          const res = await fetch(API + "/email/draft", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({purpose:$("nxEmailPurpose").value || "send a clear message", recipient:$("nxEmailRecipient").value || "", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
-          const data = await res.json();
-          addAssistantText(data.draft || "Email draft created.");
-        };
-      });
-      $("nxPowerAutomation").onclick = () => openToolModal("Automation plan", "Plan safe browser/task execution.", '<textarea class="nx-tool-textarea" id="nxAutomationGoal" placeholder="What should be automated?"></textarea><button class="nx-tool-btn" id="nxAutomationCreate" style="margin-top:12px;">Create plan</button>', function(){
-        $("nxAutomationCreate").onclick = async () => {
-          const res = await fetch(API + "/automation/plan", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({goal:$("nxAutomationGoal").value || "automation task", user_id:getNexoraUserId(), session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})});
-          const data = await res.json();
-          addAssistantText(data.plan || "Automation plan created.");
-        };
-      });
-    });
-  }
-
   function openCustomizePanel(){
-    openToolModal("Customize", "Tune Nexora personality, memory, AI provider, voice, and account tools.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxOpenPowerTools"><div class="nx-tool-card-title">Power tools</div><div class="nx-tool-card-meta">Files, planners, reminders, workflows, websites, email, automation.</div></button></div><div class="nx-tool-card"><button id="nxOpenFreeAI"><div class="nx-tool-card-title">Free AI</div><div class="nx-tool-card-meta">Keep the no-key base and strengthen it with club mode.</div></button></div><div class="nx-tool-card"><button id="nxOpenAccount"><div class="nx-tool-card-title">Account</div><div class="nx-tool-card-meta">Open profile and account settings.</div></button></div><div class="nx-tool-card"><button id="nxOpenVoice"><div class="nx-tool-card-title">Voice</div><div class="nx-tool-card-meta">Change speech and wake settings.</div></button></div><div class="nx-tool-card"><button id="nxResetPersona"><div class="nx-tool-card-title">Reset persona</div><div class="nx-tool-card-meta">Clear style customization.</div></button></div><div class="nx-tool-card"><button id="nxResetBehavior"><div class="nx-tool-card-title">Reset behavior learning</div><div class="nx-tool-card-meta">Clear feedback-based adaptation.</div></button></div></div>', function(){
-      $("nxOpenPowerTools").onclick = () => openPowerToolsPanel();
-      $("nxOpenFreeAI").onclick = () => openFreeAISetupPanel();
+    openToolModal("Customize", "Tune Nexora personality, memory, voice, and account tools.", '<div class="nx-tool-grid"><div class="nx-tool-card"><button id="nxOpenAccount"><div class="nx-tool-card-title">Account</div><div class="nx-tool-card-meta">Open profile and account settings.</div></button></div><div class="nx-tool-card"><button id="nxOpenVoice"><div class="nx-tool-card-title">Voice</div><div class="nx-tool-card-meta">Change speech and wake settings.</div></button></div><div class="nx-tool-card"><button id="nxResetPersona"><div class="nx-tool-card-title">Reset persona</div><div class="nx-tool-card-meta">Clear style customization.</div></button></div><div class="nx-tool-card"><button id="nxResetBehavior"><div class="nx-tool-card-title">Reset behavior learning</div><div class="nx-tool-card-meta">Clear feedback-based adaptation.</div></button></div></div>', function(){
       $("nxOpenAccount").onclick = () => { closeToolModal(); if(typeof window.openAccount === "function") window.openAccount(); };
       $("nxOpenVoice").onclick = () => { closeToolModal(); if(typeof window.openVoiceSettings === "function") window.openVoiceSettings(); };
       $("nxResetPersona").onclick = async () => { try{ await fetch(API + "/persona/reset", {method:"POST"}); toast("Persona reset"); }catch(e){ toast("Persona reset locally"); } };
@@ -11834,13 +11361,13 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   function openImageCreator(initialPrompt){
-    openToolModal("Create image", "Describe the picture you want. Nexora will enhance the prompt, generate it, and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: semi-realistic anime portrait, soft sunlight, detailed eyes, clean cinematic finish"></textarea><div class="nx-image-options"><select class="nx-tool-select" id="nxImageSize"><option value="768x768">Fast square</option><option value="1024x1024">Square HD</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><select class="nx-tool-select" id="nxImageStyle"><option value="auto">Auto style</option><option value="anime-realistic">Anime realistic</option><option value="realistic">Realistic</option><option value="cinematic">Cinematic</option><option value="anime">Anime</option><option value="poster">Poster</option><option value="logo">Logo</option><option value="3d">3D render</option><option value="sketch">Sketch</option></select></div><input class="nx-tool-input" id="nxImageNegative" style="margin-top:10px;" placeholder="Optional: things to avoid, like blurry text or extra objects"><label class="nx-image-toggle"><input type="checkbox" id="nxImageEnhance" checked> Enhance prompt automatically</label><div class="nx-tool-row" style="margin-top:12px;"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate image</button></div>', function(){
+    openToolModal("Create image", "Describe the picture you want. Nexora will generate it in the chat and save it to Artifacts.", '<textarea class="nx-tool-textarea" id="nxImagePromptBox" placeholder="Example: a futuristic study room at night, cinematic lighting, realistic, high detail"></textarea><div class="nx-tool-row" style="margin-top:12px;"><select class="nx-tool-select" id="nxImageSize"><option value="1024x1024">Square</option><option value="1216x832">Landscape</option><option value="832x1216">Portrait</option><option value="1344x768">Wide</option></select><input class="nx-tool-input" id="nxImageStyle" placeholder="Optional style, like realistic, anime, logo, poster"><button class="nx-tool-btn" id="nxImageGenerateBtn">Generate</button></div>', function(){
       const box = $("nxImagePromptBox");
       if(box) box.value = initialPrompt || "";
-      $("nxImageGenerateBtn").onclick = () => createImage(($("nxImagePromptBox").value || "").trim(), $("nxImageSize").value, $("nxImageStyle").value, $("nxImageNegative").value, $("nxImageEnhance").checked);
+      $("nxImageGenerateBtn").onclick = () => createImage(($("nxImagePromptBox").value || "").trim(), $("nxImageSize").value, $("nxImageStyle").value);
       if(box){
         box.onkeydown = e => {
-          if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) createImage(box.value.trim(), $("nxImageSize").value, $("nxImageStyle").value, $("nxImageNegative").value, $("nxImageEnhance").checked);
+          if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) createImage(box.value.trim(), $("nxImageSize").value, $("nxImageStyle").value);
         };
         setTimeout(() => box.focus(), 50);
       }
@@ -11849,15 +11376,12 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function saveImageLocal(data){
     const list = readList(IMAGE_KEY);
-    const prompt = data.enhanced_prompt || data.prompt || data.original_prompt || "Generated image";
     list.unshift({
       id:data.artifact_id || ("image_" + Date.now().toString(36)),
       type:"Image",
-      title:(data.original_prompt || prompt).slice(0, 80),
-      prompt:prompt,
-      originalPrompt:data.original_prompt || "",
+      title:(data.prompt || "Generated image").slice(0, 80),
+      prompt:data.prompt || "",
       url:data.url || "",
-      size:data.size || "",
       createdAt:new Date().toLocaleString()
     });
     writeList(IMAGE_KEY, list, 80);
@@ -11866,39 +11390,18 @@ document.addEventListener("DOMContentLoaded",()=>{
   function renderImageResult(data){
     const box = $("chatBox");
     if(!box) return;
-    const promptUsed = data.enhanced_prompt || data.prompt || "";
     const msg = document.createElement("div");
     msg.className = "message ai-message nx-image-message";
-    msg.dataset.nxImageMessage = "true";
-    msg.dataset.nxV2Formatted = "true";
-    msg.dataset.nxFinalFormatted = "true";
-    msg.title = promptUsed;
-    msg.innerHTML = '<div class="nx-image-result nx-image-only"><div class="nx-image-result-media"><div class="nx-image-loading">Creating image preview...</div><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(promptUsed) + '" loading="eager" referrerpolicy="no-referrer"><div class="nx-image-error">Preview could not load here. Open the image instead.</div><div class="nx-image-overlay-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open</a><button type="button" onclick="nxOpenArtifacts()">Artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.original_prompt || promptUsed || "") + '">Edit</button></div></div></div>';
-    const result = msg.querySelector(".nx-image-result");
-    const preview = msg.querySelector("img");
-    if(preview){
-      preview.onload = () => {
-        if(result){
-          result.classList.add("image-loaded");
-          result.classList.remove("image-error");
-        }
-      };
-      preview.onerror = () => {
-        if(result){
-          result.classList.remove("image-loaded");
-          result.classList.add("image-error");
-        }
-      };
-    }
+    msg.innerHTML = '<div class="nx-image-result"><img src="' + escapeAttr(data.url) + '" alt="' + escapeAttr(data.prompt) + '"><div class="nx-image-result-info"><div class="nx-image-result-title">Image created</div><div class="nx-image-result-prompt">' + escapeHtml(data.prompt) + '</div><div class="nx-image-result-actions"><a href="' + escapeAttr(data.url) + '" target="_blank" rel="noopener noreferrer">Open image</a><button type="button" onclick="nxOpenArtifacts()">View artifacts</button><button type="button" class="nx-edit-image-prompt" data-prompt="' + escapeAttr(data.prompt || "") + '">Edit prompt</button></div></div></div>';
     const editBtn = msg.querySelector(".nx-edit-image-prompt");
     if(editBtn) editBtn.onclick = () => openImageCreator(editBtn.dataset.prompt || "");
     box.appendChild(msg);
     box.scrollTop = box.scrollHeight;
     window.chatHistory = window.chatHistory || [];
-    window.chatHistory.push({role:"assistant", className:"ai-message", text:"Generated image: " + promptUsed, content:"Generated image: " + promptUsed, sources:[], meta:{image:data.url}});
+    window.chatHistory.push({role:"assistant", className:"ai-message", text:"Generated image: " + (data.prompt || ""), content:"Generated image: " + (data.prompt || ""), sources:[], meta:{image:data.url}});
   }
 
-  async function createImage(prompt, size, style, negativePrompt, enhance){
+  async function createImage(prompt, size, style){
     const clean = String(prompt || "").trim();
     if(!clean){ toast("Describe the image first"); return; }
     closeToolModal();
@@ -11921,7 +11424,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const res = await fetch(API + "/image/generate", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({prompt:clean, user_id:getNexoraUserId(), size:size || "768x768", style:style || "auto", negative_prompt:negativePrompt || "", enhance:enhance !== false, session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
+        body:JSON.stringify({prompt:clean, size:size || "1024x1024", style:style || "", session_id:localStorage.getItem("nexoraSessionId") || window.sessionId || null})
       });
       const typing = $(typingId);
       if(typing) typing.remove();
@@ -11941,27 +11444,14 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 
   function isImageRequest(text){
-    const t = String(text || "").toLowerCase().trim();
-    const media = "(image|picture|photo|art|poster|logo|wallpaper)";
-    if(!t) return false;
-    if(new RegExp("\\b(create|generate|make|draw|give|show|send|get)\\b[\\s\\S]{0,80}\\b" + media + "\\b").test(t)) return true;
-    if(new RegExp("\\b(i want|i need|can you|could you|please)\\b[\\s\\S]{0,80}\\b" + media + "\\b").test(t)) return true;
-    if(new RegExp("\\b" + media + "\\b[\\s\\S]{0,40}\\b(of|for)\\b").test(t)) return true;
-    if(/^[a-z0-9 ,.'"-]{2,90}\s+(image|picture|photo|poster|logo|wallpaper|art)$/.test(t) && !/\b(explain|what is|meaning|definition|how|why)\b/.test(t)) return true;
-    return false;
+    const t = String(text || "").toLowerCase();
+    return /\b(create|generate|make|draw)\b[\s\S]{0,60}\b(image|picture|photo|art|poster|logo|wallpaper)\b/.test(t) || /\b(image|picture|photo)\b[\s\S]{0,40}\b(of|for)\b/.test(t);
   }
 
   function stripImagePrompt(text){
-    const original = String(text || "").trim();
-    let prompt = original
-      .replace(/^\s*(please\s+)?(can you\s+|could you\s+)?(create|generate|make|draw|give|show|send|get)\s+(me\s+)?/i, "")
-      .replace(/^\s*(i want|i need)\s+(an?\s+)?/i, "")
-      .replace(/^\s*(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*/i, "")
-      .replace(/\b(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)\s*/i, "")
-      .replace(/\s+(image|picture|photo|art|poster|logo|wallpaper)\s*$/i, "")
-      .replace(/^\s*an?\s+/i, "")
-      .trim();
-    return prompt || original;
+    return String(text || "")
+      .replace(/^\s*(please\s+)?(create|generate|make|draw)\s+(an?\s+)?(image|picture|photo|art|poster|logo|wallpaper)\s*(of|for|:)?\s*/i, "")
+      .trim() || String(text || "").trim();
   }
 
   function installImageSendInterceptor(){
@@ -11972,7 +11462,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const text = (messageOverride !== undefined && messageOverride !== null ? messageOverride : (input ? input.value : "")).trim();
       if(text && isImageRequest(text)){
         if(input && messageOverride == null) input.value = "";
-        await createImage(stripImagePrompt(text), "768x768", "");
+        await createImage(stripImagePrompt(text), "1024x1024", "");
         return;
       }
       if(typeof window.nxTextSendMessage === "function") return window.nxTextSendMessage(messageOverride);
@@ -12009,7 +11499,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const prompt = $("imagePrompt") ? $("imagePrompt").value : "";
     const oldModal = $("imageModal");
     if(oldModal) oldModal.classList.remove("show");
-    createImage(prompt, "768x768", "");
+    createImage(prompt, "1024x1024", "");
   };
   window.openImageModal = function(){ openImageCreator(); };
   window.closeImageModal = function(){ closeToolModal(); const oldModal = $("imageModal"); if(oldModal) oldModal.classList.remove("show"); };
@@ -12051,393 +11541,426 @@ document.addEventListener("DOMContentLoaded",()=>{
 })();
 </script>
 
-<style id="nx-image-attachment-style">
-  .input-wrapper.nx-has-attachments{
-    display:flex !important;
-    flex-direction:column !important;
+<style id="nx-beautiful-polish-2026">
+  :root{
+    --nx-beauty-bg:#1f2023;
+    --nx-beauty-bg-deep:#17181b;
+    --nx-beauty-panel:#202124;
+    --nx-beauty-panel-soft:#26272b;
+    --nx-beauty-line:rgba(255,255,255,.105);
+    --nx-beauty-line-strong:rgba(255,255,255,.16);
+    --nx-beauty-text:#f5f5f2;
+    --nx-beauty-muted:#b7bbc5;
+    --nx-beauty-blue:#7db4ff;
+    --nx-beauty-teal:#7dd3c7;
+    --nx-beauty-amber:#f4c56a;
+  }
+
+  html,
+  body{
+    background:
+      linear-gradient(180deg, #202124 0%, #1d1e21 52%, #18191c 100%) !important;
+    color:var(--nx-beauty-text) !important;
+  }
+
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:0;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.026) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(255,255,255,.02) 1px, transparent 1px);
+    background-size:44px 44px;
+    mask-image:linear-gradient(180deg, rgba(0,0,0,.26), transparent 62%);
+  }
+
+  .sidebar,
+  .main,
+  .modal-overlay,
+  .nx-tool-modal{
+    position:relative;
+    z-index:1;
+  }
+
+  .sidebar{
+    background:rgba(17,18,20,.96) !important;
+    border-right:1px solid rgba(255,255,255,.09) !important;
+    box-shadow:inset -1px 0 0 rgba(0,0,0,.32), 18px 0 48px rgba(0,0,0,.18) !important;
+  }
+
+  .nx-chatgpt-sidebar{
+    padding:14px 10px 12px !important;
+  }
+
+  .nx-cgpt-header{
+    min-height:44px !important;
+    margin-bottom:12px !important;
+  }
+
+  .nx-cgpt-logo{
+    color:#f7f7f4 !important;
+    font-weight:780 !important;
+  }
+
+  .nx-cgpt-logo-mark{
+    border-radius:8px !important;
+    background:linear-gradient(135deg, rgba(125,180,255,.95), rgba(125,211,199,.9)) !important;
+    color:#091014 !important;
+    box-shadow:0 10px 24px rgba(72,145,255,.2) !important;
+  }
+
+  .nx-cgpt-collapse,
+  .top-icon-btn{
+    border-radius:8px !important;
+    background:transparent !important;
+    color:#d7d9de !important;
+  }
+
+  .nx-cgpt-collapse:hover,
+  .top-icon-btn:hover{
+    background:rgba(255,255,255,.075) !important;
+    color:#fff !important;
+  }
+
+  .nx-cgpt-section-title{
+    color:#9da3ad !important;
+    font-size:12px !important;
+    font-weight:680 !important;
+    letter-spacing:0 !important;
+    margin:18px 10px 7px !important;
+  }
+
+  .nx-cgpt-divider{
+    border-color:rgba(255,255,255,.075) !important;
+    margin:12px 8px !important;
+  }
+
+  .nx-cgpt-item{
+    min-height:38px !important;
+    border-radius:8px !important;
+    color:#eceef2 !important;
+    transition:background .15s ease, color .15s ease, transform .15s ease, border-color .15s ease !important;
+    border:1px solid transparent !important;
+  }
+
+  .nx-cgpt-item svg{
+    color:#c4c8d0 !important;
+  }
+
+  .nx-cgpt-item:hover{
+    background:rgba(255,255,255,.075) !important;
+    border-color:rgba(255,255,255,.08) !important;
+    transform:translateY(-1px) !important;
+  }
+
+  .nx-cgpt-item.active,
+  .nx-cgpt-item[aria-current="page"]{
+    background:rgba(255,255,255,.11) !important;
+    border-color:rgba(255,255,255,.11) !important;
+  }
+
+  .main{
+    background:transparent !important;
+  }
+
+  .top-left-brand{
+    top:18px !important;
+    left:20px !important;
+  }
+
+  .top-brand-btn{
+    min-height:36px !important;
+    padding:0 12px !important;
+    border-radius:8px !important;
+    background:rgba(255,255,255,.045) !important;
+    border:1px solid transparent !important;
+    color:#f5f5f2 !important;
+  }
+
+  .top-brand-btn:hover{
+    background:rgba(255,255,255,.075) !important;
+    border-color:rgba(255,255,255,.095) !important;
+  }
+
+  .top-right{
+    top:18px !important;
+    right:24px !important;
+    gap:7px !important;
+  }
+
+  .center{
+    width:100% !important;
+  }
+
+  .hero-card{
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
+  }
+
+  .greeting{
+    color:#f6f6f3 !important;
+    font-size:clamp(28px, 4vw, 48px) !important;
+    line-height:1.08 !important;
+    font-weight:760 !important;
+    letter-spacing:0 !important;
+  }
+
+  .sub-greeting{
+    color:#b9bec8 !important;
+    font-size:16px !important;
+    margin-top:10px !important;
+  }
+
+  .composer-meta{
     gap:8px !important;
   }
 
-  .nx-attachment-tray{
-    display:none;
-    align-items:center;
-    gap:8px;
-    max-width:100%;
-    overflow-x:auto;
-    padding:0 6px;
+  .meta-pill,
+  .option,
+  .quick-launch-card{
+    border-radius:8px !important;
+    border:1px solid rgba(255,255,255,.09) !important;
+    background:rgba(255,255,255,.045) !important;
+    color:#e9eaee !important;
+    box-shadow:0 12px 30px rgba(0,0,0,.12) !important;
   }
 
-  .input-wrapper.nx-has-attachments .nx-attachment-tray{
-    display:flex;
+  .quick-launch-card:hover,
+  .option:hover{
+    background:rgba(255,255,255,.075) !important;
+    border-color:rgba(125,180,255,.24) !important;
+    transform:translateY(-1px) !important;
   }
 
-  .nx-attach-chip{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    flex:0 0 auto;
-    max-width:220px;
-    height:48px;
-    padding:5px 8px 5px 5px;
-    border:1px solid rgba(255,255,255,.14);
-    border-radius:14px;
-    background:#242424;
-    color:#ececec;
-    box-shadow:0 8px 22px rgba(0,0,0,.22);
+  body.chat-mode .chat-box{
+    padding-top:92px !important;
+    padding-bottom:118px !important;
+    width:min(920px, calc(100vw - 330px)) !important;
+    margin:0 auto !important;
   }
 
-  .nx-attach-chip img{
-    width:38px;
-    height:38px;
-    border-radius:10px;
-    object-fit:cover;
-    background:#111;
+  .message{
+    animation:nxBeautyIn .16s ease-out both;
   }
 
-  .nx-attach-name{
-    min-width:0;
-    max-width:130px;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-    font-size:12px;
-    font-weight:700;
+  @keyframes nxBeautyIn{
+    from{opacity:.001; transform:translateY(4px);}
+    to{opacity:1; transform:translateY(0);}
   }
 
-  .nx-attach-remove{
-    width:24px;
-    height:24px;
-    border:0;
-    border-radius:50%;
-    background:rgba(255,255,255,.1);
-    color:#fff;
-    cursor:pointer;
-    line-height:1;
-    font-size:16px;
+  .message.ai-message,
+  .ai-message{
+    max-width:790px !important;
+    width:min(790px, 100%) !important;
+    color:#f2f2ef !important;
+    line-height:1.76 !important;
+    font-size:16px !important;
+    letter-spacing:0 !important;
   }
 
-  .nx-attach-remove:hover{
-    background:rgba(255,255,255,.18);
+  .nx-final-answer,
+  .nx-human-answer{
+    color:#f2f2ef !important;
+    text-wrap:pretty !important;
   }
 
-  .input-box.nx-drop-active{
-    border-color:rgba(96,165,250,.65) !important;
-    background:#1f2937 !important;
+  .nx-final-answer p,
+  .nx-human-answer p{
+    color:#f0f0ed !important;
+    margin:0 0 14px !important;
   }
 
-  .message.user-message.nx-user-image-message{
-    display:flex !important;
-    flex-direction:column !important;
-    gap:10px !important;
+  .nx-final-answer h1,
+  .nx-final-answer h2,
+  .nx-final-answer h3,
+  .nx-human-answer h1,
+  .nx-human-answer h2,
+  .nx-human-answer h3{
+    color:#ffffff !important;
+    letter-spacing:0 !important;
   }
 
-  .nx-user-attachments{
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(92px, 120px));
-    gap:8px;
-    max-width:380px;
+  .nx-human-answer h2,
+  .nx-final-answer h2{
+    margin-top:24px !important;
+    padding-left:10px !important;
+    border-left:3px solid var(--nx-beauty-blue) !important;
   }
 
-  .nx-user-attachments img{
-    width:100%;
-    aspect-ratio:1;
-    object-fit:cover;
-    border-radius:14px;
-    border:1px solid rgba(255,255,255,.13);
-    background:#111;
+  .nx-final-answer li,
+  .nx-human-answer li{
+    margin-bottom:7px !important;
+  }
+
+  .message.user-message,
+  body.chat-mode .message.user-message{
+    background:linear-gradient(180deg, #303136, #2a2b2f) !important;
+    border:1px solid rgba(255,255,255,.095) !important;
+    box-shadow:0 12px 30px rgba(0,0,0,.18) !important;
+    color:#fff !important;
+    border-radius:18px !important;
+    padding:12px 15px !important;
+  }
+
+  .system-message{
+    border-radius:8px !important;
+    border:1px solid rgba(255,255,255,.09) !important;
+    background:rgba(255,255,255,.045) !important;
+    color:#d9dce2 !important;
+  }
+
+  body.chat-mode .input-wrapper,
+  .input-wrapper{
+    width:min(850px, calc(100vw - 340px)) !important;
+    max-width:850px !important;
+    margin:0 auto 18px !important;
+  }
+
+  .input-box,
+  body.chat-mode .input-box{
+    min-height:60px !important;
+    border-radius:22px !important;
+    background:rgba(38,39,43,.94) !important;
+    border:1px solid rgba(255,255,255,.13) !important;
+    box-shadow:0 18px 50px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.045) !important;
+    backdrop-filter:blur(18px) !important;
+  }
+
+  .input-box:hover{
+    border-color:rgba(255,255,255,.19) !important;
+    background:rgba(42,43,48,.96) !important;
+  }
+
+  .input-box:focus-within{
+    border-color:rgba(125,180,255,.52) !important;
+    box-shadow:0 0 0 3px rgba(125,180,255,.13), 0 22px 58px rgba(0,0,0,.32) !important;
+  }
+
+  .input-box input,
+  #userInput{
+    color:#f7f7f4 !important;
+    font-size:16px !important;
+  }
+
+  .input-box input::placeholder{
+    color:#aeb4bf !important;
+    opacity:.9 !important;
+  }
+
+  .icon-btn{
+    border-radius:12px !important;
+    transition:background .15s ease, transform .15s ease, color .15s ease !important;
+  }
+
+  .icon-btn:hover{
+    background:rgba(255,255,255,.09) !important;
+    transform:translateY(-1px) !important;
+  }
+
+  .plus-btn{
+    color:var(--nx-beauty-blue) !important;
+  }
+
+  .mic-btn{
+    color:var(--nx-beauty-amber) !important;
+  }
+
+  .send-btn{
+    background:rgba(255,255,255,.085) !important;
+    color:#eef2ff !important;
+    border:1px solid rgba(255,255,255,.08) !important;
+  }
+
+  .send-btn:not(:disabled):hover{
+    background:rgba(125,180,255,.18) !important;
+    color:#ffffff !important;
+  }
+
+  .scroll-bottom-btn{
+    width:40px !important;
+    height:40px !important;
+    border-radius:50% !important;
+    background:#15161a !important;
+    border:1px solid rgba(255,255,255,.11) !important;
+    color:#f5f5f2 !important;
+    box-shadow:0 16px 42px rgba(0,0,0,.34) !important;
+  }
+
+  .nx-tool-shell,
+  .modal-box,
+  .account-box,
+  .voice-box,
+  .wake-box{
+    border-radius:14px !important;
+    background:#222327 !important;
+    border:1px solid rgba(255,255,255,.12) !important;
+    box-shadow:0 24px 80px rgba(0,0,0,.48) !important;
+  }
+
+  .nx-tool-card,
+  .account-row,
+  .voice-row,
+  .modal-row{
+    border-radius:8px !important;
+    background:rgba(255,255,255,.045) !important;
+    border-color:rgba(255,255,255,.095) !important;
+  }
+
+  .nx-tool-input,
+  .nx-tool-select,
+  .nx-tool-textarea,
+  .modal-input,
+  .modal-textarea{
+    border-radius:8px !important;
+    background:#18191d !important;
+    border-color:rgba(255,255,255,.13) !important;
+  }
+
+  .nx-image-result{
+    border-radius:12px !important;
+    background:rgba(255,255,255,.045) !important;
+    border:1px solid rgba(255,255,255,.1) !important;
+    overflow:hidden !important;
+  }
+
+  .nx-image-result img{
+    border-radius:10px !important;
+  }
+
+  .chat-box::-webkit-scrollbar-thumb{
+    background:rgba(255,255,255,.24) !important;
+  }
+
+  .chat-box::-webkit-scrollbar-thumb:hover{
+    background:rgba(125,180,255,.42) !important;
+  }
+
+  @media (max-width: 860px){
+    body.chat-mode .chat-box{
+      width:calc(100vw - 28px) !important;
+      padding-left:14px !important;
+      padding-right:14px !important;
+    }
+
+    body.chat-mode .input-wrapper,
+    .input-wrapper{
+      width:calc(100vw - 28px) !important;
+    }
+
+    .message.ai-message,
+    .ai-message{
+      width:100% !important;
+    }
+
+    .message.user-message,
+    body.chat-mode .message.user-message{
+      max-width:86% !important;
+    }
   }
 </style>
-
-<script id="nx-image-attachment-script">
-(function(){
-  const API = window.API_BASE || "http://127.0.0.1:8000";
-  const MAX_IMAGES = 6;
-  let attachments = [];
-
-  function $(id){ return document.getElementById(id); }
-
-  function escapeHtml(value){
-    return String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  function toast(message){
-    if(typeof window.nxFinalToast === "function") window.nxFinalToast(message);
-    else if(typeof window.addMessage === "function") window.addMessage(message, "system-message");
-  }
-
-  function ensureTray(){
-    const wrapper = document.querySelector(".input-wrapper");
-    const inputBox = document.querySelector(".input-box");
-    if(!wrapper || !inputBox) return null;
-    let tray = $("nxAttachmentTray");
-    if(!tray){
-      tray = document.createElement("div");
-      tray.id = "nxAttachmentTray";
-      tray.className = "nx-attachment-tray";
-      wrapper.insertBefore(tray, inputBox);
-    }
-    return tray;
-  }
-
-  function renderTray(){
-    const tray = ensureTray();
-    const wrapper = document.querySelector(".input-wrapper");
-    if(!tray || !wrapper) return;
-    wrapper.classList.toggle("nx-has-attachments", attachments.length > 0);
-    tray.innerHTML = attachments.map((item, index) => `
-      <div class="nx-attach-chip" title="${escapeHtml(item.name)}">
-        <img src="${escapeHtml(item.url)}" alt="">
-        <div class="nx-attach-name">${escapeHtml(item.name)}</div>
-        <button class="nx-attach-remove" type="button" data-attach-index="${index}" title="Remove image">&times;</button>
-      </div>
-    `).join("");
-    tray.querySelectorAll("[data-attach-index]").forEach(button => {
-      button.onclick = function(){
-        const index = Number(button.dataset.attachIndex);
-        const item = attachments[index];
-        if(item && item.url) URL.revokeObjectURL(item.url);
-        attachments.splice(index, 1);
-        renderTray();
-      };
-    });
-  }
-
-  function addImageFiles(files){
-    const incoming = Array.from(files || []).filter(file => file && /^image\//i.test(file.type || ""));
-    if(!incoming.length) return false;
-    incoming.slice(0, Math.max(0, MAX_IMAGES - attachments.length)).forEach(file => {
-      attachments.push({
-        file,
-        name:file.name || "pasted-image.png",
-        url:URL.createObjectURL(file)
-      });
-    });
-    renderTray();
-    toast(attachments.length === 1 ? "Image attached" : attachments.length + " images attached");
-    return true;
-  }
-
-  async function uploadRegularFiles(files){
-    const docs = Array.from(files || []).filter(file => file && !/^image\//i.test(file.type || ""));
-    if(!docs.length) return;
-    if(typeof ensureSessionId === "function") ensureSessionId();
-    for(const file of docs){
-      try{
-        if(typeof window.addMessage === "function") window.addMessage("Uploading file: " + file.name, "system-message");
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("session_id", window.sessionId || localStorage.getItem("nexoraSessionId") || "");
-        const response = await fetch(API + "/upload", {method:"POST", body:formData});
-        const data = await response.json();
-        if(typeof window.addMessage === "function") window.addMessage(data.message || ("Uploaded: " + file.name), "system-message");
-      }catch(error){
-        if(typeof window.addMessage === "function") window.addMessage("Upload failed: " + file.name, "system-message");
-      }
-    }
-  }
-
-  async function uploadAttachedImages(){
-    const ids = [];
-    if(typeof ensureSessionId === "function") ensureSessionId();
-    for(const item of attachments){
-      const formData = new FormData();
-      formData.append("file", item.file, item.name || "image.png");
-      formData.append("session_id", window.sessionId || localStorage.getItem("nexoraSessionId") || "");
-      if(typeof window.getNexoraUserId === "function") formData.append("user_id", window.getNexoraUserId());
-      const response = await fetch(API + "/image/upload", {method:"POST", body:formData});
-      if(!response.ok) throw new Error("Image upload failed");
-      const data = await response.json();
-      if(data && data.image && data.image.id) ids.push(data.image.id);
-    }
-    return ids;
-  }
-
-  function clearAttachments(){
-    attachments.forEach(item => { if(item.url) URL.revokeObjectURL(item.url); });
-    attachments = [];
-    renderTray();
-  }
-
-  function renderUserImageMessage(text, items){
-    const box = $("chatBox");
-    if(!box) return;
-    const msg = document.createElement("div");
-    msg.className = "message user-message nx-user-image-message";
-    msg.innerHTML = `
-      <div>${escapeHtml(text).replace(/\n/g, "<br>")}</div>
-      <div class="nx-user-attachments">
-        ${items.map(item => `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}">`).join("")}
-      </div>
-    `;
-    box.appendChild(msg);
-    box.scrollTop = box.scrollHeight;
-    try{
-      window.chatHistory = window.chatHistory || [];
-      window.chatHistory.push({role:"user", className:"user-message", text:String(text || ""), content:String(text || ""), meta:{images:items.map(item => item.name)}});
-    }catch(error){}
-  }
-
-  function renderAssistantReply(text, sources){
-    const box = $("chatBox");
-    if(!box) return;
-    if(typeof window.nxFormatHumanAnswer === "function"){
-      const msg = document.createElement("div");
-      msg.className = "message ai-message";
-      msg.dataset.nxV2Formatted = "true";
-      msg.dataset.nxFinalFormatted = "true";
-      msg.innerHTML = window.nxFormatHumanAnswer(text, sources || []);
-      box.appendChild(msg);
-      box.scrollTop = box.scrollHeight;
-      try{
-        window.chatHistory = window.chatHistory || [];
-        window.chatHistory.push({role:"assistant", className:"ai-message", text:String(text || ""), content:String(text || ""), sources:sources || []});
-      }catch(error){}
-      return;
-    }
-    if(typeof window.addMessage === "function") window.addMessage(text, "ai-message", "assistant", sources || []);
-  }
-
-  async function sendWithImages(messageOverride){
-    const input = $("userInput");
-    const text = (messageOverride !== undefined && messageOverride !== null ? String(messageOverride) : (input ? input.value : "")).trim();
-    if(!attachments.length){
-      const base = window.nxAttachmentBaseSend;
-      if(typeof base === "function") return base(messageOverride);
-      return;
-    }
-    const userText = text || "Analyze this image.";
-    if(typeof ensureSessionId === "function") ensureSessionId();
-    if(typeof window.openChat === "function") window.openChat(false);
-    document.body.classList.add("chat-mode");
-    renderUserImageMessage(userText, attachments);
-    if(input){
-      input.value = "";
-      input.placeholder = "Add a follow-up...";
-    }
-    try{ window.lastSentMessage = userText; }catch(error){}
-    const typingId = "typing-image-input-" + Date.now();
-    try{ if(typeof window.addTypingDots === "function") window.addTypingDots(typingId); }catch(error){}
-    try{ if(typeof window.setSendLoading === "function") window.setSendLoading(true); }catch(error){}
-    const localCopy = attachments.slice();
-    try{
-      const imageIds = await uploadAttachedImages();
-      clearAttachments();
-      const history = (window.chatHistory || [])
-        .filter(item => item && (item.role === "user" || item.role === "assistant"))
-        .map(item => ({role:item.role, content:item.text || item.content || ""}));
-      const response = await fetch(API + "/chat", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          user_id: typeof window.getNexoraUserId === "function" ? window.getNexoraUserId() : null,
-          session_id: window.sessionId || localStorage.getItem("nexoraSessionId") || null,
-          message:userText,
-          original_message:userText,
-          chat_history:history,
-          image_ids:imageIds,
-          mode:typeof getBackendModeForRequest === "function" ? getBackendModeForRequest() : "thinking",
-          model:null
-        })
-      });
-      const typing = $(typingId);
-      if(typing) typing.remove();
-      if(!response.ok) throw new Error("Backend error " + response.status);
-      const data = await response.json();
-      renderAssistantReply(data.reply || "I received the image.", Array.isArray(data.sources) ? data.sources : []);
-    }catch(error){
-      attachments = localCopy;
-      renderTray();
-      const typing = $(typingId);
-      if(typing) typing.remove();
-      renderAssistantReply("I could not upload that image yet. Try a smaller PNG or JPG, then send it again.", []);
-    }finally{
-      if(input && input.value.trim() === "") input.placeholder = "Ask anything...";
-      try{ if(typeof window.setSendLoading === "function") window.setSendLoading(false); }catch(error){}
-    }
-  }
-
-  function installHooks(){
-    const input = $("userInput");
-    const file = $("fileInput");
-    const inputBox = document.querySelector(".input-box");
-    ensureTray();
-    if(file){
-      file.setAttribute("accept", "image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.html,.css,.doc,.docx");
-      if(file.dataset.nxImageAttachHooked !== "true"){
-        file.dataset.nxImageAttachHooked = "true";
-        file.addEventListener("change", function(event){
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          const files = Array.from(file.files || []);
-          addImageFiles(files);
-          uploadRegularFiles(files);
-          file.value = "";
-        }, true);
-      }
-    }
-    if(input && input.dataset.nxPasteImageHooked !== "true"){
-      input.dataset.nxPasteImageHooked = "true";
-      input.addEventListener("paste", function(event){
-        const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
-        const imageFiles = items
-          .filter(item => item.kind === "file" && /^image\//i.test(item.type || ""))
-          .map(item => item.getAsFile())
-          .filter(Boolean);
-        if(imageFiles.length){
-          event.preventDefault();
-          addImageFiles(imageFiles);
-        }
-      });
-    }
-    if(inputBox && inputBox.dataset.nxDropImageHooked !== "true"){
-      inputBox.dataset.nxDropImageHooked = "true";
-      ["dragenter", "dragover"].forEach(name => inputBox.addEventListener(name, function(event){
-        event.preventDefault();
-        inputBox.classList.add("nx-drop-active");
-      }));
-      ["dragleave", "drop"].forEach(name => inputBox.addEventListener(name, function(event){
-        inputBox.classList.remove("nx-drop-active");
-      }));
-      inputBox.addEventListener("drop", function(event){
-        event.preventDefault();
-        const files = Array.from((event.dataTransfer && event.dataTransfer.files) || []);
-        addImageFiles(files);
-        uploadRegularFiles(files);
-      });
-    }
-    const current = window.nxFinalSendMessage || window.sendMessage;
-    if(current && current !== window.nxImageAttachmentSend) window.nxAttachmentBaseSend = current;
-    window.nxImageAttachmentSend = sendWithImages;
-    window.nxFinalSendMessage = sendWithImages;
-    window.sendMessage = sendWithImages;
-    const send = $("sendBtn");
-    if(send && send.dataset.nxImageAttachSend !== "true"){
-      const clone = send.cloneNode(true);
-      clone.dataset.nxImageAttachSend = "true";
-      send.parentNode.replaceChild(clone, send);
-      clone.addEventListener("click", function(event){
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const text = input ? input.value.trim() : "";
-        if(!text && !attachments.length && typeof window.openNexoraAssistantPage === "function"){
-          window.openNexoraAssistantPage();
-          return;
-        }
-        sendWithImages();
-      }, true);
-    }
-  }
-
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", installHooks);
-  else installHooks();
-  [300, 1200, 2600, 5600, 7000].forEach(delay => setTimeout(installHooks, delay));
-})();
-</script>
 
 </body>
 </html>
