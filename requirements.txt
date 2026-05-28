@@ -1,5 +1,3 @@
--r backend/requirements.txt
-=======
 fastapi
 uvicorn
 python-multipart
