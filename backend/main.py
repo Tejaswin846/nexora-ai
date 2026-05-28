@@ -37,13 +37,24 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.57.0-accuracy-10"
-UNDERSTANDING_LEVEL = 10.00
+APP_VERSION = "8.59.0-intelligence-15"
+CAPABILITY_SCALE_MAX = 15.00
+CAPABILITY_SCALE_TEXT = f"{CAPABILITY_SCALE_MAX:.2f}"
+INTELLIGENCE_LEVEL = CAPABILITY_SCALE_MAX
+INTELLIGENCE_LEVEL_TEXT = f"{INTELLIGENCE_LEVEL:.2f}"
+INTELLIGENCE_MODE = "extended_agentic_intelligence"
+UNDERSTANDING_LEVEL = CAPABILITY_SCALE_MAX
 UNDERSTANDING_LEVEL_TEXT = f"{UNDERSTANDING_LEVEL:.2f}"
 UNDERSTANDING_MODE = "max_agentic_precision"
-ACCURACY_LEVEL = 10.00
+ACCURACY_LEVEL = CAPABILITY_SCALE_MAX
 ACCURACY_LEVEL_TEXT = f"{ACCURACY_LEVEL:.2f}"
 ACCURACY_MODE = "strict_verification_precision"
+REASONING_LEVEL = CAPABILITY_SCALE_MAX
+REASONING_LEVEL_TEXT = f"{REASONING_LEVEL:.2f}"
+REASONING_MODE = "max_silent_reasoning"
+ANSWER_STRUCTURE_LEVEL = CAPABILITY_SCALE_MAX
+ANSWER_STRUCTURE_LEVEL_TEXT = f"{ANSWER_STRUCTURE_LEVEL:.2f}"
+ANSWER_STRUCTURE_MODE = "polished_answer_presentation"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("NEXORA_DATA_DIR", BASE_DIR / "nexora_data")).expanduser()
@@ -241,8 +252,11 @@ class ChatResponse(BaseModel):
     model_used: str
     sources: List[SourceItem] = []
     tools_used: List[str] = []
+    intelligence_level: str = INTELLIGENCE_LEVEL_TEXT
     understanding_level: str = UNDERSTANDING_LEVEL_TEXT
     accuracy_level: str = ACCURACY_LEVEL_TEXT
+    reasoning_level: str = REASONING_LEVEL_TEXT
+    answer_structure_level: str = ANSWER_STRUCTURE_LEVEL_TEXT
     created_at: str
 
 
@@ -2058,31 +2072,33 @@ def local_vague_improvement_reply(message: str, focus: Dict[str, Any]) -> Option
 def local_capability_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
     capability_intent = re.search(
-        r"\b(powerful|capability|capable|capability status|understand|understanding|understanding level|accuracy|accuracy level|accuaray|accurate|verification|intelligent|smart|smarter|highest|advanced|maxed out|max precision|max-precision|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b",
+        r"\b(powerful|capability|capable|capability status|intelligence|intelligece|intelligence level|understand|understanding|understanding level|accuracy|accuracy level|accuaray|accurate|verification|reasoning|reasoing|reasoning level|structure|structured|strucutre|strucutres|answer structure|presentation|display|show answers|intelligent|smart|smarter|highest|advanced|maxed out|max precision|max-precision|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b",
         lower,
     )
     if not capability_intent:
         return None
     if re.search(r"\b(compare|comparison|vs|versus|analyze|analyse|how|why|steps?|guide)\b", lower):
         return None
-    if re.search(r"\bexplain\b", lower) and not re.search(r"\b(capability|capability status|understanding level|accuracy level|maxed out|max precision|max-precision)\b", lower):
+    if re.search(r"\bexplain\b", lower) and not re.search(r"\b(capability|capability status|intelligence level|understanding level|accuracy level|reasoning level|answer structure|presentation level|maxed out|max precision|max-precision)\b", lower):
         return None
     if re.search(r"\b(ram|cpu|gpu|memory|hardware|performance|latency|tokens?|context window|inference|training|server|hosting|docker|hugging face|space)\b", lower):
         return None
     return (
-        f"Yes. Nexora understanding is set to {UNDERSTANDING_LEVEL_TEXT}/10.00 and accuracy is set to {ACCURACY_LEVEL_TEXT}/10.00: max-agentic precision with strict verification, the strongest practical level this app can provide without pretending it is unlimited.\n\n"
-        "What max-precision understanding means here:\n"
+        f"Yes. Nexora is set to the extended max practical levels: intelligence {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, understanding {UNDERSTANDING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, accuracy {ACCURACY_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, reasoning {REASONING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, and answer structure {ANSWER_STRUCTURE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}.\n\n"
+        f"What the {CAPABILITY_SCALE_TEXT} setup means here:\n"
+        "- Intelligence level: It combines intent understanding, reasoning, accuracy, memory/context, tool routing, and answer shaping into one behavior profile.\n"
         "- Question contract: It identifies the task type, target, constraints, accuracy need, and best answer format before replying.\n"
         "- Intent first: It corrects messy wording and answers what you likely meant, not only the exact words typed.\n"
         "- Context aware: It uses recent chat, saved preferences, files, images, and project context when they matter.\n"
         "- Accuracy gate: It separates facts, assumptions, and recommendations instead of making overconfident claims.\n"
+        "- Reasoning gate: It silently checks assumptions, contradictions, missing details, and practical consequences before writing the final answer.\n"
         "- Research aware: It uses live search or source context for current facts, but avoids slowing down simple stable questions.\n"
         "- Fallback ready: If one model path fails, it can use local structured answers, Wikipedia context, search evidence, Ollama, or the free online model.\n"
-        "- Better presentation: It chooses short answers, steps, tables, checklists, or polished drafts based on the task.\n"
+        "- Answer structure: It chooses short answers, steps, tables, checklists, or polished drafts based on the task and keeps the result easy to scan.\n"
         "- Clean final output: It removes raw JSON, stream chunks, debug text, and model metadata before the answer reaches the chat.\n"
         "- Supervised autonomy: It can prepare deployment or shipping steps, but production changes stay approval-gated instead of silently running unattended.\n\n"
         "Important truth:\n"
-        "It is not the same as a paid frontier model, but the app now pushes harder on intent, context, reasonableness, and verification so answers feel much closer to a capable ChatGPT-style assistant."
+        "The 15.00 scale is an extended app setting, not a promise of unlimited intelligence. Real quality still depends on the model, tools, sources, and context, but Nexora now pushes every available guard to the highest configured level."
     )
 
 
@@ -2330,17 +2346,35 @@ def system_profile() -> Dict[str, Any]:
             "gpu_class": "integrated_or_unknown",
         },
         "limits": limits,
+        "intelligence": {
+            "level": INTELLIGENCE_LEVEL_TEXT,
+            "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
+            "mode": INTELLIGENCE_MODE,
+            "description": "Extended app-level intelligence profile combining intent parsing, reasoning, accuracy, context, tool routing, and polished final output.",
+        },
         "understanding": {
             "level": UNDERSTANDING_LEVEL_TEXT,
-            "scale": "0.00-10.00",
+            "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
             "mode": UNDERSTANDING_MODE,
             "description": "Max-agentic intent parsing, context resolution, question-contract planning, reasonableness checks, and final-answer cleanup.",
         },
         "accuracy": {
             "level": ACCURACY_LEVEL_TEXT,
-            "scale": "0.00-10.00",
+            "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
             "mode": ACCURACY_MODE,
             "description": "Strict verification for current facts, uncertainty labeling, source-backed evidence when needed, and hallucination cleanup before final output.",
+        },
+        "reasoning": {
+            "level": REASONING_LEVEL_TEXT,
+            "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
+            "mode": REASONING_MODE,
+            "description": "Silent internal reasoning pass for assumptions, contradictions, edge cases, task order, and practical consequences before final output.",
+        },
+        "answer_structure": {
+            "level": ANSWER_STRUCTURE_LEVEL_TEXT,
+            "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
+            "mode": ANSWER_STRUCTURE_MODE,
+            "description": "Polished answer layout with compact leads, clean section labels, short paragraphs, task-fit bullets/tables, and no raw output artifacts.",
         },
         "local_ai": {
             "recommended_fast_model": FAST_MODEL,
@@ -2367,8 +2401,11 @@ def runtime_efficiency_context() -> str:
     return (
         "Runtime capability profile:\n"
         f"- Level: {profile['level']}\n"
-        f"- Understanding level: {UNDERSTANDING_LEVEL_TEXT}/10.00 ({UNDERSTANDING_MODE}).\n"
-        f"- Accuracy level: {ACCURACY_LEVEL_TEXT}/10.00 ({ACCURACY_MODE}).\n"
+        f"- Intelligence level: {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({INTELLIGENCE_MODE}).\n"
+        f"- Understanding level: {UNDERSTANDING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({UNDERSTANDING_MODE}).\n"
+        f"- Accuracy level: {ACCURACY_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({ACCURACY_MODE}).\n"
+        f"- Reasoning level: {REASONING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({REASONING_MODE}).\n"
+        f"- Answer structure level: {ANSWER_STRUCTURE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({ANSWER_STRUCTURE_MODE}).\n"
         f"- Reason: {profile['reason']}\n"
         f"- Self-learning mode: ranked saved memory/persona/behavior profile, up to {MAX_MEMORY_ITEMS} memories with {MAX_MEMORY_CONTEXT_ITEMS} selected per answer; not local model-weight training.\n"
         f"- Keep normal answers efficient for this computer: instant <= {limits['instant_max_tokens']} tokens, "
@@ -4008,6 +4045,8 @@ TYPO_NORMALIZATIONS = {
     "inteligent": "intelligent",
     "intellgent": "intelligent",
     "intelligant": "intelligent",
+    "intelligece": "intelligence",
+    "intellignece": "intelligence",
     "inteligence": "intelligence",
     "intellgence": "intelligence",
     "reasoble": "reasonable",
@@ -4024,8 +4063,15 @@ TYPO_NORMALIZATIONS = {
     "accuaray": "accuracy",
     "accuray": "accuracy",
     "acuracy": "accuracy",
+    "reasoing": "reasoning",
+    "reasonign": "reasoning",
+    "reasning": "reasoning",
     "preciese": "precise",
     "presice": "precise",
+    "strucutre": "structure",
+    "strucutres": "structures",
+    "strcuture": "structure",
+    "structre": "structure",
     "quesiton": "question",
     "uqestion": "question",
     "qustion": "question",
@@ -4400,7 +4446,10 @@ def build_understanding_context(
 
     lines = [
         "Understanding engine:",
-        f"- Understanding level: {UNDERSTANDING_LEVEL_TEXT}/10.00 ({UNDERSTANDING_MODE}).",
+        f"- Intelligence level: {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({INTELLIGENCE_MODE}).",
+        f"- Understanding level: {UNDERSTANDING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({UNDERSTANDING_MODE}).",
+        f"- Reasoning level: {REASONING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({REASONING_MODE}).",
+        f"- Answer structure level: {ANSWER_STRUCTURE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({ANSWER_STRUCTURE_MODE}).",
         f"- Normalized user wording: {normalized}",
         f"- Question contract task type: {question_contract['task_type']}.",
         f"- Question contract target: {question_contract['target']}.",
@@ -4452,8 +4501,14 @@ def build_understanding_context(
         "knowledge_strategy": knowledge_strategy,
         "word_count": len(words),
         "understanding_depth": understanding_profile["depth"],
+        "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
+        "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
         "understanding_mode": UNDERSTANDING_MODE,
+        "reasoning_level": REASONING_LEVEL_TEXT,
+        "reasoning_mode": REASONING_MODE,
+        "answer_structure_level": ANSWER_STRUCTURE_LEVEL_TEXT,
+        "answer_structure_mode": ANSWER_STRUCTURE_MODE,
         "understanding_priorities": understanding_profile["priorities"],
         "understanding_checks": understanding_profile["checks"],
         "likely_target": understanding_profile["likely_target"],
@@ -6798,7 +6853,8 @@ Understanding:
 - Treat messy wording, typos, screenshots, and short follow-ups as normal human input. Translate them internally into the likely intent before answering.
 - Detect the user's need before writing: speed, accuracy, completeness, emotion, action, or presentation. Satisfy that need directly instead of giving a generic template.
 - Use a highest-capability understanding pass for non-trivial requests: identify the real goal, target, constraints, unstated expectation, likely risk, and best answer format.
-- Current understanding level is 10.00/10.00 max-agentic precision: always apply the strongest practical intent parsing, context resolution, accuracy gate, and final-answer cleanup available in this app.
+- Current intelligence level is 15.00/15.00 extended agentic intelligence: combine intent parsing, context, reasoning, accuracy, tool routing, and answer shaping at the highest configured app level.
+- Current understanding level is 15.00/15.00 max-agentic precision: always apply the strongest practical intent parsing, context resolution, accuracy gate, and final-answer cleanup available in this app.
 - Build a mental question contract before answering: task type, target, constraints, required accuracy level, and best response format.
 - Use an agentic understanding loop: parse the request, identify the target, choose the right knowledge or tool path, verify risky facts, then produce a clean final answer.
 - Answer the exact user question first. Do not drift into general capability talk, generic advice, or a nearby topic unless the user asks for it.
@@ -6811,7 +6867,7 @@ Understanding:
 - Never imply silent unattended production deployment. Say production deploys are approval-gated and supervised unless the user explicitly installs a safe deployment connector.
 
 Accuracy:
-- Current accuracy level is 10.00/10.00 strict-verification precision: prefer verified evidence for current/changeable facts, label uncertainty, and refuse to invent exact details.
+- Current accuracy level is 15.00/15.00 strict-verification precision: prefer verified evidence for current/changeable facts, label uncertainty, and refuse to invent exact details.
 - Be precise. Do not invent facts, dates, prices, sources, laws, medical claims, financial claims, or current events.
 - If something is uncertain, say so plainly and give the best safe next step.
 - For current/latest/news/finance/company claims, use only provided research evidence. Without evidence, say you cannot verify it.
@@ -6820,6 +6876,16 @@ Accuracy:
 - If a question asks for accuracy or verification, prefer source-backed evidence. If evidence is unavailable, give the safest stable answer and label uncertainty.
 - Separate fact from inference when the difference matters.
 - For answers with research evidence, use this structure when useful: a direct answer paragraph first, then "Key points:", then "What it means:", then "Bottom line:". Use inline citation markers like [1] and [2]. Do not write a separate raw source list; the app renders sources separately.
+
+Reasoning:
+- Current reasoning level is 15.00/15.00 max-silent reasoning: solve internally, check assumptions, catch contradictions, and give only the concise final reasoning summary the user needs.
+- Never expose hidden chain-of-thought. Provide conclusions, key rationale, checks, and next steps instead.
+- For complex requests, reason through goal, constraints, options, risks, verification needs, and final answer shape before writing.
+
+Answer Structure:
+- Current answer structure level is 15.00/15.00 polished answer presentation: choose the clearest answer shape, not the longest one.
+- Use compact leads, normal-sized text, short paragraphs, clean section labels, useful bullets/tables, and a practical bottom line when it helps.
+- Do not show raw outputs, oversized headings, boxed labels, debug metadata, or messy formatting unless the user explicitly asks for raw data.
 
 Coding:
 - Prefer practical, working solutions.
@@ -6844,7 +6910,10 @@ def reasoning_quality_context(response_mode: str, response_lane: str, presentati
         "- If a draft sounds generic, replace it with topic-specific facts, dates, examples, or steps before finalizing.",
         "- If the user asks for highest intelligence or capability, respond with strong reasoning and honest limits, not hype.",
         "- Run a silent max-quality pass for non-trivial answers: understand the real need, solve it, verify it, shape it, then final-check the wording.",
-        f"- Accuracy level is {ACCURACY_LEVEL_TEXT}/10.00: verify current or changeable facts, label uncertainty, and remove unsupported exact claims before finalizing.",
+        f"- Intelligence level is {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}: combine intent, context, reasoning, accuracy, tool use, and answer shaping at the highest configured app level.",
+        f"- Reasoning level is {REASONING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}: use a silent internal reasoning pass, then give only the useful conclusion, concise rationale, and checks.",
+        f"- Accuracy level is {ACCURACY_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}: verify current or changeable facts, label uncertainty, and remove unsupported exact claims before finalizing.",
+        f"- Answer structure level is {ANSWER_STRUCTURE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}: choose the cleanest format, keep text readable, and avoid raw or oversized output.",
         "- For accuracy-sensitive questions, verify current/changeable facts with evidence when available, otherwise say what is uncertain.",
         "- Never expose raw JSON, stream chunks, model metadata, debug logs, stack traces, or hidden reasoning in the final answer.",
         "- Prefer a clear answer that is accurate and useful over a longer answer that only sounds advanced.",
@@ -8201,10 +8270,16 @@ def health() -> Dict[str, Any]:
         "status": "ok",
         "app": APP_NAME,
         "version": APP_VERSION,
+        "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
+        "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
         "understanding_mode": UNDERSTANDING_MODE,
         "accuracy_level": ACCURACY_LEVEL_TEXT,
         "accuracy_mode": ACCURACY_MODE,
+        "reasoning_level": REASONING_LEVEL_TEXT,
+        "reasoning_mode": REASONING_MODE,
+        "answer_structure_level": ANSWER_STRUCTURE_LEVEL_TEXT,
+        "answer_structure_mode": ANSWER_STRUCTURE_MODE,
         "deep": HEALTH_DEEP,
     }
     if HEALTH_DEEP:
@@ -8273,10 +8348,16 @@ def models() -> Dict[str, Any]:
         "fast": FAST_MODEL,
         "thinking": THINKING_MODEL,
         "free_api": free_provider_status(),
+        "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
+        "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
         "understanding_mode": UNDERSTANDING_MODE,
         "accuracy_level": ACCURACY_LEVEL_TEXT,
         "accuracy_mode": ACCURACY_MODE,
+        "reasoning_level": REASONING_LEVEL_TEXT,
+        "reasoning_mode": REASONING_MODE,
+        "answer_structure_level": ANSWER_STRUCTURE_LEVEL_TEXT,
+        "answer_structure_mode": ANSWER_STRUCTURE_MODE,
         "performance": system_profile(),
         "available": ollama_available_models(),
     }
@@ -8486,11 +8567,25 @@ def capabilities() -> Dict[str, Any]:
     return {
         "ok": True,
         "version": APP_VERSION,
+        "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
+        "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
         "understanding_mode": UNDERSTANDING_MODE,
         "accuracy_level": ACCURACY_LEVEL_TEXT,
         "accuracy_mode": ACCURACY_MODE,
+        "reasoning_level": REASONING_LEVEL_TEXT,
+        "reasoning_mode": REASONING_MODE,
+        "answer_structure_level": ANSWER_STRUCTURE_LEVEL_TEXT,
+        "answer_structure_mode": ANSWER_STRUCTURE_MODE,
         "stages": {
+            "intelligence": [
+                "extended 15.00 app scale",
+                "intent + context fusion",
+                "reasoning + accuracy routing",
+                "memory-aware answer shaping",
+                "tool and fallback selection",
+                "polished final response",
+            ],
             "understanding": [
                 "max-precision intent parsing",
                 "typo-tolerant wording cleanup",
@@ -8499,6 +8594,22 @@ def capabilities() -> Dict[str, Any]:
                 "answer-shape selection",
                 "raw-output cleanup",
                 "first-pass completeness check",
+            ],
+            "reasoning": [
+                "max-silent reasoning pass",
+                "assumption checks",
+                "contradiction checks",
+                "edge-case review",
+                "goal and constraint alignment",
+                "concise rationale output",
+            ],
+            "answer_structure": [
+                "compact direct lead",
+                "task-fit headings",
+                "short paragraphs",
+                "clean bullets and tables",
+                "polished final takeaway",
+                "raw-output suppression",
             ],
             "writing": ["emails", "letters", "essays", "polished tone", "structured answers"],
             "files": ["txt/md/code extraction", "optional PDF extraction", "local summaries", "session file context"],
@@ -9028,8 +9139,11 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"performance:{system_profile()['level']}")
     tools_used.append("behavior_learning")
     tools_used.append("intent_understanding")
+    tools_used.append(f"intelligence_level:{INTELLIGENCE_LEVEL_TEXT}")
     tools_used.append(f"understanding_level:{UNDERSTANDING_LEVEL_TEXT}")
     tools_used.append(f"accuracy_level:{ACCURACY_LEVEL_TEXT}")
+    tools_used.append(f"reasoning_level:{REASONING_LEVEL_TEXT}")
+    tools_used.append(f"answer_structure_level:{ANSWER_STRUCTURE_LEVEL_TEXT}")
     tools_used.append(f"autonomous_research:{research_route}")
     sources: List[SourceItem] = []
     verified_sources: List[SourceItem] = []
