@@ -14321,5 +14321,144 @@ document.addEventListener("DOMContentLoaded",()=>{
 })();
 </script>
 
+<style id="nx-compact-answer-no-box-style">
+  body.chat-mode #chatBox .message.ai-message {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer,
+  body.chat-mode #chatBox .nx-final-answer {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+    color: #f2f2f4 !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer p,
+  body.chat-mode #chatBox .nx-final-answer p,
+  body.chat-mode #chatBox .nx-human-answer li,
+  body.chat-mode #chatBox .nx-final-answer li {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer h1,
+  body.chat-mode #chatBox .nx-human-answer h2,
+  body.chat-mode #chatBox .nx-human-answer h3,
+  body.chat-mode #chatBox .nx-final-answer h1,
+  body.chat-mode #chatBox .nx-final-answer h2,
+  body.chat-mode #chatBox .nx-final-answer h3,
+  body.chat-mode #chatBox .nx-answer-section-title {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 14px 0 7px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #f7f7f8 !important;
+    font-size: 15.5px !important;
+    line-height: 1.45 !important;
+    font-weight: 500 !important;
+    text-shadow: none !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer h1,
+  body.chat-mode #chatBox .nx-final-answer h1 {
+    font-size: 17px !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer h2,
+  body.chat-mode #chatBox .nx-final-answer h2 {
+    font-size: 16px !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer h3,
+  body.chat-mode #chatBox .nx-final-answer h3,
+  body.chat-mode #chatBox .nx-answer-section-title {
+    font-size: 15.5px !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer h1::before,
+  body.chat-mode #chatBox .nx-human-answer h2::before,
+  body.chat-mode #chatBox .nx-human-answer h3::before,
+  body.chat-mode #chatBox .nx-final-answer h1::before,
+  body.chat-mode #chatBox .nx-final-answer h2::before,
+  body.chat-mode #chatBox .nx-final-answer h3::before,
+  body.chat-mode #chatBox .nx-answer-section-title::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  body.chat-mode #chatBox .nx-answer-lead,
+  body.chat-mode #chatBox .nx-answer-paragraph,
+  body.chat-mode #chatBox .nx-answer-bottom {
+    margin: 8px 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer strong,
+  body.chat-mode #chatBox .nx-final-answer strong {
+    font-weight: 500 !important;
+  }
+
+  body.chat-mode #chatBox .nx-human-answer .nx-keyword,
+  body.chat-mode #chatBox .nx-human-answer .nx-key-label,
+  body.chat-mode #chatBox .nx-final-answer .nx-keyword,
+  body.chat-mode #chatBox .nx-final-answer .nx-key-label {
+    display: inline !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    font-weight: 500 !important;
+  }
+</style>
+
+<script id="nx-compact-answer-no-box-script">
+(function(){
+  function installCompactAnswerStyle(){
+    var css = [
+      "body.chat-mode #chatBox .nx-answer-section-title{display:block!important;width:auto!important;margin:14px 0 7px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;font-size:15.5px!important;line-height:1.45!important;font-weight:500!important;}",
+      "body.chat-mode #chatBox .nx-answer-section-title:before{display:none!important;content:none!important;}",
+      "body.chat-mode #chatBox .nx-human-answer h1,body.chat-mode #chatBox .nx-human-answer h2,body.chat-mode #chatBox .nx-human-answer h3,body.chat-mode #chatBox .nx-final-answer h1,body.chat-mode #chatBox .nx-final-answer h2,body.chat-mode #chatBox .nx-final-answer h3{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;font-weight:500!important;}",
+      "body.chat-mode #chatBox .nx-human-answer h1,body.chat-mode #chatBox .nx-final-answer h1{font-size:17px!important;}",
+      "body.chat-mode #chatBox .nx-human-answer h2,body.chat-mode #chatBox .nx-final-answer h2{font-size:16px!important;}",
+      "body.chat-mode #chatBox .nx-human-answer h3,body.chat-mode #chatBox .nx-final-answer h3{font-size:15.5px!important;}",
+      "body.chat-mode #chatBox .nx-answer-lead,body.chat-mode #chatBox .nx-answer-paragraph,body.chat-mode #chatBox .nx-answer-bottom{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;font-size:15px!important;line-height:1.55!important;}",
+      "body.chat-mode #chatBox .nx-human-answer .nx-keyword,body.chat-mode #chatBox .nx-human-answer .nx-key-label,body.chat-mode #chatBox .nx-final-answer .nx-keyword,body.chat-mode #chatBox .nx-final-answer .nx-key-label{display:inline!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;font-size:inherit!important;line-height:inherit!important;font-weight:500!important;}"
+    ].join("\n");
+    var style = document.getElementById("nx-compact-answer-no-box-runtime");
+    if(!style){
+      style = document.createElement("style");
+      style.id = "nx-compact-answer-no-box-runtime";
+      document.body.appendChild(style);
+    }
+    style.textContent = css;
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", installCompactAnswerStyle);
+  }else{
+    installCompactAnswerStyle();
+  }
+  [200, 700, 1500, 3000].forEach(function(delay){
+    window.setTimeout(installCompactAnswerStyle, delay);
+  });
+})();
+</script>
+
 </body>
 </html>
