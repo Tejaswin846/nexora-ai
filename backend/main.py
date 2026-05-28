@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -37,7 +37,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.51.0-fast-human-writing"
+APP_VERSION = "8.52.0-max-clear-intelligence"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("NEXORA_DATA_DIR", BASE_DIR / "nexora_data")).expanduser()
@@ -92,9 +92,9 @@ FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
-POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "18"))
-POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "14"))
-POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "8"))
+POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "14"))
+POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "9"))
+POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "5"))
 POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -105,20 +105,16 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instru
 HF_API_KEY = os.getenv("HF_API_KEY", "").strip()
 HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
-REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "45"))
-SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "8"))
-<<<<<<< HEAD
-MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "2200"))
-=======
-MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "1600"))
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
-INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "30"))
-THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "45"))
+REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "35"))
+SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "6"))
+MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "2600"))
+INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "18"))
+THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "34"))
 FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "4200"))
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "5200"))
-FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "12"))
+FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "7"))
 POLLINATIONS_QUALITY_GUARD = os.getenv("NEXORA_POLLINATIONS_QUALITY_GUARD", "true").strip().lower() not in {"0", "false", "off", "no"}
 AUTONOMOUS_RESEARCH_ENABLED = os.getenv("NEXORA_AUTONOMOUS_RESEARCH", "true").strip().lower() not in {"0", "false", "off", "no"}
 AUTONOMOUS_RESEARCH_MAX_RESULTS = max(1, min(int(os.getenv("NEXORA_AUTONOMOUS_RESEARCH_MAX_RESULTS", "2")), 3))
@@ -182,8 +178,8 @@ async def runtime_exception_handler(request: Request, exc: Exception) -> JSONRes
             status_code=200,
             content={
                 "reply": (
-                    "I hit a temporary backend problem while answering, but the app is still running. "
-                    "Try the same message once more; if it keeps happening, send a shorter version and I will recover from there."
+                    "I could not complete that response cleanly, but the app is still running. "
+                    "Try the same message once more; if it keeps happening, send a shorter version and I will answer from the saved context."
                 ),
                 "session_id": ensure_session(None),
                 "mode": "agent",
@@ -466,6 +462,43 @@ def set_cached_response(key: str, reply: str, model_used: str, sources: List[Sou
     }
 
 
+def local_song_recommendation_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(song|music|track)\b", lower):
+        return None
+    if not re.search(r"\b(suggest|recommend|play|listen|give me|any good|song for|music for)\b", lower):
+        return None
+
+    if re.search(r"\b(tamil|kollywood)\b", lower):
+        return (
+            "Try listening to \"Kaathalae Kaathalae\" from 96 (2018).\n\n"
+            "Why it fits:\n"
+            "- Soft, emotional, and easy to replay.\n"
+            "- Strong melody without feeling noisy.\n"
+            "- A safer Tamil recommendation than guessing random film credits.\n\n"
+            "If you want something more energetic, try \"Aaluma Doluma\" from Vedalam (2015)."
+        )
+    if re.search(r"\b(sad|emotional|heartbreak|heartbroken|lonely)\b", lower):
+        return (
+            "Try \"The Night We Met\" by Lord Huron.\n\n"
+            "It is calm, emotional, and works well when you want something reflective without too much noise."
+        )
+    if re.search(r"\b(focus|study|work|calm|peace|relax|sleep)\b", lower):
+        return (
+            "Try \"Weightless\" by Marconi Union.\n\n"
+            "It is a calm instrumental track, so it is better for focus or relaxing than a lyric-heavy song."
+        )
+    if re.search(r"\b(happy|party|energy|energetic|workout|gym)\b", lower):
+        return (
+            "Try \"Good Life\" by OneRepublic.\n\n"
+            "It is upbeat, clean, and easy to listen to when you want a positive mood."
+        )
+    return (
+        "Try \"Kun Faya Kun\" from Rockstar (2011).\n\n"
+        "It is soulful, memorable, and works even if you just want one strong song recommendation without a long list."
+    )
+
+
 def local_fast_reply(message: str) -> Optional[str]:
     text = clean_text(message).lower()
     if not text:
@@ -494,7 +527,9 @@ def local_fast_reply(message: str) -> Optional[str]:
         return "Hey, I am here. What are we building or solving today?"
     if re.fullmatch(r"(thanks|thank you|thx|ty|ok|okay|cool|nice)[!. ]*", text):
         return "Anytime. Send me the next thing and I will help you move it forward."
-<<<<<<< HEAD
+    song = local_song_recommendation_reply(message)
+    if song:
+        return song
     if re.fullmatch(
         r"(what can you do|what all can you do|what are your capabilities|what can nexora do|what can u do|what do you do)[?.! ]*",
         text,
@@ -517,19 +552,14 @@ def local_fast_reply(message: str) -> Optional[str]:
             "Bottom line:\n"
             "Give me a task, question, file, idea, or bug, and I will choose the clearest format: short answer, steps, table, checklist, explanation, or polished draft."
         )
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     if text in {"who are you", "who are you?", "what are you", "what are you?"}:
         return "I am Nexora, your AI assistant for clear answers, coding help, research-aware reasoning, files, and project work."
     direct_name = local_direct_name_reply(text)
     if direct_name:
         return direct_name
-<<<<<<< HEAD
     capability = local_capability_reply(text)
     if capability:
         return capability
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     reflective = local_reflective_reply(text)
     if reflective:
         return reflective
@@ -1680,11 +1710,8 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
         return True
     if split_comparison_subjects(message):
         return True
-<<<<<<< HEAD
     if local_capability_reply(message):
         return True
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     if re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
         return True
     if re.search(r"\b(how to|steps to|how can i|how do i)\b", lower):
@@ -1713,12 +1740,12 @@ def local_structured_fallback(
     email = local_email_reply(message)
     if email:
         return email
-<<<<<<< HEAD
+    song = local_song_recommendation_reply(message)
+    if song:
+        return song
     capability = local_capability_reply(message)
     if capability:
         return capability
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     semantic = local_semantic_reply(message, response_lane, presentation_style)
     if semantic:
         return semantic
@@ -1890,7 +1917,6 @@ def local_vague_improvement_reply(message: str, focus: Dict[str, Any]) -> Option
 
 def local_capability_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
-<<<<<<< HEAD
     capability_intent = re.search(
         r"\b(powerful|capability|capable|capability status|understand|understanding|understanding level|intelligent|smart|smarter|highest|advanced|maxed out|max precision|max-precision|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b",
         lower,
@@ -1912,28 +1938,10 @@ def local_capability_reply(message: str) -> Optional[str]:
         "- Research aware: It uses live search or source context for current facts, but avoids slowing down simple stable questions.\n"
         "- Fallback ready: If one model path fails, it can use local structured answers, Wikipedia context, search evidence, Ollama, or the free online model.\n"
         "- Better presentation: It chooses short answers, steps, tables, checklists, or polished drafts based on the task.\n"
+        "- Clean final output: It removes raw JSON, stream chunks, debug text, and model metadata before the answer reaches the chat.\n"
         "- Supervised autonomy: It can prepare deployment or shipping steps, but production changes stay approval-gated instead of silently running unattended.\n\n"
         "Important truth:\n"
         "It is not the same as a paid frontier model, but the app now pushes harder on intent, context, reasonableness, and verification so answers feel much closer to a capable ChatGPT-style assistant."
-=======
-    if re.search(r"\b(compare|comparison|vs|versus|explain|analyze|analyse|how|why|steps?|guide)\b", lower):
-        return None
-    if re.search(r"\b(ram|cpu|gpu|memory|hardware|performance|latency|tokens?|context window|inference|training|server|hosting|docker|hugging face|space)\b", lower):
-        return None
-    if not re.search(r"\b(powerful|capability|understand|understanding|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b", lower):
-        return None
-    return (
-        "Yes. Nexora is built to act more like a real problem-solving assistant, not a keyword template.\n\n"
-        "**The useful version of powerful is understanding plus judgment.**\n\n"
-        "What this means in practice:\n"
-        "- **Intent first:** It reads messy wording by the likely goal, not only the exact words.\n"
-        "- **Memory aware:** It uses saved preferences, recent chat context, uploaded files, and image context when they matter.\n"
-        "- **Research aware:** It searches automatically for current or evidence-heavy questions, but avoids wasting time on simple stable facts.\n"
-        "- **Fallback ready:** If the free online model is slow, it can use local structured answers, Wikipedia context, search evidence, or Ollama.\n"
-        "- **Human style:** It keeps answers clean, direct, and paced like a thoughtful person explaining clearly.\n\n"
-        "Important truth:\n"
-        "It is not the same as a paid frontier model, but this build now combines intent understanding, memory, search, files, images, Ollama, Pollinations, and local fallbacks in a way that is much stronger on your computer."
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     )
 
 
@@ -2027,27 +2035,38 @@ def local_resilient_reply(
 def choose_response_mode(message: str, requested_mode: Optional[str], requested_model: Optional[str]) -> str:
     text = clean_text(message).lower()
     requested = f"{requested_mode or ''} {requested_model or ''}".lower()
+    speed_requested = bool(re.search(r"\b(fast|faster|quick|quickly|speed|instant|low latency|don'?t wait|dont wait)\b", text))
+    max_quality_requested = bool(re.search(
+        r"\b(max|maximum|maxed out|max out|highest|highest level|best possible|as intelligent as possible|"
+        r"reasoning|understanding|precise|precision|accurate|accuracy|intelligence|smart|smarter|"
+        r"clear well structured|well structured|structured answer|no raw outputs?|polished answer)\b",
+        text,
+    ))
+    current_or_high_risk = bool(re.search(
+        r"\b(latest|current|today|recent|news|market|stock|price|filing|legal|medical|medicine|diagnose|investment|tax|law|safety)\b",
+        text,
+    ))
+    complex_request = bool(re.search(
+        r"\b(debug|fix|build|deploy|code|backend|frontend|api|compare|comparison|step by step|architecture|detailed|deep|full|complete)\b",
+        text,
+    ))
 
     if any(word in requested for word in ["thinking", "research", "finance", "code"]):
         return "thinking"
     if any(word in requested for word in ["instant", "fast"]):
         return "instant"
-<<<<<<< HEAD
+    if speed_requested and not current_or_high_risk and not complex_request and not max_quality_requested:
+        return "instant"
+    if max_quality_requested:
+        return "thinking"
     if re.search(r"\b(table|chart|diagram|flowchart|compare|comparison|detailed|step by step|full|complete|highest|advanced|intelligent|understanding|capability|reasonable)\b", text):
-=======
-    if re.search(r"\b(table|chart|diagram|flowchart|compare|comparison|detailed|step by step|full|complete)\b", text):
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         return "thinking"
 
     thinking_patterns = [
         r"\b(explain|analyze|compare|debug|fix|build|create|design|plan|strategy|architecture)\b",
         r"\b(why|how|prove|derive|solve|calculate|implement|refactor|review|optimize)\b",
         r"\b(latest|current|today|recent|news|market|stock|price|filing|contract)\b",
-<<<<<<< HEAD
-        r"\b(step by step|deep|detailed|well structured|accurate|reasonable|understand|understanding|intent|capability|intelligent|smarter|highest|advanced|sources?|citations?)\b",
-=======
-        r"\b(step by step|deep|detailed|well structured|accurate|sources?|citations?)\b",
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
+        r"\b(step by step|deep|detailed|well structured|structured answer|clear answer|accurate|accuracy|reasonable|reasoning|understand|understanding|intent|capability|intelligent|intelligence|smarter|highest|advanced|sources?|citations?)\b",
     ]
     if len(text) > 140:
         return "thinking"
@@ -2107,57 +2126,34 @@ def performance_limits_for(level: str) -> Dict[str, int]:
     profiles = {
         "tiny": {
             "instant_max_tokens": 240,
-            "thinking_max_tokens": 420,
+            "thinking_max_tokens": 520,
             "ollama_context_tokens": 1536,
             "history_messages": 2,
             "file_context_chars": 1600,
             "cache_items": 120,
         },
         "light": {
-<<<<<<< HEAD
             "instant_max_tokens": 520,
-            "thinking_max_tokens": 1050,
-            "ollama_context_tokens": 3072,
+            "thinking_max_tokens": 1350,
+            "ollama_context_tokens": 3584,
             "history_messages": 5,
-            "file_context_chars": 4200,
-=======
-            "instant_max_tokens": 360,
-            "thinking_max_tokens": 650,
-            "ollama_context_tokens": 2048,
-            "history_messages": 3,
-            "file_context_chars": 2600,
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
+            "file_context_chars": 5200,
             "cache_items": 160,
         },
         "balanced": {
             "instant_max_tokens": 700,
-<<<<<<< HEAD
-            "thinking_max_tokens": 1700,
-            "ollama_context_tokens": 4096,
+            "thinking_max_tokens": 2100,
+            "ollama_context_tokens": 5120,
             "history_messages": 10,
-            "file_context_chars": 6800,
+            "file_context_chars": 7600,
             "cache_items": 180,
         },
         "strong": {
             "instant_max_tokens": 1100,
-            "thinking_max_tokens": 2200,
-            "ollama_context_tokens": 6144,
+            "thinking_max_tokens": 2600,
+            "ollama_context_tokens": 8192,
             "history_messages": 12,
-            "file_context_chars": 9000,
-=======
-            "thinking_max_tokens": 1300,
-            "ollama_context_tokens": 3072,
-            "history_messages": 8,
-            "file_context_chars": 5200,
-            "cache_items": 180,
-        },
-        "strong": {
-            "instant_max_tokens": 900,
-            "thinking_max_tokens": 1600,
-            "ollama_context_tokens": 4096,
-            "history_messages": 10,
-            "file_context_chars": 7200,
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
+            "file_context_chars": 11000,
             "cache_items": 220,
         },
     }
@@ -3846,7 +3842,6 @@ TYPO_NORMALIZATIONS = {
     "aii": "ai",
     "evrything": "everything",
     "everyhing": "everything",
-<<<<<<< HEAD
     "understandit": "understanding",
     "understandign": "understanding",
     "understandig": "understanding",
@@ -3862,8 +3857,6 @@ TYPO_NORMALIZATIONS = {
     "capablity": "capability",
     "higest": "highest",
     "heighest": "highest",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     "effecient": "efficient",
     "efficeicny": "efficiency",
     "effeicint": "efficient",
@@ -3963,7 +3956,56 @@ def infer_action_goal(message: str, response_lane: str, use_research: bool) -> s
     return "answer directly using the current context"
 
 
-<<<<<<< HEAD
+def infer_user_need_profile(
+    message: str,
+    response_lane: str,
+    presentation_style: str,
+    use_research: bool,
+) -> Dict[str, Any]:
+    lower = clean_text(message).lower()
+    needs: List[str] = []
+    risk_checks: List[str] = []
+
+    if re.search(r"\b(fast|faster|quick|quickly|speed|instant|low latency|don't wait|dont wait)\b", lower):
+        needs.append("speed")
+    if re.search(r"\b(accurate|accuracy|correct|precise|verify|reasonable|sensible|trustworthy|no hallucination|don'?t guess|dont guess)\b", lower):
+        needs.append("accuracy")
+    if re.search(r"\b(understand|understanding|intent|what i mean|my needs|context|messy|typo)\b", lower):
+        needs.append("intent understanding")
+    if re.search(r"\b(complete|final|i won'?t ask again|i wont ask again|don'?t ask again|dont ask again)\b", lower):
+        needs.append("complete first-pass answer")
+    if re.search(r"\b(attractive|readable|interactive|clean|normal|polished|professional)\b", lower):
+        needs.append("clean presentation")
+    if response_lane == "build":
+        needs.append("runnable implementation")
+    elif response_lane == "writing":
+        needs.append("ready-to-use writing")
+    elif response_lane == "learning":
+        needs.append("clear learning explanation")
+
+    if use_research or response_lane == "realtime_search":
+        risk_checks.append("source-check current facts")
+    else:
+        risk_checks.append("avoid unsupported current claims")
+    if presentation_style == "table":
+        risk_checks.append("valid table formatting")
+    if response_lane == "build":
+        risk_checks.append("test or smoke-check the result")
+    if "accuracy" in needs:
+        risk_checks.append("separate facts from assumptions")
+    if "complete first-pass answer" in needs:
+        risk_checks.append("cover the likely next question proactively")
+
+    if not needs:
+        needs.append("direct useful answer")
+    return {
+        "needs": list(dict.fromkeys(needs))[:6],
+        "risk_checks": list(dict.fromkeys(risk_checks))[:6],
+        "latency_target": "fast" if "speed" in needs else "balanced",
+        "completion_bar": "complete_first_pass" if "complete first-pass answer" in needs else "normal",
+    }
+
+
 def infer_understanding_profile(
     message: str,
     response_lane: str,
@@ -3977,7 +4019,10 @@ def infer_understanding_profile(
     word_count = len(text.split())
     priorities: List[str] = []
     checks: List[str] = []
+    need_profile = infer_user_need_profile(message, response_lane, presentation_style, use_research)
 
+    for need in need_profile["needs"]:
+        priorities.append(need)
     if re.search(r"\b(accurate|accuracy|correct|true|verify|reasonable|realistic|sensible)\b", lower):
         priorities.append("accuracy and reasonableness")
     if re.search(r"\b(understand|understanding|intent|meaning|context|what i mean|messy)\b", lower):
@@ -4002,6 +4047,8 @@ def infer_understanding_profile(
         checks.append("verify current claims with sources")
     else:
         checks.append("avoid unsupported current facts")
+    for check in need_profile["risk_checks"]:
+        checks.append(check)
     if vague:
         checks.append("resolve vague references from recent context")
     if response_lane == "build":
@@ -4041,11 +4088,10 @@ def infer_understanding_profile(
         "priorities": priorities[:5],
         "checks": checks[:6],
         "ambiguity": ambiguity,
+        "need_profile": need_profile,
     }
 
 
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 def build_understanding_context(
     session_id: str,
     user_message: str,
@@ -4058,7 +4104,6 @@ def build_understanding_context(
     focus = recent_session_focus(session, user_message)
     vague = is_vague_followup(user_message)
     action_goal = infer_action_goal(normalized, response_lane, use_research)
-<<<<<<< HEAD
     presentation_style = classify_presentation_style(normalized, response_lane, use_research)
     understanding_profile = infer_understanding_profile(
         normalized,
@@ -4068,8 +4113,6 @@ def build_understanding_context(
         vague,
         focus,
     )
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     words = clean_text(normalized).split()
     missing: List[str] = []
     if writing_request and writing_request.get("is_writing") and writing_request.get("missing_topic"):
@@ -4081,18 +4124,16 @@ def build_understanding_context(
     lines = [
         "Understanding engine:",
         f"- Normalized user wording: {normalized}",
-<<<<<<< HEAD
         f"- Understanding depth: {understanding_profile['depth']}.",
         f"- Likely action: {action_goal}.",
         f"- Likely target: {understanding_profile['likely_target']}.",
+        "- User needs detected: " + "; ".join(understanding_profile["need_profile"]["needs"]) + ".",
+        "- Latency target: " + understanding_profile["need_profile"]["latency_target"] + ".",
+        "- Completion bar: " + understanding_profile["need_profile"]["completion_bar"] + ".",
         "- User priorities: " + "; ".join(understanding_profile["priorities"]) + ".",
         "- Reasonableness checks: " + "; ".join(understanding_profile["checks"]) + ".",
         f"- Vague follow-up/reference detected: {'yes' if vague else 'no'}.",
         f"- Ambiguity level: {understanding_profile['ambiguity']}.",
-=======
-        f"- Likely action: {action_goal}.",
-        f"- Vague follow-up/reference detected: {'yes' if vague else 'no'}.",
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     ]
     if corrections:
         lines.append("- Typing corrections understood: " + "; ".join(corrections) + ".")
@@ -4107,19 +4148,14 @@ def build_understanding_context(
     if knowledge_strategy:
         lines.append("- Knowledge strategy: answer from model knowledge for stable facts, but use search/sources for current or uncertain facts.")
     lines.extend([
-<<<<<<< HEAD
         "- Highest understanding protocol: first translate messy wording into the likely intent, then identify the target, constraints, hidden expectation, and risk of misunderstanding.",
+        "- User-need protocol: satisfy speed, accuracy, completeness, and presentation needs in that order when the user asks for them.",
         "- Before answering, do an internal consistency pass: does the answer solve the actual user goal, respect recent context, and avoid exaggerated capability claims?",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         "- If the user uses 'it', 'this', 'that', or says 'make it better', resolve the target from recent context before answering.",
         "- If the target or required topic is still missing, ask one short clarifying question instead of inventing a topic.",
         "- Do not claim to know everything. Use memory, chat context, files, and real-time search when facts may be current or uncertain.",
         "- Interpret messy human wording by intent, not by literal grammar mistakes.",
-<<<<<<< HEAD
         "- Prefer reasonable, checkable answers over impressive-sounding answers. State practical limits only when they matter.",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     ])
     state = {
         "normalized": normalized,
@@ -4130,13 +4166,11 @@ def build_understanding_context(
         "missing": missing,
         "knowledge_strategy": knowledge_strategy,
         "word_count": len(words),
-<<<<<<< HEAD
         "understanding_depth": understanding_profile["depth"],
         "understanding_priorities": understanding_profile["priorities"],
         "understanding_checks": understanding_profile["checks"],
         "likely_target": understanding_profile["likely_target"],
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
+        "need_profile": understanding_profile["need_profile"],
     }
     return "\n".join(lines), state
 
@@ -4390,6 +4424,15 @@ def analyze_user_intent(
     expected_output = shape_map.get(presentation_style, "balanced answer")
 
     constraints: List[str] = []
+    need_profile = infer_user_need_profile(user_message, response_lane, presentation_style, use_research)
+    if need_profile.get("needs"):
+        constraints.append("detected user needs: " + ", ".join(need_profile["needs"]))
+    if need_profile.get("latency_target") == "fast":
+        constraints.append("answer quickly; use the fastest reliable path")
+    if need_profile.get("completion_bar") == "complete_first_pass":
+        constraints.append("make the first answer complete enough that the user should not need to repeat the request")
+    if need_profile.get("risk_checks"):
+        constraints.append("quality checks: " + ", ".join(need_profile["risk_checks"][:4]))
     if re.search(r"\b(fast|faster|speed|efficient|efficiency|quick)\b", lower) or signals.get("urgency"):
         constraints.append("prioritize speed and low-token structure")
     if re.search(r"\b(structure|structured|clean|professional|beautiful|format)\b", lower) or signals.get("needs_structure"):
@@ -4400,13 +4443,10 @@ def analyze_user_intent(
         constraints.append("use and update long-term memory")
     if re.search(r"\b(understand|understanding|intent|human|behavior|powerful|capability|everything)\b", lower):
         constraints.append("infer the user's real intent from messy wording and recent context")
-<<<<<<< HEAD
     if re.search(r"\b(reasonable|realistic|sensible|accurate|correct|trustworthy)\b", lower):
         constraints.append("prioritize reasonable, checkable claims over impressive wording")
     if re.search(r"\b(highest|advanced|intelligent|smarter|capability|ChatGPT)\b", lower):
         constraints.append("use the strongest available reasoning path while staying honest about limits")
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     if use_research:
         constraints.append("do not guess current facts without sources")
     if research_route in {"web_light", "web_current", "strict_current"}:
@@ -4445,12 +4485,9 @@ def build_intent_context(intent: Dict[str, Any]) -> str:
     lines.append(
         "Think in this order: understand the real ask, choose the shortest reliable path, use memory/context/search only when useful, then answer cleanly. Ask a clarifying question only if a useful answer would be risky or impossible."
     )
-<<<<<<< HEAD
     lines.append(
         "Use highest-capability behavior for ambiguous or high-effort requests: infer intent, map constraints, consider alternatives, check reasonableness, then give the clearest final answer without exposing hidden reasoning."
     )
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     return "\n".join(lines)
 
 
@@ -5114,10 +5151,7 @@ def free_provider_status() -> Dict[str, Any]:
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
             "fast_direct_answers_for_simple_stable_questions",
-<<<<<<< HEAD
             "max_precision_understanding_engine",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
             "answer_strategy_planner",
             "autonomous_research_router",
             "heavy_ranked_long_term_memory",
@@ -5133,11 +5167,7 @@ def free_provider_status() -> Dict[str, Any]:
             "strong_image_prompt_enhancer",
             "exact_match_image_prompt_guard",
         ],
-<<<<<<< HEAD
         "message": "Nexora clubs Pollinations for speed, Ollama for local fallback or optional primary mode, max-precision understanding, autonomous research routing, Wikipedia context, realtime search, memory, and quality guard.",
-=======
-        "message": "Nexora clubs Pollinations for speed, Ollama for local fallback or optional primary mode, autonomous research routing, Wikipedia context, realtime search, memory, and quality guard.",
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         "speed": {
             "ollama_mode": OLLAMA_MODE,
             "ollama_keep_alive": OLLAMA_KEEP_ALIVE,
@@ -5872,15 +5902,29 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
         return True
     keywords = [
         "latest", "today", "current", "recent", "news", "live", "right now", "2026", "2025",
+        "now", "this week", "this month", "this year", "as of", "currently",
         "stock", "share", "market", "price", "ceo", "president", "prime minister",
         "winner", "score", "weather", "schedule", "election", "filing", "contract",
-        "order", "announcement", "released", "updated", "crude oil", "oil crisis",
+        "order", "announcement", "released", "updated", "specs",
+        "crude oil", "oil crisis",
         "fuel price", "energy crisis", "inflation", "rupee",
         "import bill", "sanctions", "current war", "latest war", "ongoing war",
         "war today", "war news", "current conflict", "latest conflict", "ongoing conflict",
         "conflict today", "conflict news", "russia ukraine", "ukraine war",
         "israel hamas", "gaza war", "iran israel", "middle east conflict",
     ]
+    if re.search(r"\b(latest|current|new|newest|updated)\s+(version|model|specs?|release)\b", text):
+        return True
+    recommendation_context = bool(re.search(
+        r"\b(best|top|recommend|recommendation|which should i buy|buy|purchase|worth it|review)\b",
+        text,
+    ))
+    recommendation_domains = bool(re.search(
+        r"\b(phone|laptop|tablet|pc|gpu|cpu|car|bike|camera|headphones|earbuds|course|college|hotel|restaurant|flight|stock|mutual fund|crypto)\b",
+        text,
+    ))
+    if recommendation_context and recommendation_domains:
+        return True
     fuel_words = ["petrol", "diesel", "gasoline", "fuel"]
     fuel_current_context = [
         "price", "latest", "current", "today", "recent", "crisis", "shortage",
@@ -6315,14 +6359,12 @@ def free_club_review_reply(
         "If the draft is generic, replace it with a specific answer to the user's actual problem.\n"
         "Check the user's constraints, fix shallow reasoning, fill missing steps, and remove guesses.\n"
         "For coding, math, planning, and explanations, verify the logic before polishing the wording.\n"
-<<<<<<< HEAD
         "Use maximum practical understanding: infer messy wording, resolve references from context, identify the user's real target, and answer the task they meant.\n"
         "Make the answer feel trustworthy: explain assumptions, avoid exaggeration, and prefer practical checks over vague claims.\n"
         "Make the final answer engaging: crisp lead, useful sections, concrete examples, and a clear bottom line when helpful.\n"
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         "Preserve useful citations and source markers when supporting context provides them.\n"
         "If the draft exposes backend/tool failure, remove that and answer using the available context.\n"
+        "Never return raw JSON, stream chunks, tool names, provider names, metadata, stack traces, or hidden reasoning.\n"
         "Use ChatGPT-like structure: answer first, then compact sections only when useful.\n"
         "Use smooth writing for emails, letters, and normal chat.\n"
         "Use tables, charts, or text diagrams only when the user's question benefits from them.\n"
@@ -6356,7 +6398,7 @@ def free_club_review_reply(
     except Exception:
         return None
 
-    reviewed = clean_reply(reviewed)
+    reviewed = finalize_user_facing_answer(question, reviewed, response_lane, presentation_style)
     if is_bad_generated_reply(reviewed):
         return None
     return reviewed
@@ -6375,12 +6417,9 @@ Style:
 - Treat every non-trivial answer as a small reasoning task: parse the request, respect constraints, solve the core problem, check for missing assumptions, then write the final answer clearly.
 - If the user gives constraints like "do not change HTML" or "make it like before", preserve those constraints explicitly in the solution path.
 - Prefer substance over templates. Avoid canned advice when the user needs actual reasoning, diagnosis, comparison, code, planning, or writing.
-<<<<<<< HEAD
 - Be reasonable before being impressive. State what is true, what depends on context, and what the user can check.
 - Make answers attractive to read: strong opening, short paragraphs, clean section labels, concrete examples, and a useful final takeaway.
 - For broad questions like "what can you do", answer with realistic capabilities, useful examples, and honest limits instead of inflated claims.
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 - Do research by default only when accuracy needs it. Do not slow down simple questions with unnecessary web context.
 - Use this default structure when it fits: direct answer first, short explanation, important details or examples, sources or links if needed, and a practical next step only when useful.
 - Tone adaptation:
@@ -6435,9 +6474,16 @@ Style:
 - Never write "Direct Answer" or expose backend/system details.
 - Do not output raw LaTeX delimiters like \[...\] unless the user explicitly asks for LaTeX. For equations, prefer readable plain text such as "6 CO2 + 6 H2O -> C6H12O6 + 6 O2" or simple Unicode subscripts when possible.
 
-<<<<<<< HEAD
+Final answer contract:
+- Return only the final user-facing answer. Never expose provider text, tool traces, debug logs, request metadata, raw JSON, Python dicts, SSE "data:" chunks, stack traces, hidden reasoning, or internal route names.
+- If a tool, model, or source fails, translate that into a useful answer or a short honest limitation. Do not show the raw failure payload.
+- If the user asks for code or data, format it deliberately in fenced code blocks. Otherwise, use polished prose, bullets, tables, or steps.
+- Before sending, run a silent finish pass: remove raw artifacts, check accuracy, choose the clearest structure, and make the answer easy to scan.
+- The answer should feel complete on the first try: answer the real intent, include necessary caveats, and avoid filler.
+
 Understanding:
 - Treat messy wording, typos, screenshots, and short follow-ups as normal human input. Translate them internally into the likely intent before answering.
+- Detect the user's need before writing: speed, accuracy, completeness, emotion, action, or presentation. Satisfy that need directly instead of giving a generic template.
 - Use a highest-capability understanding pass for non-trivial requests: identify the real goal, target, constraints, unstated expectation, likely risk, and best answer format.
 - Resolve references like "it", "this", "same as before", and "like this" from recent chat context before asking a question.
 - Ask a clarifying question only when the missing detail would change the answer or make implementation unsafe. Otherwise, make one reasonable assumption and state it briefly.
@@ -6446,12 +6492,11 @@ Understanding:
 - For capability/status tables, avoid vague statuses like "not yet" or "final form" without explanation. Use precise labels such as "approval-gated", "supervised", "available", "planned", or "max-precision planning enabled".
 - Never imply silent unattended production deployment. Say production deploys are approval-gated and supervised unless the user explicitly installs a safe deployment connector.
 
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 Accuracy:
 - Be precise. Do not invent facts, dates, prices, sources, laws, medical claims, financial claims, or current events.
 - If something is uncertain, say so plainly and give the best safe next step.
 - For current/latest/news/finance/company claims, use only provided research evidence. Without evidence, say you cannot verify it.
+- For recommendations, avoid fake exact metadata. If you are not sure about a song, film, product, price, or release detail, recommend safely without inventing credits.
 - Separate fact from inference when the difference matters.
 - For answers with research evidence, use this structure when useful: a direct answer paragraph first, then "Key points:", then "What it means:", then "Bottom line:". Use inline citation markers like [1] and [2]. Do not write a separate raw source list; the app renders sources separately.
 
@@ -6471,13 +6516,13 @@ def reasoning_quality_context(response_mode: str, response_lane: str, presentati
         "- If information is missing, make the safest useful assumption and state it briefly; ask only when the missing detail blocks a reliable answer.",
         "- Prefer concrete examples, edge cases, and verification steps over generic advice.",
         "- Before finalizing, check for contradictions, unsupported facts, and steps that would fail in practice.",
-<<<<<<< HEAD
         "- Make the answer useful to interact with: include choices, checks, or follow-up paths when they genuinely help.",
         "- Avoid overclaiming. If a claim depends on tools, current data, or configuration, say that briefly.",
         "- Upgrade vague user language into a clear internal task: target, goal, constraints, quality bar, and likely next action.",
         "- If the user asks for highest intelligence or capability, respond with strong reasoning and honest limits, not hype.",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
+        "- Run a silent max-quality pass for non-trivial answers: understand the real need, solve it, verify it, shape it, then final-check the wording.",
+        "- Never expose raw JSON, stream chunks, model metadata, debug logs, stack traces, or hidden reasoning in the final answer.",
+        "- Prefer a clear answer that is accurate and useful over a longer answer that only sounds advanced.",
     ]
     if response_mode == "thinking":
         lines.append("- For thinking mode, solve deeply enough to catch hidden traps, then compress the final response into clear sections.")
@@ -6594,6 +6639,290 @@ def clean_reply(text: str) -> str:
     return text
 
 
+def user_requested_machine_readable_output(question: str) -> bool:
+    lower = clean_text(question).lower()
+    return bool(re.search(
+        r"\b(json only|raw json|return json|as json|yaml|xml|csv|ndjson|toml|raw output|"
+        r"exact output|verbatim|terminal output|console output|full log|debug output|stack trace)\b",
+        lower,
+    ))
+
+
+def extract_text_from_raw_payload(value: Any, depth: int = 0) -> Optional[str]:
+    if depth > 5:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        choices = value.get("choices")
+        if isinstance(choices, list):
+            parts: List[str] = []
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    continue
+                message = choice.get("message")
+                delta = choice.get("delta")
+                extracted = (
+                    extract_text_from_raw_payload(message, depth + 1)
+                    or extract_text_from_raw_payload(delta, depth + 1)
+                    or extract_text_from_raw_payload(choice.get("text"), depth + 1)
+                )
+                if extracted:
+                    parts.append(extracted)
+            if parts:
+                return "".join(parts)
+
+        for key in ("reply", "answer", "final", "content", "text", "output", "response", "token"):
+            if key in value:
+                extracted = extract_text_from_raw_payload(value.get(key), depth + 1)
+                if extracted:
+                    return extracted
+
+        message = value.get("message")
+        if isinstance(message, (dict, str)):
+            extracted = extract_text_from_raw_payload(message, depth + 1)
+            if extracted:
+                return extracted
+
+        data = value.get("data")
+        if isinstance(data, (dict, list)):
+            extracted = extract_text_from_raw_payload(data, depth + 1)
+            if extracted:
+                return extracted
+
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            extracted = extract_text_from_raw_payload(item, depth + 1)
+            if extracted:
+                parts.append(extracted)
+        if parts:
+            separator = "" if all(len(part) <= 12 for part in parts) else "\n"
+            return separator.join(parts)
+    return None
+
+
+def extract_text_from_raw_json(text: str) -> Optional[str]:
+    stripped = (text or "").strip()
+    fence_match = re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```", stripped, flags=re.IGNORECASE)
+    if fence_match:
+        stripped = fence_match.group(1).strip()
+    if not stripped or stripped[0] not in "{[":
+        return None
+    if not re.search(r'"(?:choices|message|content|reply|answer|text|output|response|token|model|role|tools_used|session_id|created_at)"', stripped):
+        return None
+    try:
+        payload = json.loads(stripped)
+    except Exception:
+        return None
+    extracted = extract_text_from_raw_payload(payload)
+    if extracted and clean_text(extracted) != clean_text(stripped):
+        return extracted
+    return None
+
+
+def collapse_sse_stream_artifacts(text: str) -> str:
+    lines = (text or "").splitlines()
+    normal_lines: List[str] = []
+    chunks: List[str] = []
+    saw_stream_line = False
+
+    for line in lines:
+        match = re.match(r"^\s*data:\s*(.+?)\s*$", line)
+        if match:
+            saw_stream_line = True
+            payload = match.group(1).strip()
+            if payload.upper() in {"[DONE]", "DONE"}:
+                continue
+            try:
+                extracted = extract_text_from_raw_payload(json.loads(payload))
+            except Exception:
+                extracted = payload if not payload.startswith(("{", "[")) else ""
+            if extracted:
+                chunks.append(extracted)
+            continue
+        if re.match(r"^\s*(?:event|id|retry):\s*", line):
+            saw_stream_line = True
+            continue
+        normal_lines.append(line)
+
+    normal_text = "\n".join(normal_lines).strip()
+    if saw_stream_line and chunks and not clean_text(normal_text):
+        return "".join(chunks).strip()
+    if saw_stream_line:
+        return normal_text
+    return text
+
+
+def remove_traceback_block(text: str) -> str:
+    text = re.sub(r"(?is)\n?\s*Traceback \(most recent call last\):.*$", "", text)
+    text = re.sub(r"(?im)^\s*File \"[^\"]+\", line \d+.*$", "", text)
+    return text.strip()
+
+
+def strip_raw_metadata_lines(text: str) -> str:
+    output = []
+    metadata_pattern = re.compile(
+        r"^\s*(?:model_used|tools_used|session_id|created_at|updated_at|provider|engine|"
+        r"backend|raw_response|response_metadata|debug|trace_id|request_id|finish_reason|"
+        r"prompt_tokens|completion_tokens|total_tokens)\s*[:=]",
+        re.IGNORECASE,
+    )
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if metadata_pattern.match(stripped):
+            continue
+        if re.match(r"^\s*(?:```)?json\s*$", stripped, flags=re.IGNORECASE):
+            continue
+        output.append(line)
+    return "\n".join(output).strip()
+
+
+def remove_unrequested_bold_markup(text: str, question: str) -> str:
+    if re.search(r"\b(use|make|keep|format).*\bbold\b|\bbold text\b", clean_text(question).lower()):
+        return text
+    parts = re.split(r"(```[\s\S]*?```)", text or "")
+    cleaned_parts = []
+    for part in parts:
+        if part.startswith("```") and part.endswith("```"):
+            cleaned_parts.append(part)
+        else:
+            cleaned_parts.append(re.sub(r"\*\*([^*\n]{1,180})\*\*", r"\1", part))
+    return "".join(cleaned_parts)
+
+
+def plain_math_expression(expression: str) -> str:
+    text = expression.strip()
+    text = re.sub(r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}", r"(\1) / (\2)", text)
+    text = re.sub(r"\\text\s*\{([^{}]+)\}", r"\1", text)
+    text = text.replace("\\cdot", "*").replace("\\times", " x ")
+    text = text.replace("\\leq", "<=").replace("\\geq", ">=")
+    text = text.replace("\\neq", "!=").replace("\\approx", "approx.")
+    text = re.sub(r"\\([A-Za-z]+)", r"\1", text)
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"([A-Za-z])_\{?([A-Za-z0-9]+)\}?", r"\1\2", text)
+    text = re.sub(r"(?<=[A-Za-z0-9])\s*\(", " * (", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def normalize_unrequested_latex(text: str, question: str) -> str:
+    if re.search(r"\b(latex|tex notation|raw math|mathjax)\b", clean_text(question).lower()):
+        return text
+    parts = re.split(r"(```[\s\S]*?```)", text or "")
+    output = []
+    for part in parts:
+        if part.startswith("```") and part.endswith("```"):
+            output.append(part)
+            continue
+        part = re.sub(
+            r"\\\[\s*([\s\S]*?)\s*\\\]",
+            lambda match: "\n" + plain_math_expression(match.group(1)) + "\n",
+            part,
+        )
+        part = re.sub(
+            r"\\\((.*?)\\\)",
+            lambda match: plain_math_expression(match.group(1)),
+            part,
+        )
+        output.append(part)
+    return "".join(output)
+
+
+def looks_like_raw_answer_artifact(text: str) -> bool:
+    raw = text or ""
+    stripped = raw.strip()
+    if not stripped:
+        return False
+    if re.search(r"(?m)^\s*data:\s*[{[]", raw):
+        return True
+    if re.search(r"(?is)Traceback \(most recent call last\):|^\s*File \"[^\"]+\", line \d+", raw):
+        return True
+    if re.search(r"(?im)^\s*(model_used|tools_used|session_id|created_at|raw_response|response_metadata)\s*[:=]", raw):
+        return True
+    fenced = re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```", stripped, flags=re.IGNORECASE)
+    if fenced:
+        stripped = fenced.group(1).strip()
+        if not stripped:
+            return False
+    if stripped[0] in "{[" and re.search(
+        r'"(?:choices|message|role|content|model|tools_used|session_id|created_at|type|token|delta)"',
+        stripped,
+    ):
+        return True
+    return False
+
+
+def break_dense_paragraphs(text: str) -> str:
+    parts = re.split(r"(```[\s\S]*?```)", text or "")
+    output: List[str] = []
+    for part in parts:
+        if part.startswith("```") and part.endswith("```"):
+            output.append(part)
+            continue
+        paragraphs = part.split("\n\n")
+        shaped_paragraphs = []
+        for paragraph in paragraphs:
+            stripped = paragraph.strip()
+            if (
+                len(stripped.split()) < 110
+                or "\n" in stripped
+                or "|" in stripped
+                or re.search(r"(?m)^\s*(?:[-*]|\d+[.)])\s+", stripped)
+            ):
+                shaped_paragraphs.append(paragraph)
+                continue
+            sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", stripped) if s.strip()]
+            if len(sentences) < 4:
+                shaped_paragraphs.append(paragraph)
+                continue
+            chunks = [" ".join(sentences[index:index + 3]) for index in range(0, len(sentences), 3)]
+            shaped_paragraphs.append("\n\n".join(chunks))
+        output.append("\n\n".join(shaped_paragraphs))
+    return "".join(output)
+
+
+def strip_raw_answer_artifacts(text: str, question: str) -> str:
+    if user_requested_machine_readable_output(question):
+        return text.strip()
+    extracted = extract_text_from_raw_json(text)
+    if extracted:
+        text = extracted
+    text = collapse_sse_stream_artifacts(text)
+    text = remove_traceback_block(text)
+    text = strip_raw_metadata_lines(text)
+    text = re.sub(r"(?im)^\s*(?:final answer|final improved answer)\s*:?\s*", "", text).strip()
+    return text
+
+
+def finalize_user_facing_answer(
+    question: str,
+    reply: str,
+    response_lane: str = "human_chat",
+    presentation_style: str = "balanced",
+) -> str:
+    text = strip_raw_answer_artifacts(reply, question)
+    text = clean_reply(text)
+    text = strip_raw_answer_artifacts(text, question)
+    text = remove_unrequested_bold_markup(text, question)
+    text = normalize_unrequested_latex(text, question)
+    text = break_dense_paragraphs(text)
+    text = clean_reply(text)
+
+    if not user_requested_machine_readable_output(question) and looks_like_raw_answer_artifact(text):
+        fallback = local_structured_fallback(question, response_lane, presentation_style)
+        if fallback:
+            return finalize_user_facing_answer(question, fallback, response_lane, presentation_style)
+        return (
+            "I could not turn the model output into a clean answer.\n\n"
+            "Bottom line:\n"
+            "Send the question once more, and I will answer directly without raw backend output."
+        )
+    return text
+
+
 def is_bad_generated_reply(text: str) -> bool:
     stripped = clean_text(text).lower()
     return not stripped or stripped in {
@@ -6623,6 +6952,20 @@ def answer_quality_flags(
         flags.append("empty")
     if re.search(r"\b(free text engine|backend|pollinations|ollama|api key|rate-limit|rate limit)\b", lower):
         flags.append("backend_talk")
+    if re.search(r"(?m)^\s*data:\s*[{[]", raw):
+        flags.append("stream_artifact")
+    if re.search(r"(?is)Traceback \(most recent call last\):|^\s*File \"[^\"]+\", line \d+", raw):
+        flags.append("traceback_or_error_dump")
+    if re.search(r"(?im)^\s*(model_used|tools_used|session_id|created_at|raw_response|response_metadata|debug)\s*[:=]", raw):
+        flags.append("tool_dump")
+    if not re.search(r"\b(latex|tex notation|mathjax)\b", question_lower) and re.search(r"\\\[|\\\(|\\frac|\\text\{", raw):
+        flags.append("raw_latex_delimiters")
+    raw_for_json = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw.strip(), flags=re.IGNORECASE)
+    if re.match(r"^\s*[{[]", raw_for_json) and re.search(
+        r'"(?:choices|message|role|content|model|tools_used|session_id|created_at|type|token|delta)"',
+        raw_for_json,
+    ):
+        flags.append("raw_json_output")
     if re.search(r"\bbased on the live sources i found\b|\bsafest answer should lean\b", lower):
         flags.append("weak_source_synthesis")
     if re.search(r"(?m)^\s*:\s*$", raw):
@@ -6633,6 +6976,9 @@ def answer_quality_flags(
         flags.append("too_short")
     if re.search(r"\b(ask the question again|send the topic directly|i am still here|try again once)\b", lower):
         flags.append("weak_fallback")
+    if re.search(r"\b(song|music|track|recommend|suggest)\b", question_lower) and re.search(r"\bfrom the (film|movie)\b", lower):
+        if not re.search(r"\b(source|verified|according to|\[\d+\])\b", lower):
+            flags.append("unverified_recommendation_metadata")
     if response_lane == "planning" and re.search(r"\b(start with the exact outcome|break it into small actions|fix one problem at a time)\b", lower):
         flags.append("generic_plan")
     if presentation_style == "table" and "|" not in raw and re.search(r"\b(compare|comparison|table|vs|versus|pros and cons)\b", question_lower):
@@ -6646,7 +6992,16 @@ def should_accept_reviewed_reply(question: str, reviewed: str, response_lane: st
     if is_bad_generated_reply(reviewed):
         return False
     flags = answer_quality_flags(question, reviewed, response_lane, presentation_style)
-    blocking = {"empty", "backend_talk", "weak_fallback", "encoding_noise"}
+    blocking = {
+        "empty",
+        "backend_talk",
+        "weak_fallback",
+        "encoding_noise",
+        "stream_artifact",
+        "traceback_or_error_dump",
+        "tool_dump",
+        "raw_json_output",
+    }
     return not any(flag in blocking for flag in flags)
 
 
@@ -6925,7 +7280,7 @@ def polish_plain_text_block(text: str) -> str:
             output.append("")
             index += 1
             continue
-        if re.fullmatch(r"[:;.,\-–—]+", stripped):
+        if re.fullmatch(r"[:;.,\-â€“â€”]+", stripped):
             index += 1
             continue
 
@@ -7164,12 +7519,14 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
         return direct
 
     lower = clean_text(question).lower()
-    if re.search(r"\b(price|stock|share|market|weather|score)\b", lower):
-        lead = "I found live sources, but the exact value can change by location and time, so the safest answer is to use the latest source-backed points below."
+    if re.search(r"\b(best|top|recommend|recommendation|which should i buy|buy|purchase|worth it|review)\b", lower):
+        lead = "Short answer:\nUse the source-backed options below as a current shortlist instead of trusting a generic guess. Prioritize the model that matches your budget, RAM/storage needs, and warranty in your area."
+    elif re.search(r"\b(price|stock|share|market|weather|score)\b", lower):
+        lead = "Short answer:\nThe exact value can change by location and time, so use the latest source-backed points below instead of a stale guess."
     elif re.search(r"\b(current|latest|today|right now|recent|news)\b", lower):
-        lead = "I found live sources for this, so the answer below is based on the latest evidence available to Nexora."
+        lead = "Short answer:\nUse the latest source-backed evidence below; I will not guess current facts without support."
     else:
-        lead = "I found source context for this and used it to keep the answer grounded."
+        lead = "Short answer:\nThe grounded answer is in the source-backed points below."
 
     lines = [
         lead,
@@ -7730,16 +8087,15 @@ def capabilities() -> Dict[str, Any]:
         "ok": True,
         "version": APP_VERSION,
         "stages": {
-<<<<<<< HEAD
             "understanding": [
                 "max-precision intent parsing",
                 "typo-tolerant wording cleanup",
                 "context reference resolution",
                 "reasonableness checks",
                 "answer-shape selection",
+                "raw-output cleanup",
+                "first-pass completeness check",
             ],
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
             "writing": ["emails", "letters", "essays", "polished tone", "structured answers"],
             "files": ["txt/md/code extraction", "optional PDF extraction", "local summaries", "session file context"],
             "websites": ["single-file HTML generation", "artifact saving"],
@@ -7754,11 +8110,8 @@ def capabilities() -> Dict[str, Any]:
             "local_model_training": False,
             "email_calendar_connectors": "draft/planning only unless a connector is added",
             "browser_actions": "planned safely inside Nexora; external browser automation needs a browser connector",
-<<<<<<< HEAD
             "unattended_production_deploy": "approval-gated and supervised; Nexora can prepare and verify, but should not silently ship production changes",
             "task_selection_shipping_loop": "max-precision planning is enabled; autonomous execution stays approval-gated for safety",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         },
     }
 
@@ -8097,8 +8450,6 @@ def chat(req: ChatRequest) -> ChatResponse:
     user_id = register_user(req.user_id, session_id)
     bind_session_user(session_id, user_id)
     session = get_session(session_id)
-    behavior_profile, behavior_signals = learn_behavior_from_message(original_user_message)
-    persona_profile, persona_changes = learn_persona_from_message(original_user_message)
     safety_reply = safety_filter_reply(original_user_message)
     if safety_reply:
         append_session_message(session_id, "user", original_user_message)
@@ -8109,9 +8460,26 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_safety_filter",
             sources=[],
-            tools_used=["safety_filter", "behavior_learning", f"performance:{system_profile()['level']}"],
+            tools_used=["safety_filter", f"performance:{system_profile()['level']}"],
             created_at=now_iso(),
         )
+    quick_reply = local_fast_reply(original_user_message)
+    if quick_reply:
+        quick_reply = finalize_user_facing_answer(original_user_message, quick_reply, "human_chat", "short")
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", quick_reply)
+        return ChatResponse(
+            reply=quick_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used="nexora_local_fast",
+            sources=[],
+            tools_used=["local_fast_reply", "fast_path", f"performance:{system_profile()['level']}"],
+            created_at=now_iso(),
+        )
+
+    behavior_profile, behavior_signals = learn_behavior_from_message(original_user_message)
+    persona_profile, persona_changes = learn_persona_from_message(original_user_message)
     if persona_changes:
         reply = persona_update_reply(persona_changes, persona_profile)
         append_session_message(session_id, "user", original_user_message)
@@ -8185,19 +8553,6 @@ def chat(req: ChatRequest) -> ChatResponse:
     if agent_action:
         return agent_action
     response_mode = choose_response_mode(original_user_message, req.mode, req.model)
-    quick_reply = local_fast_reply(original_user_message)
-    if quick_reply:
-        append_session_message(session_id, "user", original_user_message)
-        append_session_message(session_id, "assistant", quick_reply)
-        return ChatResponse(
-            reply=quick_reply,
-            session_id=session_id,
-            mode=req.mode or "agent",
-            model_used="nexora_local_fast",
-            sources=[],
-            tools_used=["local_fast_reply", "behavior_learning", f"performance:{system_profile()['level']}"],
-            created_at=now_iso(),
-        )
 
     normalized_user_message, _typing_corrections = normalize_user_language(original_user_message)
     understanding_message = normalized_user_message or original_user_message
@@ -8372,7 +8727,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             or local_capability_reply(understanding_message)
         )
     if local_context_reply:
-        final_reply = clean_reply(local_context_reply)
+        final_reply = finalize_user_facing_answer(original_user_message, local_context_reply, response_lane, presentation_style)
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
         maybe_store_memory(original_user_message, user_id)
@@ -8399,7 +8754,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         presentation_style == "table" and "anime" in clean_text(original_user_message).lower()
     )
     if LOCAL_WRITING_FAST and local_structured and local_first_stable:
-        final_reply = clean_reply(local_structured)
+        final_reply = finalize_user_facing_answer(original_user_message, local_structured, response_lane, presentation_style)
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
         maybe_store_memory(original_user_message, user_id)
@@ -8454,7 +8809,12 @@ def chat(req: ChatRequest) -> ChatResponse:
     )
 
     if verified_sources and should_fast_return_research_answer(understanding_message, presentation_style):
-        final_reply = clean_reply(search_evidence_fallback_reply(original_user_message, verified_sources))
+        final_reply = finalize_user_facing_answer(
+            original_user_message,
+            search_evidence_fallback_reply(original_user_message, verified_sources),
+            response_lane,
+            presentation_style,
+        )
         final_reply = ensure_inline_citations(final_reply, verified_sources)
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
@@ -8485,7 +8845,12 @@ def chat(req: ChatRequest) -> ChatResponse:
         and free_club_sources[0].provider == "wikipedia"
         and presentation_style in {"short", "teaching_structure", "balanced"}
     ):
-        final_reply = clean_reply(wikipedia_fallback_reply(understanding_message, free_club_sources))
+        final_reply = finalize_user_facing_answer(
+            original_user_message,
+            wikipedia_fallback_reply(understanding_message, free_club_sources),
+            response_lane,
+            presentation_style,
+        )
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
         maybe_store_memory(original_user_message, user_id)
@@ -8585,7 +8950,18 @@ def chat(req: ChatRequest) -> ChatResponse:
         if (
             local_structured
             and not use_research
-            and any(flag in quality_flags for flag in {"generic_plan", "weak_fallback", "too_short", "backend_talk", "missing_table"})
+            and any(flag in quality_flags for flag in {
+                "generic_plan",
+                "weak_fallback",
+                "too_short",
+                "backend_talk",
+                "missing_table",
+                "unverified_recommendation_metadata",
+                "stream_artifact",
+                "traceback_or_error_dump",
+                "tool_dump",
+                "raw_json_output",
+            })
         ):
             model_used = "nexora_local_structured"
             reply = local_structured
@@ -8637,7 +9013,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             reply = reviewed_reply
             tools_used.append("free_club:review")
 
-    final_reply = clean_reply(reply)
+    final_reply = finalize_user_facing_answer(original_user_message, reply, response_lane, presentation_style)
     if verified_sources:
         final_reply = ensure_inline_citations(final_reply, verified_sources)
     elif (
@@ -8650,18 +9026,21 @@ def chat(req: ChatRequest) -> ChatResponse:
     if is_bad_generated_reply(final_reply) and not model_failed:
         if local_structured:
             model_used = "nexora_local_structured"
-            final_reply = clean_reply(local_structured)
+            final_reply = finalize_user_facing_answer(original_user_message, local_structured, response_lane, presentation_style)
             tools_used.append("empty_reply_local_structured")
         else:
             model_used = "nexora_local_resilient"
-            final_reply = clean_reply(
+            final_reply = finalize_user_facing_answer(
+                original_user_message,
                 local_resilient_reply(
                     understanding_message,
                     session_id,
                     response_lane,
                     presentation_style,
                     understanding_state,
-                )
+                ),
+                response_lane,
+                presentation_style,
             )
             tools_used.append("empty_reply_local_resilient")
     append_session_message(session_id, "user", original_user_message)
@@ -8714,7 +9093,11 @@ def chat_stream(req: ChatRequest) -> StreamingResponse:
                 "sources": [source_to_dict(s) for s in response.sources],
             })
         except Exception as error:
-            yield event({"type": "error", "message": str(error)})
+            LOGGER.exception("stream_chat_failed")
+            yield event({
+                "type": "error",
+                "message": "I could not complete that response cleanly. Please send the question again, and I will answer directly.",
+            })
 
     return StreamingResponse(generator(), media_type="text/event-stream")
 
