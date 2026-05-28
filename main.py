@@ -107,11 +107,7 @@ HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
 REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "45"))
 SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "8"))
-<<<<<<< HEAD
-MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "2200"))
-=======
 MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "1600"))
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "30"))
 THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "45"))
 FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
@@ -494,7 +490,6 @@ def local_fast_reply(message: str) -> Optional[str]:
         return "Hey, I am here. What are we building or solving today?"
     if re.fullmatch(r"(thanks|thank you|thx|ty|ok|okay|cool|nice)[!. ]*", text):
         return "Anytime. Send me the next thing and I will help you move it forward."
-<<<<<<< HEAD
     if re.fullmatch(
         r"(what can you do|what all can you do|what are your capabilities|what can nexora do|what can u do|what do you do)[?.! ]*",
         text,
@@ -517,19 +512,11 @@ def local_fast_reply(message: str) -> Optional[str]:
             "Bottom line:\n"
             "Give me a task, question, file, idea, or bug, and I will choose the clearest format: short answer, steps, table, checklist, explanation, or polished draft."
         )
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     if text in {"who are you", "who are you?", "what are you", "what are you?"}:
         return "I am Nexora, your AI assistant for clear answers, coding help, research-aware reasoning, files, and project work."
     direct_name = local_direct_name_reply(text)
     if direct_name:
         return direct_name
-<<<<<<< HEAD
-    capability = local_capability_reply(text)
-    if capability:
-        return capability
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     reflective = local_reflective_reply(text)
     if reflective:
         return reflective
@@ -1680,11 +1667,6 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
         return True
     if split_comparison_subjects(message):
         return True
-<<<<<<< HEAD
-    if local_capability_reply(message):
-        return True
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     if re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
         return True
     if re.search(r"\b(how to|steps to|how can i|how do i)\b", lower):
@@ -1713,12 +1695,6 @@ def local_structured_fallback(
     email = local_email_reply(message)
     if email:
         return email
-<<<<<<< HEAD
-    capability = local_capability_reply(message)
-    if capability:
-        return capability
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     semantic = local_semantic_reply(message, response_lane, presentation_style)
     if semantic:
         return semantic
@@ -1890,32 +1866,6 @@ def local_vague_improvement_reply(message: str, focus: Dict[str, Any]) -> Option
 
 def local_capability_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
-<<<<<<< HEAD
-    capability_intent = re.search(
-        r"\b(powerful|capability|capable|capability status|understand|understanding|understanding level|intelligent|smart|smarter|highest|advanced|maxed out|max precision|max-precision|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b",
-        lower,
-    )
-    if not capability_intent:
-        return None
-    if re.search(r"\b(compare|comparison|vs|versus|analyze|analyse|how|why|steps?|guide)\b", lower):
-        return None
-    if re.search(r"\bexplain\b", lower) and not re.search(r"\b(capability|capability status|understanding level|maxed out|max precision|max-precision)\b", lower):
-        return None
-    if re.search(r"\b(ram|cpu|gpu|memory|hardware|performance|latency|tokens?|context window|inference|training|server|hosting|docker|hugging face|space)\b", lower):
-        return None
-    return (
-        "Yes. Nexora is set to max-precision understanding: the strongest practical level this app can provide, without pretending it is unlimited.\n\n"
-        "What max-precision understanding means here:\n"
-        "- Intent first: It corrects messy wording and answers what you likely meant, not only the exact words typed.\n"
-        "- Context aware: It uses recent chat, saved preferences, files, images, and project context when they matter.\n"
-        "- Reasonable by default: It separates facts, assumptions, and recommendations instead of making overconfident claims.\n"
-        "- Research aware: It uses live search or source context for current facts, but avoids slowing down simple stable questions.\n"
-        "- Fallback ready: If one model path fails, it can use local structured answers, Wikipedia context, search evidence, Ollama, or the free online model.\n"
-        "- Better presentation: It chooses short answers, steps, tables, checklists, or polished drafts based on the task.\n"
-        "- Supervised autonomy: It can prepare deployment or shipping steps, but production changes stay approval-gated instead of silently running unattended.\n\n"
-        "Important truth:\n"
-        "It is not the same as a paid frontier model, but the app now pushes harder on intent, context, reasonableness, and verification so answers feel much closer to a capable ChatGPT-style assistant."
-=======
     if re.search(r"\b(compare|comparison|vs|versus|explain|analyze|analyse|how|why|steps?|guide)\b", lower):
         return None
     if re.search(r"\b(ram|cpu|gpu|memory|hardware|performance|latency|tokens?|context window|inference|training|server|hosting|docker|hugging face|space)\b", lower):
@@ -1933,7 +1883,6 @@ def local_capability_reply(message: str) -> Optional[str]:
         "- **Human style:** It keeps answers clean, direct, and paced like a thoughtful person explaining clearly.\n\n"
         "Important truth:\n"
         "It is not the same as a paid frontier model, but this build now combines intent understanding, memory, search, files, images, Ollama, Pollinations, and local fallbacks in a way that is much stronger on your computer."
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     )
 
 
@@ -2032,22 +1981,14 @@ def choose_response_mode(message: str, requested_mode: Optional[str], requested_
         return "thinking"
     if any(word in requested for word in ["instant", "fast"]):
         return "instant"
-<<<<<<< HEAD
-    if re.search(r"\b(table|chart|diagram|flowchart|compare|comparison|detailed|step by step|full|complete|highest|advanced|intelligent|understanding|capability|reasonable)\b", text):
-=======
     if re.search(r"\b(table|chart|diagram|flowchart|compare|comparison|detailed|step by step|full|complete)\b", text):
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         return "thinking"
 
     thinking_patterns = [
         r"\b(explain|analyze|compare|debug|fix|build|create|design|plan|strategy|architecture)\b",
         r"\b(why|how|prove|derive|solve|calculate|implement|refactor|review|optimize)\b",
         r"\b(latest|current|today|recent|news|market|stock|price|filing|contract)\b",
-<<<<<<< HEAD
-        r"\b(step by step|deep|detailed|well structured|accurate|reasonable|understand|understanding|intent|capability|intelligent|smarter|highest|advanced|sources?|citations?)\b",
-=======
         r"\b(step by step|deep|detailed|well structured|accurate|sources?|citations?)\b",
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     ]
     if len(text) > 140:
         return "thinking"
@@ -2114,37 +2055,15 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "cache_items": 120,
         },
         "light": {
-<<<<<<< HEAD
-            "instant_max_tokens": 520,
-            "thinking_max_tokens": 1050,
-            "ollama_context_tokens": 3072,
-            "history_messages": 5,
-            "file_context_chars": 4200,
-=======
             "instant_max_tokens": 360,
             "thinking_max_tokens": 650,
             "ollama_context_tokens": 2048,
             "history_messages": 3,
             "file_context_chars": 2600,
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
             "cache_items": 160,
         },
         "balanced": {
             "instant_max_tokens": 700,
-<<<<<<< HEAD
-            "thinking_max_tokens": 1700,
-            "ollama_context_tokens": 4096,
-            "history_messages": 10,
-            "file_context_chars": 6800,
-            "cache_items": 180,
-        },
-        "strong": {
-            "instant_max_tokens": 1100,
-            "thinking_max_tokens": 2200,
-            "ollama_context_tokens": 6144,
-            "history_messages": 12,
-            "file_context_chars": 9000,
-=======
             "thinking_max_tokens": 1300,
             "ollama_context_tokens": 3072,
             "history_messages": 8,
@@ -2157,7 +2076,6 @@ def performance_limits_for(level: str) -> Dict[str, int]:
             "ollama_context_tokens": 4096,
             "history_messages": 10,
             "file_context_chars": 7200,
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
             "cache_items": 220,
         },
     }
@@ -3846,24 +3764,6 @@ TYPO_NORMALIZATIONS = {
     "aii": "ai",
     "evrything": "everything",
     "everyhing": "everything",
-<<<<<<< HEAD
-    "understandit": "understanding",
-    "understandign": "understanding",
-    "understandig": "understanding",
-    "understandng": "understanding",
-    "inteligent": "intelligent",
-    "intellgent": "intelligent",
-    "reasoble": "reasonable",
-    "resonable": "reasonable",
-    "actractive": "attractive",
-    "atractive": "attractive",
-    "caability": "capability",
-    "capabilty": "capability",
-    "capablity": "capability",
-    "higest": "highest",
-    "heighest": "highest",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     "effecient": "efficient",
     "efficeicny": "efficiency",
     "effeicint": "efficient",
@@ -3963,89 +3863,6 @@ def infer_action_goal(message: str, response_lane: str, use_research: bool) -> s
     return "answer directly using the current context"
 
 
-<<<<<<< HEAD
-def infer_understanding_profile(
-    message: str,
-    response_lane: str,
-    presentation_style: str,
-    use_research: bool,
-    vague: bool,
-    focus: Dict[str, Any],
-) -> Dict[str, Any]:
-    text = clean_text(message)
-    lower = text.lower()
-    word_count = len(text.split())
-    priorities: List[str] = []
-    checks: List[str] = []
-
-    if re.search(r"\b(accurate|accuracy|correct|true|verify|reasonable|realistic|sensible)\b", lower):
-        priorities.append("accuracy and reasonableness")
-    if re.search(r"\b(understand|understanding|intent|meaning|context|what i mean|messy)\b", lower):
-        priorities.append("infer intent from messy wording")
-    if re.search(r"\b(capability|capable|intelligent|smart|highest|advanced|powerful|ChatGPT)\b", lower):
-        priorities.append("strong reasoning and capability")
-    if re.search(r"\b(attractive|beautiful|interactive|readable|clear|polished|professional)\b", lower):
-        priorities.append("clear polished presentation")
-    if response_lane == "build":
-        priorities.append("working implementation with verification")
-    elif response_lane == "learning":
-        priorities.append("simple explanation with examples")
-    elif response_lane == "writing":
-        priorities.append("finished usable writing")
-    elif response_lane == "planning":
-        priorities.append("practical plan with tradeoffs")
-
-    if not priorities:
-        priorities.append("direct useful answer")
-
-    if use_research or response_lane == "realtime_search":
-        checks.append("verify current claims with sources")
-    else:
-        checks.append("avoid unsupported current facts")
-    if vague:
-        checks.append("resolve vague references from recent context")
-    if response_lane == "build":
-        checks.append("include a runnable or testable path")
-    if presentation_style == "table":
-        checks.append("use a real markdown table")
-    if re.search(r"\b(highest|advanced|intelligent|capability|powerful)\b", lower):
-        checks.append("be honest about limits while giving the strongest useful answer")
-    checks.append("separate fact, assumption, and recommendation when it matters")
-
-    ambiguity = "low"
-    if vague and not focus.get("previous_user"):
-        ambiguity = "high"
-    elif vague or word_count <= 5:
-        ambiguity = "medium"
-
-    if vague and focus.get("previous_user"):
-        likely_target = focus["previous_user"][:220]
-    elif response_lane == "build":
-        likely_target = "the app, code, or deployment behavior the user is asking to change"
-    elif response_lane == "writing":
-        likely_target = "the requested writing task and its audience"
-    elif response_lane == "learning":
-        likely_target = "the concept the user wants explained"
-    else:
-        likely_target = "the user's practical question"
-
-    depth = "max_precision" if (
-        use_research
-        or response_lane in {"build", "planning", "learning", "realtime_search"}
-        or re.search(r"\b(highest|advanced|intelligent|understanding|capability|accurate|reasonable|deep|detailed)\b", lower)
-    ) else "standard"
-
-    return {
-        "depth": depth,
-        "likely_target": likely_target,
-        "priorities": priorities[:5],
-        "checks": checks[:6],
-        "ambiguity": ambiguity,
-    }
-
-
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 def build_understanding_context(
     session_id: str,
     user_message: str,
@@ -4058,18 +3875,6 @@ def build_understanding_context(
     focus = recent_session_focus(session, user_message)
     vague = is_vague_followup(user_message)
     action_goal = infer_action_goal(normalized, response_lane, use_research)
-<<<<<<< HEAD
-    presentation_style = classify_presentation_style(normalized, response_lane, use_research)
-    understanding_profile = infer_understanding_profile(
-        normalized,
-        response_lane,
-        presentation_style,
-        use_research,
-        vague,
-        focus,
-    )
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     words = clean_text(normalized).split()
     missing: List[str] = []
     if writing_request and writing_request.get("is_writing") and writing_request.get("missing_topic"):
@@ -4081,18 +3886,8 @@ def build_understanding_context(
     lines = [
         "Understanding engine:",
         f"- Normalized user wording: {normalized}",
-<<<<<<< HEAD
-        f"- Understanding depth: {understanding_profile['depth']}.",
-        f"- Likely action: {action_goal}.",
-        f"- Likely target: {understanding_profile['likely_target']}.",
-        "- User priorities: " + "; ".join(understanding_profile["priorities"]) + ".",
-        "- Reasonableness checks: " + "; ".join(understanding_profile["checks"]) + ".",
-        f"- Vague follow-up/reference detected: {'yes' if vague else 'no'}.",
-        f"- Ambiguity level: {understanding_profile['ambiguity']}.",
-=======
         f"- Likely action: {action_goal}.",
         f"- Vague follow-up/reference detected: {'yes' if vague else 'no'}.",
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     ]
     if corrections:
         lines.append("- Typing corrections understood: " + "; ".join(corrections) + ".")
@@ -4107,19 +3902,10 @@ def build_understanding_context(
     if knowledge_strategy:
         lines.append("- Knowledge strategy: answer from model knowledge for stable facts, but use search/sources for current or uncertain facts.")
     lines.extend([
-<<<<<<< HEAD
-        "- Highest understanding protocol: first translate messy wording into the likely intent, then identify the target, constraints, hidden expectation, and risk of misunderstanding.",
-        "- Before answering, do an internal consistency pass: does the answer solve the actual user goal, respect recent context, and avoid exaggerated capability claims?",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         "- If the user uses 'it', 'this', 'that', or says 'make it better', resolve the target from recent context before answering.",
         "- If the target or required topic is still missing, ask one short clarifying question instead of inventing a topic.",
         "- Do not claim to know everything. Use memory, chat context, files, and real-time search when facts may be current or uncertain.",
         "- Interpret messy human wording by intent, not by literal grammar mistakes.",
-<<<<<<< HEAD
-        "- Prefer reasonable, checkable answers over impressive-sounding answers. State practical limits only when they matter.",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     ])
     state = {
         "normalized": normalized,
@@ -4130,13 +3916,6 @@ def build_understanding_context(
         "missing": missing,
         "knowledge_strategy": knowledge_strategy,
         "word_count": len(words),
-<<<<<<< HEAD
-        "understanding_depth": understanding_profile["depth"],
-        "understanding_priorities": understanding_profile["priorities"],
-        "understanding_checks": understanding_profile["checks"],
-        "likely_target": understanding_profile["likely_target"],
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     }
     return "\n".join(lines), state
 
@@ -4400,13 +4179,6 @@ def analyze_user_intent(
         constraints.append("use and update long-term memory")
     if re.search(r"\b(understand|understanding|intent|human|behavior|powerful|capability|everything)\b", lower):
         constraints.append("infer the user's real intent from messy wording and recent context")
-<<<<<<< HEAD
-    if re.search(r"\b(reasonable|realistic|sensible|accurate|correct|trustworthy)\b", lower):
-        constraints.append("prioritize reasonable, checkable claims over impressive wording")
-    if re.search(r"\b(highest|advanced|intelligent|smarter|capability|ChatGPT)\b", lower):
-        constraints.append("use the strongest available reasoning path while staying honest about limits")
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     if use_research:
         constraints.append("do not guess current facts without sources")
     if research_route in {"web_light", "web_current", "strict_current"}:
@@ -4445,12 +4217,6 @@ def build_intent_context(intent: Dict[str, Any]) -> str:
     lines.append(
         "Think in this order: understand the real ask, choose the shortest reliable path, use memory/context/search only when useful, then answer cleanly. Ask a clarifying question only if a useful answer would be risky or impossible."
     )
-<<<<<<< HEAD
-    lines.append(
-        "Use highest-capability behavior for ambiguous or high-effort requests: infer intent, map constraints, consider alternatives, check reasonableness, then give the clearest final answer without exposing hidden reasoning."
-    )
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     return "\n".join(lines)
 
 
@@ -5114,10 +4880,6 @@ def free_provider_status() -> Dict[str, Any]:
         "club_mode": FREE_CLUB_MODE,
         "club_layers": [
             "fast_direct_answers_for_simple_stable_questions",
-<<<<<<< HEAD
-            "max_precision_understanding_engine",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
             "answer_strategy_planner",
             "autonomous_research_router",
             "heavy_ranked_long_term_memory",
@@ -5133,11 +4895,7 @@ def free_provider_status() -> Dict[str, Any]:
             "strong_image_prompt_enhancer",
             "exact_match_image_prompt_guard",
         ],
-<<<<<<< HEAD
-        "message": "Nexora clubs Pollinations for speed, Ollama for local fallback or optional primary mode, max-precision understanding, autonomous research routing, Wikipedia context, realtime search, memory, and quality guard.",
-=======
         "message": "Nexora clubs Pollinations for speed, Ollama for local fallback or optional primary mode, autonomous research routing, Wikipedia context, realtime search, memory, and quality guard.",
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         "speed": {
             "ollama_mode": OLLAMA_MODE,
             "ollama_keep_alive": OLLAMA_KEEP_ALIVE,
@@ -6315,12 +6073,8 @@ def free_club_review_reply(
         "If the draft is generic, replace it with a specific answer to the user's actual problem.\n"
         "Check the user's constraints, fix shallow reasoning, fill missing steps, and remove guesses.\n"
         "For coding, math, planning, and explanations, verify the logic before polishing the wording.\n"
-<<<<<<< HEAD
-        "Use maximum practical understanding: infer messy wording, resolve references from context, identify the user's real target, and answer the task they meant.\n"
         "Make the answer feel trustworthy: explain assumptions, avoid exaggeration, and prefer practical checks over vague claims.\n"
         "Make the final answer engaging: crisp lead, useful sections, concrete examples, and a clear bottom line when helpful.\n"
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         "Preserve useful citations and source markers when supporting context provides them.\n"
         "If the draft exposes backend/tool failure, remove that and answer using the available context.\n"
         "Use ChatGPT-like structure: answer first, then compact sections only when useful.\n"
@@ -6375,12 +6129,9 @@ Style:
 - Treat every non-trivial answer as a small reasoning task: parse the request, respect constraints, solve the core problem, check for missing assumptions, then write the final answer clearly.
 - If the user gives constraints like "do not change HTML" or "make it like before", preserve those constraints explicitly in the solution path.
 - Prefer substance over templates. Avoid canned advice when the user needs actual reasoning, diagnosis, comparison, code, planning, or writing.
-<<<<<<< HEAD
 - Be reasonable before being impressive. State what is true, what depends on context, and what the user can check.
 - Make answers attractive to read: strong opening, short paragraphs, clean section labels, concrete examples, and a useful final takeaway.
 - For broad questions like "what can you do", answer with realistic capabilities, useful examples, and honest limits instead of inflated claims.
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 - Do research by default only when accuracy needs it. Do not slow down simple questions with unnecessary web context.
 - Use this default structure when it fits: direct answer first, short explanation, important details or examples, sources or links if needed, and a practical next step only when useful.
 - Tone adaptation:
@@ -6435,19 +6186,6 @@ Style:
 - Never write "Direct Answer" or expose backend/system details.
 - Do not output raw LaTeX delimiters like \[...\] unless the user explicitly asks for LaTeX. For equations, prefer readable plain text such as "6 CO2 + 6 H2O -> C6H12O6 + 6 O2" or simple Unicode subscripts when possible.
 
-<<<<<<< HEAD
-Understanding:
-- Treat messy wording, typos, screenshots, and short follow-ups as normal human input. Translate them internally into the likely intent before answering.
-- Use a highest-capability understanding pass for non-trivial requests: identify the real goal, target, constraints, unstated expectation, likely risk, and best answer format.
-- Resolve references like "it", "this", "same as before", and "like this" from recent chat context before asking a question.
-- Ask a clarifying question only when the missing detail would change the answer or make implementation unsafe. Otherwise, make one reasonable assumption and state it briefly.
-- Reasonableness beats drama. Prefer answers that are true, practical, and checkable over answers that merely sound powerful.
-- Never claim unlimited intelligence or perfect understanding. Be strong by being accurate, context-aware, and useful.
-- For capability/status tables, avoid vague statuses like "not yet" or "final form" without explanation. Use precise labels such as "approval-gated", "supervised", "available", "planned", or "max-precision planning enabled".
-- Never imply silent unattended production deployment. Say production deploys are approval-gated and supervised unless the user explicitly installs a safe deployment connector.
-
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
 Accuracy:
 - Be precise. Do not invent facts, dates, prices, sources, laws, medical claims, financial claims, or current events.
 - If something is uncertain, say so plainly and give the best safe next step.
@@ -6471,13 +6209,8 @@ def reasoning_quality_context(response_mode: str, response_lane: str, presentati
         "- If information is missing, make the safest useful assumption and state it briefly; ask only when the missing detail blocks a reliable answer.",
         "- Prefer concrete examples, edge cases, and verification steps over generic advice.",
         "- Before finalizing, check for contradictions, unsupported facts, and steps that would fail in practice.",
-<<<<<<< HEAD
         "- Make the answer useful to interact with: include choices, checks, or follow-up paths when they genuinely help.",
         "- Avoid overclaiming. If a claim depends on tools, current data, or configuration, say that briefly.",
-        "- Upgrade vague user language into a clear internal task: target, goal, constraints, quality bar, and likely next action.",
-        "- If the user asks for highest intelligence or capability, respond with strong reasoning and honest limits, not hype.",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
     ]
     if response_mode == "thinking":
         lines.append("- For thinking mode, solve deeply enough to catch hidden traps, then compress the final response into clear sections.")
@@ -7730,16 +7463,6 @@ def capabilities() -> Dict[str, Any]:
         "ok": True,
         "version": APP_VERSION,
         "stages": {
-<<<<<<< HEAD
-            "understanding": [
-                "max-precision intent parsing",
-                "typo-tolerant wording cleanup",
-                "context reference resolution",
-                "reasonableness checks",
-                "answer-shape selection",
-            ],
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
             "writing": ["emails", "letters", "essays", "polished tone", "structured answers"],
             "files": ["txt/md/code extraction", "optional PDF extraction", "local summaries", "session file context"],
             "websites": ["single-file HTML generation", "artifact saving"],
@@ -7754,11 +7477,6 @@ def capabilities() -> Dict[str, Any]:
             "local_model_training": False,
             "email_calendar_connectors": "draft/planning only unless a connector is added",
             "browser_actions": "planned safely inside Nexora; external browser automation needs a browser connector",
-<<<<<<< HEAD
-            "unattended_production_deploy": "approval-gated and supervised; Nexora can prepare and verify, but should not silently ship production changes",
-            "task_selection_shipping_loop": "max-precision planning is enabled; autonomous execution stays approval-gated for safety",
-=======
->>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
         },
     }
 

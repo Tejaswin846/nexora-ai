@@ -1,1 +1,9 @@
+<<<<<<< HEAD
 -r backend/requirements.txt
+=======
+fastapi
+uvicorn
+python-multipart
+pydantic
+requests
+>>>>>>> 4f60022f08654d7d7234a798c91c2c11bc93f639
