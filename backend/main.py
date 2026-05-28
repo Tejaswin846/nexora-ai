@@ -37,7 +37,7 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.52.0-max-clear-intelligence"
+APP_VERSION = "8.53.0-project-delete-fast-bold"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("NEXORA_DATA_DIR", BASE_DIR / "nexora_data")).expanduser()
@@ -92,8 +92,8 @@ FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
-POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "14"))
-POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "9"))
+POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "12"))
+POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "8"))
 POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "5"))
 POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
@@ -114,7 +114,7 @@ FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "4200"))
 FREE_CLUB_CONTEXT_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_CONTEXT_MAX_CHARS", "5200"))
-FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "7"))
+FREE_CLUB_REVIEW_BUDGET_SECONDS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_BUDGET_SECONDS", "4"))
 POLLINATIONS_QUALITY_GUARD = os.getenv("NEXORA_POLLINATIONS_QUALITY_GUARD", "true").strip().lower() not in {"0", "false", "off", "no"}
 AUTONOMOUS_RESEARCH_ENABLED = os.getenv("NEXORA_AUTONOMOUS_RESEARCH", "true").strip().lower() not in {"0", "false", "off", "no"}
 AUTONOMOUS_RESEARCH_MAX_RESULTS = max(1, min(int(os.getenv("NEXORA_AUTONOMOUS_RESEARCH_MAX_RESULTS", "2")), 3))
@@ -2224,8 +2224,8 @@ def runtime_efficiency_context() -> str:
 def mode_limits(response_mode: str) -> Tuple[int, int, float]:
     limits = current_performance_limits()
     if response_mode == "thinking":
-        return min(MAX_MODEL_TOKENS, limits["thinking_max_tokens"]), THINKING_TIMEOUT, 0.18
-    return min(MAX_MODEL_TOKENS, limits["instant_max_tokens"]), INSTANT_TIMEOUT, 0.16
+        return min(MAX_MODEL_TOKENS, limits["thinking_max_tokens"]), THINKING_TIMEOUT, 0.15
+    return min(MAX_MODEL_TOKENS, limits["instant_max_tokens"]), INSTANT_TIMEOUT, 0.12
 
 
 def json_lock_path(path: Path) -> Path:
@@ -6449,6 +6449,7 @@ Style:
   - Current/search answer: short answer first, then compact evidence with inline citations, then "Bottom line:".
 - Make structured answers visually balanced for the app renderer: one compact lead paragraph, short section labels, bullet groups with parallel wording, and a final takeaway when useful.
 - Do not use decorative headings, markdown-heavy titles, or heading-only lines ending in periods. A heading should be plain text ending with a colon.
+- Use **bold text** sparingly when it improves scanning: key terms, short labels, warnings, or important contrasts. Do not bold whole paragraphs or every bullet.
 - Never put a colon on its own line. Keep labels as "Key points:" on one line.
 - If you use a table, it must be a valid markdown table with visible | separators and a separator row. Never use spaced columns.
 - Treat writing as rhythm and clarity, not just grammar. Use punctuation to control pacing: commas for small pauses, periods for completion and impact, and dashes only when they make emphasis more natural.
@@ -6478,6 +6479,7 @@ Final answer contract:
 - Return only the final user-facing answer. Never expose provider text, tool traces, debug logs, request metadata, raw JSON, Python dicts, SSE "data:" chunks, stack traces, hidden reasoning, or internal route names.
 - If a tool, model, or source fails, translate that into a useful answer or a short honest limitation. Do not show the raw failure payload.
 - If the user asks for code or data, format it deliberately in fenced code blocks. Otherwise, use polished prose, bullets, tables, or steps.
+- Use bold only where it helps the user understand faster; keep ordinary sentences normal.
 - Before sending, run a silent finish pass: remove raw artifacts, check accuracy, choose the clearest structure, and make the answer easy to scan.
 - The answer should feel complete on the first try: answer the real intent, include necessary caveats, and avoid filler.
 
@@ -6779,7 +6781,8 @@ def strip_raw_metadata_lines(text: str) -> str:
 
 
 def remove_unrequested_bold_markup(text: str, question: str) -> str:
-    if re.search(r"\b(use|make|keep|format).*\bbold\b|\bbold text\b", clean_text(question).lower()):
+    question_lower = clean_text(question).lower()
+    if not re.search(r"\b(no bold|without bold|normal letters|normal text|remove bold|not bold)\b", question_lower):
         return text
     parts = re.split(r"(```[\s\S]*?```)", text or "")
     cleaned_parts = []
@@ -8054,6 +8057,31 @@ def create_project(req: ProjectRequest) -> Dict[str, Any]:
     return {"ok": True, "project": project, "name": project["name"]}
 
 
+@app.delete("/projects/{project_key}")
+def delete_project(project_key: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    key = clean_text(project_key).lower()
+    deleted: List[Dict[str, Any]] = []
+    kept = []
+    for project in load_projects():
+        project_name = clean_text(str(project.get("name", ""))).lower()
+        project_id = clean_text(str(project.get("id", ""))).lower()
+        same_project = key in {project_name, project_id}
+        same_user = not user_id or normalize_user_id(str(project.get("user_id", "default"))) == normalized
+        if same_project and same_user:
+            deleted.append(project)
+            continue
+        kept.append(project)
+    save_projects(kept)
+    return {
+        "ok": True,
+        "deleted": len(deleted),
+        "project": deleted[0] if deleted else None,
+        "project_key": project_key,
+        "user_id": normalized,
+    }
+
+
 @app.get("/artifacts")
 def artifacts(user_id: Optional[str] = None) -> Dict[str, Any]:
     normalized = normalize_user_id(user_id)
@@ -8079,6 +8107,30 @@ def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
         session_id=req.session_id,
     )
     return {"ok": True, "artifact": artifact}
+
+
+@app.delete("/artifacts/{artifact_id}")
+def delete_artifact(artifact_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    key = clean_text(artifact_id)
+    deleted: List[Dict[str, Any]] = []
+    kept = []
+    for artifact in load_artifacts():
+        artifact_id_value = clean_text(str(artifact.get("id", "")))
+        same_artifact = artifact_id_value == key
+        same_user = not user_id or normalize_user_id(str(artifact.get("user_id", "default"))) == normalized
+        if same_artifact and same_user:
+            deleted.append(artifact)
+            continue
+        kept.append(artifact)
+    save_artifacts(kept)
+    return {
+        "ok": True,
+        "deleted": len(deleted),
+        "artifact": deleted[0] if deleted else None,
+        "artifact_id": artifact_id,
+        "user_id": normalized,
+    }
 
 
 @app.get("/capabilities")
