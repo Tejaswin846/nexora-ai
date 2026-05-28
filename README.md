@@ -1,3 +1,10 @@
+---
+title: Nexora AI
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Nexora AI
 
 Nexora is a full-stack AI assistant website with chat, memory, realtime search, image generation, file/image upload, and a polished web UI.
@@ -18,9 +25,13 @@ http://127.0.0.1:8000
 
 The backend now serves the frontend directly, so you do not need to open `frontend/index.html` manually.
 
-## Public Website
+## Independent Public Website
 
-This project is ready for public hosting on Render, Railway, Fly.io, or any Docker host.
+This project is ready for public hosting on Hugging Face Spaces, Railway, Fly.io, Render, or any Docker host.
+
+When deployed, Nexora runs from the host's public URL instead of `localhost`. Your computer does not need to stay on.
+
+For a zero-payment deployment, use Hugging Face Spaces on CPU Basic hardware and do not upgrade the Space hardware.
 
 Recommended Render setup:
 
@@ -41,6 +52,7 @@ Or use the included:
 - `Procfile`
 - `Dockerfile`
 - `DEPLOYMENT.md`
+- `HUGGINGFACE_DEPLOY.md`
 
 After deployment, the host gives a public URL like:
 
@@ -49,3 +61,9 @@ https://nexora-ai.onrender.com
 ```
 
 That URL is the website everyone can access.
+
+## .com Domain
+
+After the app is deployed, connect a real `.com` domain from your registrar or DNS provider. The exact records depend on the provider, but the project is ready for a custom domain on the same full-stack service.
+
+See [`DOMAIN_SETUP.md`](DOMAIN_SETUP.md) for the `.com` checklist.
