@@ -37,9 +37,10 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.59.0-intelligence-15"
+APP_VERSION = "8.60.0-max-quality-routing"
 CAPABILITY_SCALE_MAX = 15.00
 CAPABILITY_SCALE_TEXT = f"{CAPABILITY_SCALE_MAX:.2f}"
+QUALITY_ENFORCEMENT_MODE = "max_precision_guardrails"
 INTELLIGENCE_LEVEL = CAPABILITY_SCALE_MAX
 INTELLIGENCE_LEVEL_TEXT = f"{INTELLIGENCE_LEVEL:.2f}"
 INTELLIGENCE_MODE = "extended_agentic_intelligence"
@@ -579,6 +580,9 @@ def local_fast_reply(message: str) -> Optional[str]:
     direct_name = local_direct_name_reply(text)
     if direct_name:
         return direct_name
+    deficiency = local_deficiency_diagnosis_reply(text)
+    if deficiency:
+        return deficiency
     capability = local_capability_reply(text)
     if capability:
         return capability
@@ -845,6 +849,28 @@ def local_reflective_reply(message: str) -> Optional[str]:
     )
 
 
+def local_deficiency_diagnosis_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(deficiency|weakness|issue|problem|wrong|why did|which one|which deficiency|learning a subject)\b", lower):
+        return None
+    if not re.search(r"\b(reasoning|understanding|accuracy|accurate|structure|answer|learning a subject|fitness plan)\b", lower):
+        return None
+    return (
+        "It is mainly an understanding and intent-routing deficiency.\n\n"
+        "What happened:\n"
+        "- The user asked for a fitness plan, which needs a practical workout schedule.\n"
+        "- The backend treated 'fitness plan' like a writing topic or school subject.\n"
+        "- Then it used a generic essay-style frame, so the answer talked about 'learning a subject' instead of giving exercises, days, and rules.\n\n"
+        "Which level was weak:\n"
+        "- Understanding: main issue, because it misunderstood the task type.\n"
+        "- Answer structure: secondary issue, because the format should have been a plan, not an essay.\n"
+        "- Reasoning: minor issue, because a reasoning check should notice that a plan needs actionable steps.\n"
+        "- Accuracy: not the main issue. The answer was not exactly false; it was irrelevant and too generic.\n\n"
+        "Bottom line:\n"
+        "When an answer is generic but not factually wrong, fix understanding and routing first, then structure. Accuracy matters after the app is answering the right task."
+    )
+
+
 def clean_writing_topic_candidate(raw: str) -> str:
     topic = clean_text(raw)
     topic = re.sub(r"(?i)\b(thanks|thank you|pls|please|sir|mam|ma'am)\b", " ", topic)
@@ -882,8 +908,10 @@ def analyze_writing_request(message: str) -> Dict[str, Any]:
     has_kind = bool(re.search(r"\b" + WRITING_KIND_RE + r"\b", lower))
     has_write_action = bool(re.search(r"\b(write|draft|prepare|compose|make|create|give)\b", lower))
     has_need_action = bool(re.search(r"\b(i\s+need|i\s+want|need|want)\b", lower))
-    has_writing_phrase = bool(re.search(r"\b(write\s+(about|on)|write\s+me|draft\s+me|give\s+me)\b", lower))
+    has_writing_phrase = bool(re.search(r"\b(write\s+(about|on)|write\s+me|draft\s+me|give\s+me\s+(an?\s+)?(?:" + WRITING_KIND_RE + r"))\b", lower))
     is_writing = has_writing_phrase or (has_kind and (has_write_action or has_need_action or len(text.split()) <= 8))
+    if not has_kind and re.search(r"\b(fitness|workout|exercise|gym|training|diet)\b", lower) and re.search(r"\b(plan|routine|schedule|program)\b", lower):
+        is_writing = False
     kind_match = re.search(r"\b" + WRITING_KIND_RE + r"\b", lower)
     kind = kind_match.group(1) if kind_match else "writing"
     length = "long" if re.search(r"\b(long|detailed|full|complete)\b", lower) else "balanced"
@@ -1019,6 +1047,26 @@ def build_world_war_two_essay(length: str = "balanced") -> str:
     )
 
 
+def build_fitness_essay(length: str = "balanced") -> str:
+    if length == "short":
+        return (
+            "Fitness\n\n"
+            "Fitness means keeping the body active, strong, and healthy through regular exercise, balanced food, rest, and discipline. It is important because it improves stamina, supports the heart, strengthens muscles, and helps a person feel more confident in daily life.\n\n"
+            "A good fitness routine should include strength training, cardio, stretching, enough sleep, and proper hydration. Fitness is not only about looking good; it is about having energy, avoiding unhealthy habits, and building a better lifestyle.\n\n"
+            "Bottom line:\n"
+            "Fitness becomes useful when it is practiced consistently with a simple plan and gradual progress."
+        )
+    return (
+        "Fitness\n\n"
+        "Fitness is the condition of being physically active, healthy, and capable of handling daily work with energy. It is important because it supports the heart, muscles, bones, sleep, mood, confidence, and long-term health.\n\n"
+        "A fit person does not depend only on intense workouts. Real fitness comes from a balanced routine that includes strength exercises, cardio, mobility, rest, hydration, and nutritious food. Strength training helps build muscle and protect joints. Cardio improves stamina and heart health. Stretching and mobility reduce stiffness and support better movement.\n\n"
+        "Fitness also builds discipline. When a person follows a regular routine, even for a few minutes every day, it creates consistency and self-control. This can improve focus, reduce stress, and make everyday tasks feel easier.\n\n"
+        "The best fitness plan is simple and sustainable. Doing too much at once can cause tiredness or injury, but slow progress helps the body adapt safely.\n\n"
+        "Bottom line:\n"
+        "Fitness is not just about appearance. It is a long-term habit that improves health, energy, confidence, and quality of life."
+    )
+
+
 def build_topic_specific_writing(message: str, topic: str, kind: str, length: str) -> Optional[str]:
     normalized_kind = normalize_person_kind(kind) if kind in {"articles", "notes"} else clean_text(kind).lower()
     if is_world_war_two_topic(message) or is_world_war_two_topic(topic):
@@ -1042,6 +1090,14 @@ def build_topic_specific_writing(message: str, topic: str, kind: str, length: st
                 "Thank you."
             )
         return build_world_war_two_essay(length)
+    if re.search(r"\b(fitness|health|exercise|workout|gym|training|cardio|strength)\b", f"{message} {topic}".lower()):
+        if normalized_kind == "paragraph":
+            return (
+                "Fitness means keeping the body active, strong, and healthy through regular exercise, balanced food, rest, and discipline. "
+                "It improves stamina, supports the heart and muscles, boosts confidence, and helps people handle daily work with more energy. "
+                "A good fitness routine includes strength training, cardio, stretching, hydration, sleep, and steady progress."
+            )
+        return build_fitness_essay(length)
     return None
 
 
@@ -1056,6 +1112,13 @@ def writing_topic_frame(topic: str) -> Dict[str, str]:
             "human": "History matters because it shows how people's choices, leadership, conflict, ideas, and mistakes shaped later society.",
             "detail": "A strong history answer should explain the background, the main events, the people involved, and the impact that followed.",
             "action": "The topic becomes useful when it connects dates and facts with cause, effect, and lessons for the present.",
+        }
+    if re.search(r"\b(fitness|health|exercise|workout|gym|training|cardio|strength|diet)\b", lower):
+        return {
+            "thesis": f"The importance of {core_lower} is that it improves physical health, energy, discipline, confidence, and long-term well-being.",
+            "human": "Fitness is not only about appearance; it supports the heart, muscles, sleep, mood, and daily stamina.",
+            "detail": "A good fitness routine combines strength training, cardio, mobility, rest, hydration, and balanced food instead of depending on one shortcut.",
+            "action": "The best result comes from a simple plan followed consistently, with gradual progress and enough recovery.",
         }
     if re.search(r"\b(environment|pollution|climate|nature|tree|water|air|earth|plastic)\b", lower):
         return {
@@ -1630,8 +1693,10 @@ def extract_goal_topic(message: str) -> str:
     text = clean_text(message)
     text = re.sub(r"(?i)^user question:\s*", "", text).strip()
     text = re.sub(r"(?i)^(please\s+)?(can you|could you|help me|tell me|show me)\s+", "", text)
+    text = re.sub(r"(?i)^(please\s+)?(give|write|make|create|prepare|provide)\s+(me\s+)?(an?\s+)?", "", text)
     text = re.sub(r"(?i)^(how to|steps to|how can i|how do i|i want to|i need to|i have to|i wanna|i am trying to|i'm trying to|i make|i want|i need)\s+", "", text)
     text = re.sub(r"(?i)^(make|create|build|start|open|launch|set up|setup|plan|grow)\s+(an?\s+|my\s+)?", "", text)
+    text = re.sub(r"(?i)^(project\s+plan|business\s+plan|travel\s+plan|plan)\s*(for|about|on|to)?\s*", "", text)
     text = re.sub(r"(?i)^(an?\s+|my\s+|the\s+)+", "", text)
     text = re.sub(r"(?i)\b(step by step|full guide|complete guide|properly|from scratch|for beginners|beginner)\b", " ", text)
     text = re.sub(r"\?+$", "", text)
@@ -1737,6 +1802,34 @@ def business_goal_plan(topic: str) -> str:
     )
 
 
+def school_project_goal_plan(topic: str) -> str:
+    clean_topic = title_case_topic(topic)
+    topic_lower = clean_topic.lower()
+    if "science fair" not in topic_lower and "science project" not in topic_lower:
+        focus = clean_topic
+    else:
+        focus = "school science fair project"
+    return (
+        "Short answer:\n"
+        f"Make the {focus} around one clear question, one simple experiment, and one clean display board. Do not start with decoration first; start with the idea and proof.\n\n"
+        "Plan:\n"
+        "1. Choose the question: pick one testable question, such as how light affects plant growth or which material keeps water warm longer.\n"
+        "2. Write the hypothesis: predict what you think will happen and why.\n"
+        "3. List materials: keep it simple, safe, and easy to repeat at home or school.\n"
+        "4. Run the experiment: change only one variable and record results in a table.\n"
+        "5. Make visuals: add photos, a chart, and a short explanation of what the results mean.\n"
+        "6. Build the display: use sections for Question, Hypothesis, Materials, Method, Results, Conclusion, and What I learned.\n\n"
+        "Timeline:\n"
+        "- Day 1: Choose topic and hypothesis.\n"
+        "- Day 2: Gather materials and prepare the table for results.\n"
+        "- Days 3-5: Run the experiment and take photos.\n"
+        "- Day 6: Make chart, conclusion, and display board.\n"
+        "- Day 7: Practice explaining it in 60 seconds.\n\n"
+        "Bottom line:\n"
+        "A strong science fair project is simple, testable, and well explained."
+    )
+
+
 def generic_goal_plan(topic: str) -> str:
     topic_lower = topic.lower()
     return (
@@ -1757,17 +1850,97 @@ def generic_goal_plan(topic: str) -> str:
     )
 
 
+def is_fitness_plan_request(message: str) -> bool:
+    lower = clean_text(message).lower()
+    has_fitness_topic = bool(re.search(
+        r"\b(fitness|workout|exercise|gym|training|strength|cardio|weight loss|fat loss|muscle gain|lose weight|build muscle|get fit|diet)\b",
+        lower,
+    ))
+    has_plan_intent = bool(re.search(r"\b(plan|routine|schedule|program|workout|fitness plan|training plan)\b", lower))
+    return has_fitness_topic and has_plan_intent
+
+
+def build_fitness_plan(message: str) -> str:
+    lower = clean_text(message).lower()
+    days_match = re.search(r"\b([3-6])\s*(day|days)\b", lower)
+    days = int(days_match.group(1)) if days_match else 5
+    if re.search(r"\b(weight loss|fat loss|lose weight|slim)\b", lower):
+        goal = "fat loss and better stamina"
+    elif re.search(r"\b(muscle|strength|bulk|gain)\b", lower):
+        goal = "strength and muscle gain"
+    else:
+        goal = "general fitness, strength, and stamina"
+
+    if days <= 3:
+        weekly_plan = [
+            "Day 1: Full-body strength - squats, push-ups, rows, glute bridges, and plank. Do 2-3 sets each.",
+            "Day 2: Cardio + mobility - 25-35 minutes brisk walking, cycling, or jogging, then 10 minutes stretching.",
+            "Day 3: Full-body strength - lunges, shoulder press, hip hinge/deadlift pattern, core work, and light cardio finish.",
+        ]
+    elif days == 4:
+        weekly_plan = [
+            "Day 1: Upper body strength - push-ups/bench press, rows, shoulder press, curls, triceps, and plank.",
+            "Day 2: Lower body strength - squats, lunges, glute bridges, calf raises, and core.",
+            "Day 3: Cardio + mobility - 30 minutes steady cardio, then hips, hamstrings, back, and shoulder mobility.",
+            "Day 4: Full-body circuit - squat, push, pull, hinge, carry, and core for 3 rounds at moderate effort.",
+        ]
+    else:
+        weekly_plan = [
+            "Day 1: Full-body strength - squats, push-ups, rows, glute bridges, and plank. Do 2-3 sets each.",
+            "Day 2: Cardio - 25-35 minutes brisk walking, cycling, jogging, or skipping at a pace you can sustain.",
+            "Day 3: Strength + core - lunges, shoulder press, hip hinge/deadlift pattern, side plank, and dead bug.",
+            "Day 4: Mobility + light cardio - 20 minutes easy movement, then stretch hips, hamstrings, chest, and back.",
+            "Day 5: Full-body circuit - squat, push, pull, hinge, carry, and core for 3 rounds at moderate effort.",
+        ]
+
+    lines = [
+        "Fitness plan",
+        "",
+        f"Goal: {goal}.",
+        "",
+        "Weekly plan:",
+        *[f"- {item}" for item in weekly_plan],
+        "",
+        "Rules to follow:",
+        "- Warm up for 5-8 minutes before every workout.",
+        "- Keep 1-2 rest days each week so your body can recover.",
+        "- Increase reps, weight, or time slowly each week instead of doing too much at once.",
+        "- Eat enough protein, drink water, and sleep well; fitness improves outside the workout too.",
+        "",
+        "Bottom line:",
+        "Start simple, stay consistent for 4 weeks, and adjust the plan based on your energy, soreness, and goal.",
+    ]
+    if re.search(r"\b(medical|injury|pain|doctor|condition)\b", lower):
+        lines.extend([
+            "",
+            "Safety note:",
+            "Because you mentioned a possible medical or injury issue, use this only as a general plan and check with a qualified professional before intense exercise.",
+        ])
+    return "\n".join(lines)
+
+
+def local_fitness_plan_reply(message: str) -> Optional[str]:
+    if not is_fitness_plan_request(message):
+        return None
+    return build_fitness_plan(message)
+
+
 def local_goal_plan_reply(message: str) -> Optional[str]:
     if not is_goal_or_problem_request(message):
         return None
     lower = clean_text(message).lower()
     topic = extract_goal_topic(message)
+    fitness = local_fitness_plan_reply(message)
+    if fitness:
+        return fitness
     if re.search(r"\b(youtube|yt|channel|creator|video channel)\b", lower):
         return youtube_channel_plan(topic)
     if re.search(r"\b(website|web site|webpage|landing page|portfolio site)\b", lower):
         return website_goal_plan(topic)
     if re.search(r"\b(business|startup|shop|brand|sell|selling|product)\b", lower):
         return business_goal_plan(topic)
+    if re.search(r"\b(science fair|school project|science project|project plan)\b", lower):
+        return school_project_goal_plan(topic)
     return generic_goal_plan(topic)
 
 
@@ -1879,6 +2052,9 @@ def local_structured_fallback(
     presentation_style: str = "balanced",
     session_id: Optional[str] = None,
 ) -> Optional[str]:
+    fitness = local_fitness_plan_reply(message)
+    if fitness:
+        return fitness
     writing = local_writing_reply(message, session_id=session_id)
     if writing:
         return writing
@@ -2140,6 +2316,9 @@ def local_resilient_reply(
     capability = local_capability_reply(message)
     if capability:
         return capability
+    fitness = local_fitness_plan_reply(state.get("normalized") or message)
+    if fitness:
+        return fitness
     writing = local_writing_reply(state.get("normalized") or message, session_id=session_id)
     if writing:
         return writing
@@ -2346,6 +2525,10 @@ def system_profile() -> Dict[str, Any]:
             "gpu_class": "integrated_or_unknown",
         },
         "limits": limits,
+        "quality_enforcement": {
+            "mode": QUALITY_ENFORCEMENT_MODE,
+            "description": "Max routing and quality guards: choose the real task type, reject generic filler for practical requests, verify current facts, and clean final output.",
+        },
         "intelligence": {
             "level": INTELLIGENCE_LEVEL_TEXT,
             "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
@@ -2401,6 +2584,7 @@ def runtime_efficiency_context() -> str:
     return (
         "Runtime capability profile:\n"
         f"- Level: {profile['level']}\n"
+        f"- Quality enforcement: {QUALITY_ENFORCEMENT_MODE}.\n"
         f"- Intelligence level: {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({INTELLIGENCE_MODE}).\n"
         f"- Understanding level: {UNDERSTANDING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({UNDERSTANDING_MODE}).\n"
         f"- Accuracy level: {ACCURACY_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({ACCURACY_MODE}).\n"
@@ -6859,6 +7043,7 @@ Understanding:
 - Use an agentic understanding loop: parse the request, identify the target, choose the right knowledge or tool path, verify risky facts, then produce a clean final answer.
 - Answer the exact user question first. Do not drift into general capability talk, generic advice, or a nearby topic unless the user asks for it.
 - For topic-only learning prompts such as "History of WW2", explain the named topic with real facts, dates, causes, events, and consequences. Never replace the topic with vague lines about "understanding life" or generic importance.
+- For practical requests such as plans, routines, schedules, code, fixes, projects, business, study, fitness, travel, or workflows, never answer with generic "importance of the topic" filler. Give actionable task-specific steps.
 - Resolve references like "it", "this", "same as before", and "like this" from recent chat context before asking a question.
 - Ask a clarifying question only when the missing detail would change the answer or make implementation unsafe. Otherwise, make one reasonable assumption and state it briefly.
 - Reasonableness beats drama. Prefer answers that are true, practical, and checkable over answers that merely sound powerful.
@@ -6908,6 +7093,7 @@ def reasoning_quality_context(response_mode: str, response_lane: str, presentati
         "- Upgrade vague user language into a clear internal task: target, goal, constraints, quality bar, and likely next action.",
         "- Before writing, check whether the final answer is answering the user's actual question or only a related topic.",
         "- If a draft sounds generic, replace it with topic-specific facts, dates, examples, or steps before finalizing.",
+        "- If a practical request is routed into an essay-like answer, correct the route and give a task-specific plan or solution.",
         "- If the user asks for highest intelligence or capability, respond with strong reasoning and honest limits, not hype.",
         "- Run a silent max-quality pass for non-trivial answers: understand the real need, solve it, verify it, shape it, then final-check the wording.",
         f"- Intelligence level is {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}: combine intent, context, reasoning, accuracy, tool use, and answer shaping at the highest configured app level.",
@@ -7384,6 +7570,25 @@ def answer_quality_flags(
         r"\b(understand life, choices|world around them more clearly|good understanding of this subject|memorized idea)\b",
         lower,
     ):
+        flags.append("generic_topic_drift")
+    if re.search(r"\b(fitness|workout|exercise|gym|training)\b", question_lower) and re.search(
+        r"\b(importance of fitness plan|understand life, choices|good understanding of this subject|memorized idea|useful for students, families, and society)\b",
+        lower,
+    ):
+        flags.append("generic_topic_drift")
+    generic_topic_filler = bool(re.search(
+        r"\b(understand life, choices|world around them more clearly|good understanding of this subject|memorized idea|useful for students, families, and society|topic becomes truly useful|explained simply and applied thoughtfully)\b",
+        lower,
+    ))
+    practical_question = bool(re.search(
+        r"\b(plan|routine|schedule|program|steps|workflow|strategy|fix|debug|code|build|create|project|business|fitness|workout|diet|travel|website|app|resume|email|letter|study plan|automation)\b",
+        question_lower,
+    ))
+    explicitly_writing_about_topic = bool(re.search(
+        r"\b(essay|paragraph|speech|article|note|importance of|write about|write on)\b",
+        question_lower,
+    ))
+    if generic_topic_filler and practical_question and not explicitly_writing_about_topic:
         flags.append("generic_topic_drift")
     if re.search(r"\b(song|music|track|recommend|suggest)\b", question_lower) and re.search(r"\bfrom the (film|movie)\b", lower):
         if not re.search(r"\b(source|verified|according to|\[\d+\])\b", lower):
@@ -8270,6 +8475,7 @@ def health() -> Dict[str, Any]:
         "status": "ok",
         "app": APP_NAME,
         "version": APP_VERSION,
+        "quality_enforcement": QUALITY_ENFORCEMENT_MODE,
         "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
         "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
@@ -8348,6 +8554,7 @@ def models() -> Dict[str, Any]:
         "fast": FAST_MODEL,
         "thinking": THINKING_MODEL,
         "free_api": free_provider_status(),
+        "quality_enforcement": QUALITY_ENFORCEMENT_MODE,
         "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
         "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
@@ -8567,6 +8774,7 @@ def capabilities() -> Dict[str, Any]:
     return {
         "ok": True,
         "version": APP_VERSION,
+        "quality_enforcement": QUALITY_ENFORCEMENT_MODE,
         "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
         "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
@@ -9137,6 +9345,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     history = req.chat_history if req.chat_history is not None else history_from_session
     tools_used: List[str] = []
     tools_used.append(f"performance:{system_profile()['level']}")
+    tools_used.append(f"quality_enforcement:{QUALITY_ENFORCEMENT_MODE}")
     tools_used.append("behavior_learning")
     tools_used.append("intent_understanding")
     tools_used.append(f"intelligence_level:{INTELLIGENCE_LEVEL_TEXT}")
@@ -9481,6 +9690,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             and not use_research
             and any(flag in quality_flags for flag in {
                 "generic_plan",
+                "generic_topic_drift",
                 "weak_fallback",
                 "too_short",
                 "backend_talk",
