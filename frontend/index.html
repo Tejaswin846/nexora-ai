@@ -13340,5 +13340,120 @@ document.addEventListener("DOMContentLoaded",()=>{
 })();
 </script>
 
+<style id="nx-normal-text-weight-style">
+  body,
+  body button,
+  body input,
+  body textarea,
+  body select,
+  body .sidebar,
+  body .sidebar *,
+  body .top-bar,
+  body .top-bar *,
+  body .hero-card,
+  body .hero-card *,
+  body .composer-meta,
+  body .composer-meta *,
+  body .quick-launch-row,
+  body .quick-launch-row *,
+  body .input-wrapper,
+  body .input-wrapper *,
+  body .options,
+  body .options *,
+  body .message,
+  body .message *,
+  body .nx-human-answer,
+  body .nx-human-answer *,
+  body .nx-final-answer,
+  body .nx-final-answer * {
+    font-weight: 400 !important;
+    text-shadow: none !important;
+  }
+
+  body .greeting {
+    font-weight: 500 !important;
+  }
+
+  body .hero-action-btn,
+  body .quick-launch-title,
+  body .option,
+  body .meta-pill,
+  body .top-brand-btn,
+  body .side-item,
+  body .project-item,
+  body .new-chat,
+  body .nx-answer-section-title,
+  body.chat-mode #chatBox .nx-final-answer h1,
+  body.chat-mode #chatBox .nx-final-answer h2,
+  body.chat-mode #chatBox .nx-final-answer h3 {
+    font-weight: 500 !important;
+  }
+
+  body strong,
+  body b,
+  body .nx-human-answer strong,
+  body .nx-final-answer strong {
+    font-weight: 500 !important;
+  }
+
+  body #userInput,
+  body #userInput::placeholder {
+    font-weight: 400 !important;
+  }
+
+  html body:not(.chat-mode) .greeting {
+    font-weight: 500 !important;
+  }
+
+  html body:not(.chat-mode) .sub-greeting,
+  html body:not(.chat-mode) #userInput,
+  html body:not(.chat-mode) #userInput::placeholder,
+  html body:not(.chat-mode) .quick-launch-text {
+    font-weight: 400 !important;
+  }
+
+  html body:not(.chat-mode) .hero-action-btn,
+  html body:not(.chat-mode) .meta-pill,
+  html body:not(.chat-mode) .option,
+  html body:not(.chat-mode) .quick-launch-title {
+    font-weight: 500 !important;
+  }
+</style>
+
+<script id="nx-normal-text-weight-install">
+(function(){
+  function installNormalWeights(){
+    var css = [
+      "html body:not(.chat-mode) #userInput{font-weight:400!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #userInput::placeholder{font-weight:400!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .greeting{font-weight:500!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .sub-greeting{font-weight:400!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .hero-action-btn{font-weight:500!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .meta-pill{font-weight:500!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .option{font-weight:500!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .quick-launch-title{font-weight:500!important;text-shadow:none!important;}",
+      "html body:not(.chat-mode) #chatPage.center .quick-launch-text{font-weight:400!important;text-shadow:none!important;}",
+      "html body.chat-mode #chatBox .message,html body.chat-mode #chatBox .message *{font-weight:400!important;text-shadow:none!important;}",
+      "html body.chat-mode #chatBox strong,html body.chat-mode #chatBox b{font-weight:500!important;}"
+    ].join("\\n");
+    var style = document.getElementById("nx-normal-text-weight-runtime");
+    if(!style){
+      style = document.createElement("style");
+      style.id = "nx-normal-text-weight-runtime";
+      document.head.appendChild(style);
+    }
+    style.textContent = css;
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", installNormalWeights);
+  }else{
+    installNormalWeights();
+  }
+  [250, 800, 1600].forEach(function(delay){
+    window.setTimeout(installNormalWeights, delay);
+  });
+})();
+</script>
+
 </body>
 </html>
