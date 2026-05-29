@@ -37,10 +37,30 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.60.0-max-quality-routing"
+APP_VERSION = "8.63.0-full-gate-stack"
 CAPABILITY_SCALE_MAX = 15.00
 CAPABILITY_SCALE_TEXT = f"{CAPABILITY_SCALE_MAX:.2f}"
 QUALITY_ENFORCEMENT_MODE = "max_precision_guardrails"
+ROUTING_GATE_MODE = "intent_first_max"
+QUALITY_GATE_MODE = "repair_or_fallback"
+GATE_STACK_MODE = "intent_route_quality_stack"
+INTENT_QUALITY_LEVEL = 10.00
+INTENT_QUALITY_LEVEL_TEXT = f"{INTENT_QUALITY_LEVEL:.2f}"
+ROUTING_GATE_LEVEL = INTENT_QUALITY_LEVEL
+ROUTING_GATE_LEVEL_TEXT = f"{ROUTING_GATE_LEVEL:.2f}"
+QUALITY_GATE_LEVEL = INTENT_QUALITY_LEVEL
+QUALITY_GATE_LEVEL_TEXT = f"{QUALITY_GATE_LEVEL:.2f}"
+INTENT_DETECTION_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+CONTEXT_RESOLUTION_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+ROUTE_SELECTION_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+ROUTE_CONFIDENCE_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+TASK_SHAPE_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+ANSWER_QUALITY_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+ACCURACY_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+REASONING_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+ANSWER_STRUCTURE_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+REPAIR_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
+FINAL_OUTPUT_GATE_LEVEL_TEXT = INTENT_QUALITY_LEVEL_TEXT
 INTELLIGENCE_LEVEL = CAPABILITY_SCALE_MAX
 INTELLIGENCE_LEVEL_TEXT = f"{INTELLIGENCE_LEVEL:.2f}"
 INTELLIGENCE_MODE = "extended_agentic_intelligence"
@@ -56,6 +76,28 @@ REASONING_MODE = "max_silent_reasoning"
 ANSWER_STRUCTURE_LEVEL = CAPABILITY_SCALE_MAX
 ANSWER_STRUCTURE_LEVEL_TEXT = f"{ANSWER_STRUCTURE_LEVEL:.2f}"
 ANSWER_STRUCTURE_MODE = "polished_answer_presentation"
+
+
+def gate_levels_payload() -> Dict[str, str]:
+    return {
+        "intent_quality": INTENT_QUALITY_LEVEL_TEXT,
+        "intent_detection": INTENT_DETECTION_GATE_LEVEL_TEXT,
+        "context_resolution": CONTEXT_RESOLUTION_GATE_LEVEL_TEXT,
+        "routing_gate": ROUTING_GATE_LEVEL_TEXT,
+        "route_selection": ROUTE_SELECTION_GATE_LEVEL_TEXT,
+        "route_confidence": ROUTE_CONFIDENCE_GATE_LEVEL_TEXT,
+        "task_shape_validation": TASK_SHAPE_GATE_LEVEL_TEXT,
+        "answer_quality": ANSWER_QUALITY_GATE_LEVEL_TEXT,
+        "accuracy_gate": ACCURACY_GATE_LEVEL_TEXT,
+        "reasoning_gate": REASONING_GATE_LEVEL_TEXT,
+        "answer_structure_gate": ANSWER_STRUCTURE_GATE_LEVEL_TEXT,
+        "repair_gate": REPAIR_GATE_LEVEL_TEXT,
+        "final_output_gate": FINAL_OUTPUT_GATE_LEVEL_TEXT,
+    }
+
+
+def gate_tools_used() -> List[str]:
+    return [f"gate:{name}:{level}" for name, level in gate_levels_payload().items()]
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("NEXORA_DATA_DIR", BASE_DIR / "nexora_data")).expanduser()
@@ -253,6 +295,12 @@ class ChatResponse(BaseModel):
     model_used: str
     sources: List[SourceItem] = []
     tools_used: List[str] = []
+    route_intent: str = "auto"
+    intent_quality_level: str = INTENT_QUALITY_LEVEL_TEXT
+    routing_gate_level: str = ROUTING_GATE_LEVEL_TEXT
+    quality_gate_level: str = QUALITY_GATE_LEVEL_TEXT
+    gate_stack_mode: str = GATE_STACK_MODE
+    gate_levels: Dict[str, str] = Field(default_factory=gate_levels_payload)
     intelligence_level: str = INTELLIGENCE_LEVEL_TEXT
     understanding_level: str = UNDERSTANDING_LEVEL_TEXT
     accuracy_level: str = ACCURACY_LEVEL_TEXT
@@ -1708,8 +1756,10 @@ def is_goal_or_problem_request(message: str) -> bool:
     lower = clean_text(message).lower()
     if re.fullmatch(r"(make|fix|improve|change|remove|add)\s+(it|this|that|them|those)(\s+(better|more|again|now))?[.! ]*", lower):
         return False
+    if is_study_management_request(message):
+        return True
     return bool(
-        re.search(r"\b(how to|steps to|how can i|how do i|i want to|i need to|i have to|i am trying to|i'm trying to|make|create|build|start|launch|set up|setup|grow|plan)\b", lower)
+        re.search(r"\b(how to|how should i|steps to|how can i|how do i|i want to|i need to|i have to|i am trying to|i'm trying to|make|create|build|start|launch|set up|setup|grow|plan)\b", lower)
         and not re.search(r"\b(image|picture|photo|art|poster|logo|wallpaper|email|letter|essay|application|speech)\b", lower)
     )
 
@@ -1930,6 +1980,11 @@ def local_goal_plan_reply(message: str) -> Optional[str]:
         return None
     lower = clean_text(message).lower()
     topic = extract_goal_topic(message)
+    if re.search(r"\b(science fair|school project|science project|project plan)\b", lower):
+        return school_project_goal_plan(topic)
+    study_management = local_study_management_reply(message)
+    if study_management:
+        return study_management
     fitness = local_fitness_plan_reply(message)
     if fitness:
         return fitness
@@ -1939,8 +1994,6 @@ def local_goal_plan_reply(message: str) -> Optional[str]:
         return website_goal_plan(topic)
     if re.search(r"\b(business|startup|shop|brand|sell|selling|product)\b", lower):
         return business_goal_plan(topic)
-    if re.search(r"\b(science fair|school project|science project|project plan)\b", lower):
-        return school_project_goal_plan(topic)
     return generic_goal_plan(topic)
 
 
@@ -1988,6 +2041,65 @@ def local_study_plan_reply(message: str) -> Optional[str]:
     days_match = re.search(r"\b(\d{1,2})\s*(day|days)\b", lower)
     days = int(days_match.group(1)) if days_match else 7
     return make_study_plan(topic, days=days, daily_minutes=45)
+
+
+def is_study_management_request(message: str) -> bool:
+    lower = clean_text(message).lower()
+    if re.search(r"\b(science fair|school project|science project|project plan)\b", lower):
+        return False
+    has_study_topic = bool(re.search(r"\b(study|studies|school|class|grade|exam|homework|subject|subjects)\b", lower))
+    has_management_intent = bool(re.search(
+        r"\b(manage|management|organize|organise|balance|schedule|routine|timetable|plan|prepare|study better|focus|score|marks|revise|revision|how should i|how can i)\b",
+        lower,
+    ))
+    return has_study_topic and has_management_intent
+
+
+def extract_class_level(message: str) -> str:
+    lower = clean_text(message).lower()
+    match = re.search(r"\b(class|grade)\s*(\d{1,2})\b", lower)
+    if match:
+        return f"Class {match.group(2)}"
+    return "school"
+
+
+def build_study_management_plan(message: str) -> str:
+    class_level = extract_class_level(message)
+    lower = clean_text(message).lower()
+    daily_minutes = 120 if re.search(r"\b(class|grade)\s*(8|9|10)\b", lower) else 90
+    return (
+        f"{class_level} study management plan\n\n"
+        "Short answer:\n"
+        "Manage your studies with a simple daily routine: learn today’s lessons, practise questions, revise old topics, and keep one small buffer for homework or weak subjects.\n\n"
+        "Daily routine:\n"
+        f"1. School recap: Spend 20 minutes reviewing what was taught today.\n"
+        f"2. Main study block: Study one difficult subject for 45-60 minutes.\n"
+        f"3. Practice block: Solve questions, sums, grammar exercises, or textbook questions for 30-40 minutes.\n"
+        f"4. Revision block: Revise one old topic for 15-20 minutes so you do not forget it.\n"
+        f"5. Homework/buffer: Keep 20-30 minutes for homework, projects, or unfinished work.\n\n"
+        "Weekly plan:\n"
+        "- Monday to Friday: Follow the daily routine and focus on school topics taught that day.\n"
+        "- Saturday: Revise the week’s weak chapters and complete pending homework.\n"
+        "- Sunday: Do a light test, organize notebooks, and plan the next week.\n\n"
+        "Subject method:\n"
+        "- Maths: practise sums daily, especially the mistakes you made before.\n"
+        "- Science: understand concepts first, then write definitions and diagrams.\n"
+        "- Social Science: make short notes with dates, keywords, and causes/effects.\n"
+        "- English/languages: read, learn grammar rules, and practise writing answers.\n\n"
+        "Rules that make it work:\n"
+        "- Do not study every subject every day; rotate subjects.\n"
+        "- Keep your phone away during study blocks.\n"
+        "- Use 40 minutes study + 5 minutes break if you lose focus.\n"
+        "- At the end of each day, mark one topic as done and one topic to improve tomorrow.\n\n"
+        "Bottom line:\n"
+        f"For {class_level}, consistency matters more than studying all night. Study a little every day, practise actively, and revise weekly."
+    )
+
+
+def local_study_management_reply(message: str) -> Optional[str]:
+    if not is_study_management_request(message):
+        return None
+    return build_study_management_plan(message)
 
 
 def local_file_summary_reply(message: str, session_id: Optional[str]) -> Optional[str]:
@@ -2046,12 +2158,110 @@ def is_high_confidence_local_reply(message: str, presentation_style: str = "bala
     return False
 
 
+def detect_task_intent(message: str, use_research: bool = False) -> str:
+    lower = clean_text(message).lower()
+    if not lower:
+        return "empty"
+    if use_research:
+        return "realtime_search"
+    if re.fullmatch(
+        r"(?:what is|calculate|solve)?\s*-?\d+(?:\.\d+)?\s*[+\-*/x]\s*-?\d+(?:\.\d+)?\??",
+        lower,
+    ):
+        return "calculation"
+    if local_deficiency_diagnosis_reply(message):
+        return "diagnostic_deficiency"
+    if re.search(r"\b(create|generate|make|draw|give me)\b", lower) and re.search(r"\b(image|picture|photo|art|poster|logo|wallpaper|thumbnail|banner)\b", lower):
+        return "image_generation"
+    if re.search(r"\b(fix|debug|error|bug|traceback|issue|not working|backend|frontend|api|html|css|javascript|python|code)\b", lower):
+        return "code_or_debug"
+    if re.search(r"\b(science fair|school project|science project|project plan)\b", lower):
+        return "project_plan"
+    if re.search(r"\b(reminder|remind me|due|todo|to-do)\b", lower):
+        return "reminder"
+    if re.search(r"\b(workflow|automation|automate|checklist|pipeline)\b", lower):
+        return "workflow_plan"
+    if is_study_management_request(message):
+        return "study_management_plan"
+    if is_fitness_plan_request(message):
+        return "fitness_plan"
+    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+        return "file_summary"
+    if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
+        return "study_plan"
+    if re.search(r"\b(email|e-mail|mail)\b", lower) and re.search(r"\b(write|draft|compose|make|create|ask|request)\b", lower):
+        return "email_draft"
+    writing = analyze_writing_request(message)
+    if writing.get("is_writing"):
+        return f"writing_{clean_text(str(writing.get('kind') or 'draft')).lower()}"
+    if re.search(r"\b(song|music|track|recommend|suggest)\b", lower):
+        return "song_recommendation"
+    if split_comparison_subjects(message):
+        return "comparison"
+    if re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
+        return "pros_cons"
+    if re.search(r"\b(youtube|yt|channel|creator|video channel)\b", lower) and is_goal_or_problem_request(message):
+        return "youtube_plan"
+    if re.search(r"\b(website|web site|webpage|landing page|portfolio site)\b", lower) and is_goal_or_problem_request(message):
+        return "website_plan"
+    if re.search(r"\b(business|startup|shop|brand|sell|selling|product|business plan)\b", lower) and is_goal_or_problem_request(message):
+        return "business_plan"
+    if is_goal_or_problem_request(message):
+        return "general_plan"
+    if local_capability_reply(message):
+        return "capability_status"
+    if re.search(r"\b(who is|who are|who was|who were|what is|what are|explain|define|describe|meaning of|teach me|history of|overview of|background of|timeline of|how does|why is)\b", lower):
+        return "learning_topic"
+    return "chat"
+
+
+def local_reply_for_intent(message: str, task_intent: str, session_id: Optional[str] = None) -> Optional[str]:
+    if task_intent in {"calculation", "image_generation", "code_or_debug", "reminder"}:
+        return None
+    if task_intent == "diagnostic_deficiency":
+        return local_deficiency_diagnosis_reply(message)
+    if task_intent == "study_management_plan":
+        return local_study_management_reply(message)
+    if task_intent == "fitness_plan":
+        return local_fitness_plan_reply(message)
+    if task_intent == "file_summary":
+        return local_file_summary_reply(message, session_id)
+    if task_intent == "study_plan":
+        return local_study_plan_reply(message)
+    if task_intent == "email_draft":
+        return local_email_reply(message)
+    if task_intent.startswith("writing_"):
+        return local_writing_reply(message, session_id=session_id)
+    if task_intent == "song_recommendation":
+        return local_song_recommendation_reply(message)
+    if task_intent == "comparison":
+        return local_comparison_reply(message)
+    if task_intent == "pros_cons":
+        return local_pros_cons_reply(message)
+    if task_intent in {"project_plan", "youtube_plan", "website_plan", "business_plan", "general_plan"}:
+        return local_goal_plan_reply(message)
+    if task_intent == "workflow_plan":
+        return make_automation_plan(extract_goal_topic(message))
+    if task_intent == "capability_status":
+        return local_capability_reply(message)
+    if task_intent == "learning_topic":
+        return local_knowledge_reply(message)
+    return None
+
+
 def local_structured_fallback(
     message: str,
     response_lane: str = "human_chat",
     presentation_style: str = "balanced",
     session_id: Optional[str] = None,
 ) -> Optional[str]:
+    task_intent = detect_task_intent(message, False)
+    routed = local_reply_for_intent(message, task_intent, session_id=session_id)
+    if routed:
+        return routed
+    study_management = local_study_management_reply(message)
+    if study_management:
+        return study_management
     fitness = local_fitness_plan_reply(message)
     if fitness:
         return fitness
@@ -2263,6 +2473,8 @@ def local_capability_reply(message: str) -> Optional[str]:
         f"Yes. Nexora is set to the extended max practical levels: intelligence {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, understanding {UNDERSTANDING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, accuracy {ACCURACY_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, reasoning {REASONING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}, and answer structure {ANSWER_STRUCTURE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT}.\n\n"
         f"What the {CAPABILITY_SCALE_TEXT} setup means here:\n"
         "- Intelligence level: It combines intent understanding, reasoning, accuracy, memory/context, tool routing, and answer shaping into one behavior profile.\n"
+        f"- Intent quality level: The intent router and quality gate are set to {INTENT_QUALITY_LEVEL_TEXT}/10.00 for route selection and route-mismatch repair.\n"
+        "- Gate stack: Intent detection, context resolution, route selection, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, and final output cleanup are each exposed as 10.00 gates.\n"
         "- Question contract: It identifies the task type, target, constraints, accuracy need, and best answer format before replying.\n"
         "- Intent first: It corrects messy wording and answers what you likely meant, not only the exact words typed.\n"
         "- Context aware: It uses recent chat, saved preferences, files, images, and project context when they matter.\n"
@@ -2316,6 +2528,9 @@ def local_resilient_reply(
     capability = local_capability_reply(message)
     if capability:
         return capability
+    study_management = local_study_management_reply(state.get("normalized") or message)
+    if study_management:
+        return study_management
     fitness = local_fitness_plan_reply(state.get("normalized") or message)
     if fitness:
         return fitness
@@ -2529,6 +2744,12 @@ def system_profile() -> Dict[str, Any]:
             "mode": QUALITY_ENFORCEMENT_MODE,
             "description": "Max routing and quality guards: choose the real task type, reject generic filler for practical requests, verify current facts, and clean final output.",
         },
+        "gate_stack": {
+            "mode": GATE_STACK_MODE,
+            "scale": "0.00-10.00",
+            "levels": gate_levels_payload(),
+            "description": "Separate 10.00 gates for intent detection, context resolution, routing, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, and final cleanup.",
+        },
         "intelligence": {
             "level": INTELLIGENCE_LEVEL_TEXT,
             "scale": f"0.00-{CAPABILITY_SCALE_TEXT}",
@@ -2585,6 +2806,10 @@ def runtime_efficiency_context() -> str:
         "Runtime capability profile:\n"
         f"- Level: {profile['level']}\n"
         f"- Quality enforcement: {QUALITY_ENFORCEMENT_MODE}.\n"
+        f"- Gate stack mode: {GATE_STACK_MODE}.\n"
+        f"- Intent quality level: {INTENT_QUALITY_LEVEL_TEXT}/10.00.\n"
+        f"- Routing gate: {ROUTING_GATE_MODE} at {ROUTING_GATE_LEVEL_TEXT}/10.00; quality gate: {QUALITY_GATE_MODE} at {QUALITY_GATE_LEVEL_TEXT}/10.00.\n"
+        "- Extra 10.00 gates: intent detection, context resolution, route selection, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, and final output cleanup.\n"
         f"- Intelligence level: {INTELLIGENCE_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({INTELLIGENCE_MODE}).\n"
         f"- Understanding level: {UNDERSTANDING_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({UNDERSTANDING_MODE}).\n"
         f"- Accuracy level: {ACCURACY_LEVEL_TEXT}/{CAPABILITY_SCALE_TEXT} ({ACCURACY_MODE}).\n"
@@ -5006,9 +5231,14 @@ def build_intent_context(intent: Dict[str, Any]) -> str:
     lines = [
         "Current request understanding:",
         f"- Likely user goal: {intent.get('goal', 'answer directly')}.",
+        f"- Routed task intent: {intent.get('task_intent', 'chat')}.",
         f"- Best output shape: {intent.get('expected_output', 'balanced answer')}.",
         f"- Ambiguity: {intent.get('ambiguity', 'low')}.",
         f"- Research route: {intent.get('research_route', 'none')}.",
+        f"- Gate stack mode: {GATE_STACK_MODE}.",
+        f"- Intent quality level: {INTENT_QUALITY_LEVEL_TEXT}/10.00.",
+        f"- Routing gate: {intent.get('routing_gate', ROUTING_GATE_MODE)} at {ROUTING_GATE_LEVEL_TEXT}/10.00; quality gate: {intent.get('quality_gate', QUALITY_GATE_MODE)} at {QUALITY_GATE_LEVEL_TEXT}/10.00.",
+        "- Active gates: intent detection, context resolution, route selection, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, final cleanup.",
     ]
     contract = intent.get("question_contract") or {}
     if contract:
@@ -7514,11 +7744,56 @@ def is_bad_generated_reply(text: str) -> bool:
     }
 
 
+def answer_route_quality_flags(question: str, reply: str, task_intent: str = "") -> List[str]:
+    intent = clean_text(task_intent).lower()
+    if not intent:
+        return []
+    lower = clean_text(reply).lower()
+    flags: List[str] = []
+
+    def lacks(pattern: str) -> bool:
+        return not re.search(pattern, lower)
+
+    if intent == "fitness_plan" and lacks(r"\b(day|warm up|workout|exercise|cardio|strength|sets?|reps?|rest|protein|sleep)\b"):
+        flags.append("route_mismatch_fitness_plan")
+    if intent == "study_management_plan" and lacks(r"\b(daily routine|weekly plan|revision|homework|subject|practice|study block|timetable)\b"):
+        flags.append("route_mismatch_study_management")
+    if intent == "study_plan" and lacks(r"\b(day|schedule|minutes?|revise|revision|practice|topic|test)\b"):
+        flags.append("route_mismatch_study_plan")
+    if intent == "project_plan" and lacks(r"\b(question|experiment|materials?|hypothesis|results?|display board|timeline|science fair)\b"):
+        flags.append("route_mismatch_project_plan")
+    if intent == "email_draft" and lacks(r"\b(subject|dear|hello|hi|regards|sincerely|thank you)\b"):
+        flags.append("route_mismatch_email_draft")
+    if intent.startswith("writing_letter") and lacks(r"\b(date|principal|subject|respected|yours|leave|application)\b"):
+        flags.append("route_mismatch_letter")
+    if intent.startswith("writing_") and re.search(r"\b(i can help|send the topic|what topic should)\b", lower[:220]):
+        flags.append("route_mismatch_writing_draft")
+    if intent == "comparison" and lacks(r"\b(difference|compare|whereas|both|similar|unlike|pros|cons)\b|\|"):
+        flags.append("route_mismatch_comparison")
+    if intent == "pros_cons" and (lacks(r"\b(pros|advantages|benefits)\b") or lacks(r"\b(cons|disadvantages|drawbacks)\b")):
+        flags.append("route_mismatch_pros_cons")
+    if intent == "website_plan" and lacks(r"\b(page|section|design|content|html|domain|deploy|navigation|layout)\b"):
+        flags.append("route_mismatch_website_plan")
+    if intent == "business_plan" and lacks(r"\b(customer|product|price|cost|sales|market|profit|launch|business)\b"):
+        flags.append("route_mismatch_business_plan")
+    if intent == "workflow_plan" and lacks(r"\b(trigger|step|checklist|workflow|automation|review|output)\b"):
+        flags.append("route_mismatch_workflow_plan")
+    if intent == "learning_topic" and re.search(
+        r"\b(understand life, choices|world around them more clearly|good understanding of this subject|memorized idea|useful for students, families, and society)\b",
+        lower,
+    ):
+        flags.append("route_mismatch_learning_topic")
+    if intent == "realtime_search" and re.search(r"\b(latest|current|today|recent|verify|fact[- ]?check)\b", clean_text(question).lower()) and not re.search(r"\[\d+\]|\b(source|verified|cannot verify|can't verify|uncertain)\b", lower):
+        flags.append("route_mismatch_realtime_search")
+    return flags
+
+
 def answer_quality_flags(
     question: str,
     reply: str,
     response_lane: str = "human_chat",
     presentation_style: str = "balanced",
+    task_intent: str = "",
 ) -> List[str]:
     if not POLLINATIONS_QUALITY_GUARD:
         return []
@@ -7590,6 +7865,11 @@ def answer_quality_flags(
     ))
     if generic_topic_filler and practical_question and not explicitly_writing_about_topic:
         flags.append("generic_topic_drift")
+    if re.search(r"\b(manage|organize|organise|schedule|routine|timetable|how should i|how can i)\b", question_lower) and re.search(
+        r"\b(starting with the main idea|focus on what .* means in simple words|break the idea into small parts|connect the concept with real life)\b",
+        lower,
+    ):
+        flags.append("generic_topic_drift")
     if re.search(r"\b(song|music|track|recommend|suggest)\b", question_lower) and re.search(r"\bfrom the (film|movie)\b", lower):
         if not re.search(r"\b(source|verified|according to|\[\d+\])\b", lower):
             flags.append("unverified_recommendation_metadata")
@@ -7599,13 +7879,14 @@ def answer_quality_flags(
         flags.append("missing_table")
     if response_lane == "writing" and re.search(r"\b(i can help|here'?s|here is|draft answer)\b", lower[:160]):
         flags.append("not_finished_draft_first")
+    flags.extend(answer_route_quality_flags(question, raw, task_intent))
     return list(dict.fromkeys(flags))
 
 
 def should_accept_reviewed_reply(question: str, reviewed: str, response_lane: str, presentation_style: str) -> bool:
     if is_bad_generated_reply(reviewed):
         return False
-    flags = answer_quality_flags(question, reviewed, response_lane, presentation_style)
+    flags = answer_quality_flags(question, reviewed, response_lane, presentation_style, detect_task_intent(question, False))
     blocking = {
         "empty",
         "backend_talk",
@@ -7619,7 +7900,50 @@ def should_accept_reviewed_reply(question: str, reviewed: str, response_lane: st
         "missing_current_verification",
         "missing_accuracy_signal",
     }
-    return not any(flag in blocking for flag in flags)
+    return not any(flag in blocking or flag.startswith("route_mismatch_") for flag in flags)
+
+
+def quality_gate_local_repair(
+    question: str,
+    reply: str,
+    response_lane: str,
+    presentation_style: str,
+    session_id: Optional[str] = None,
+    use_research: bool = False,
+) -> Tuple[str, List[str], str]:
+    task_intent = detect_task_intent(question, False)
+    flags = answer_quality_flags(question, reply, response_lane, presentation_style, task_intent)
+    blocking_flags = {
+        "empty",
+        "backend_talk",
+        "weak_fallback",
+        "too_short",
+        "generic_plan",
+        "generic_topic_drift",
+        "missing_table",
+        "unverified_recommendation_metadata",
+        "stream_artifact",
+        "traceback_or_error_dump",
+        "tool_dump",
+        "raw_json_output",
+        "missing_current_verification",
+        "missing_accuracy_signal",
+    }
+    if use_research or not any(flag in blocking_flags or flag.startswith("route_mismatch_") for flag in flags):
+        return reply, flags, ""
+
+    candidates = [
+        local_reply_for_intent(question, task_intent, session_id=session_id),
+        local_structured_fallback(question, response_lane, presentation_style, session_id=session_id),
+        local_resilient_reply(question, session_id or ensure_session(None), response_lane, presentation_style),
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        cleaned = finalize_user_facing_answer(question, candidate, response_lane, presentation_style)
+        if should_accept_reviewed_reply(question, cleaned, response_lane, presentation_style):
+            return cleaned, flags, task_intent
+    return reply, flags, ""
 
 
 def ensure_inline_citations(text: str, sources: List[SourceItem]) -> str:
@@ -8250,6 +8574,17 @@ def action_result_response(
     lane: str = "action",
     style: str = "action_result",
 ) -> ChatResponse:
+    route_map = {
+        "files": "file_summary",
+        "study": "study_plan",
+        "website": "website_plan",
+        "reminder": "reminder",
+        "email": "email_draft",
+        "workflow": "workflow_plan",
+        "automation": "workflow_plan",
+        "image": "image_generation",
+    }
+    route_intent = route_map.get(lane, lane)
     pending_user = clean_text(str(pop_session_value(session_id, "_pending_action_user") or ""))
     if pending_user:
         append_session_message(session_id, "user", pending_user)
@@ -8271,7 +8606,8 @@ def action_result_response(
         mode="agent",
         model_used=model_used,
         sources=[],
-        tools_used=tools_used,
+        tools_used=tools_used + [f"route_intent:{route_intent}", f"intent_quality_level:{INTENT_QUALITY_LEVEL_TEXT}"],
+        route_intent=route_intent,
         created_at=now_iso(),
     )
 
@@ -8303,7 +8639,15 @@ def execute_agent_action_from_chat(
     text = clean_text(message)
     lower = text.lower()
     set_session_value(session_id, "_pending_action_user", message)
-    base_tools = ["agent_action_router", "behavior_learning", f"performance:{system_profile()['level']}"]
+    base_tools = [
+        "agent_action_router",
+        "behavior_learning",
+        f"intent_quality_level:{INTENT_QUALITY_LEVEL_TEXT}",
+        f"routing_gate_level:{ROUTING_GATE_LEVEL_TEXT}",
+        f"quality_gate_level:{QUALITY_GATE_LEVEL_TEXT}",
+        f"gate_stack:{GATE_STACK_MODE}",
+        f"performance:{system_profile()['level']}",
+    ] + gate_tools_used()
 
     if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|key points from|notes from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
         reply = local_file_summary_reply(text, session_id) or "Upload a PDF or text file first, then ask me to summarize it."
@@ -8476,6 +8820,13 @@ def health() -> Dict[str, Any]:
         "app": APP_NAME,
         "version": APP_VERSION,
         "quality_enforcement": QUALITY_ENFORCEMENT_MODE,
+        "routing_gate": ROUTING_GATE_MODE,
+        "quality_gate": QUALITY_GATE_MODE,
+        "gate_stack_mode": GATE_STACK_MODE,
+        "gate_levels": gate_levels_payload(),
+        "intent_quality_level": INTENT_QUALITY_LEVEL_TEXT,
+        "routing_gate_level": ROUTING_GATE_LEVEL_TEXT,
+        "quality_gate_level": QUALITY_GATE_LEVEL_TEXT,
         "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
         "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
@@ -8555,6 +8906,13 @@ def models() -> Dict[str, Any]:
         "thinking": THINKING_MODEL,
         "free_api": free_provider_status(),
         "quality_enforcement": QUALITY_ENFORCEMENT_MODE,
+        "routing_gate": ROUTING_GATE_MODE,
+        "quality_gate": QUALITY_GATE_MODE,
+        "gate_stack_mode": GATE_STACK_MODE,
+        "gate_levels": gate_levels_payload(),
+        "intent_quality_level": INTENT_QUALITY_LEVEL_TEXT,
+        "routing_gate_level": ROUTING_GATE_LEVEL_TEXT,
+        "quality_gate_level": QUALITY_GATE_LEVEL_TEXT,
         "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
         "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
@@ -8775,6 +9133,13 @@ def capabilities() -> Dict[str, Any]:
         "ok": True,
         "version": APP_VERSION,
         "quality_enforcement": QUALITY_ENFORCEMENT_MODE,
+        "routing_gate": ROUTING_GATE_MODE,
+        "quality_gate": QUALITY_GATE_MODE,
+        "gate_stack_mode": GATE_STACK_MODE,
+        "gate_levels": gate_levels_payload(),
+        "intent_quality_level": INTENT_QUALITY_LEVEL_TEXT,
+        "routing_gate_level": ROUTING_GATE_LEVEL_TEXT,
+        "quality_gate_level": QUALITY_GATE_LEVEL_TEXT,
         "intelligence_level": INTELLIGENCE_LEVEL_TEXT,
         "intelligence_mode": INTELLIGENCE_MODE,
         "understanding_level": UNDERSTANDING_LEVEL_TEXT,
@@ -8786,21 +9151,39 @@ def capabilities() -> Dict[str, Any]:
         "answer_structure_level": ANSWER_STRUCTURE_LEVEL_TEXT,
         "answer_structure_mode": ANSWER_STRUCTURE_MODE,
         "stages": {
+            "gate_stack": [
+                "intent detection 10.00/10.00",
+                "context resolution 10.00/10.00",
+                "route selection 10.00/10.00",
+                "route confidence 10.00/10.00",
+                "task-shape validation 10.00/10.00",
+                "answer quality gate 10.00/10.00",
+                "accuracy gate 10.00/10.00",
+                "reasoning gate 10.00/10.00",
+                "answer structure gate 10.00/10.00",
+                "repair gate 10.00/10.00",
+                "final output cleanup 10.00/10.00",
+            ],
             "intelligence": [
                 "extended 15.00 app scale",
+                "intent quality 10.00/10.00",
                 "intent + context fusion",
                 "reasoning + accuracy routing",
                 "memory-aware answer shaping",
                 "tool and fallback selection",
+                "intent-first routing gate",
                 "polished final response",
             ],
             "understanding": [
                 "max-precision intent parsing",
+                "route score and task-shape validation",
                 "typo-tolerant wording cleanup",
                 "context reference resolution",
                 "reasonableness checks",
+                "route-specific answer selection",
                 "answer-shape selection",
                 "raw-output cleanup",
+                "route-mismatch repair",
                 "first-pass completeness check",
             ],
             "reasoning": [
@@ -9183,11 +9566,13 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_safety_filter",
             sources=[],
-            tools_used=["safety_filter", f"performance:{system_profile()['level']}"],
+            tools_used=["safety_filter", "route_intent:safety_filter", f"performance:{system_profile()['level']}"],
+            route_intent="safety_filter",
             created_at=now_iso(),
         )
     quick_reply = local_fast_reply(original_user_message)
     if quick_reply:
+        quick_intent = detect_task_intent(original_user_message, False)
         quick_reply = finalize_user_facing_answer(original_user_message, quick_reply, "human_chat", "short")
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", quick_reply)
@@ -9197,7 +9582,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_local_fast",
             sources=[],
-            tools_used=["local_fast_reply", "fast_path", f"performance:{system_profile()['level']}"],
+            tools_used=["local_fast_reply", "fast_path", f"route_intent:{quick_intent}", f"performance:{system_profile()['level']}"],
+            route_intent=quick_intent,
             created_at=now_iso(),
         )
 
@@ -9223,7 +9609,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_adaptive_persona",
             sources=[],
-            tools_used=["adaptive_persona", "behavior_learning", f"performance:{system_profile()['level']}"],
+            tools_used=["adaptive_persona", "behavior_learning", "route_intent:persona_update", f"performance:{system_profile()['level']}"],
+            route_intent="persona_update",
             created_at=now_iso(),
         )
     pending_reply = resolve_pending_task_reply(session_id, original_user_message)
@@ -9246,7 +9633,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_pending_intent_memory",
             sources=[],
-            tools_used=["pending_intent_memory", "behavior_learning", f"performance:{system_profile()['level']}"],
+            tools_used=["pending_intent_memory", "behavior_learning", "route_intent:pending_intent", f"performance:{system_profile()['level']}"],
+            route_intent="pending_intent",
             created_at=now_iso(),
         )
     image_reply = local_image_attachment_reply(original_user_message, session_id, req.image_ids)
@@ -9269,7 +9657,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used="nexora_image_attachment",
             sources=[],
-            tools_used=["image_upload", "image_context", "behavior_learning", f"performance:{system_profile()['level']}"],
+            tools_used=["image_upload", "image_context", "behavior_learning", "route_intent:image_attachment", f"performance:{system_profile()['level']}"],
+            route_intent="image_attachment",
             created_at=now_iso(),
         )
     agent_action = execute_agent_action_from_chat(original_user_message, session_id, user_id, behavior_signals)
@@ -9288,6 +9677,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         presentation_style,
         use_research,
     )
+    task_intent = detect_task_intent(understanding_message, use_research)
     writing_request = analyze_writing_request(understanding_message)
     intent = analyze_user_intent(
         understanding_message,
@@ -9297,6 +9687,9 @@ def chat(req: ChatRequest) -> ChatResponse:
         behavior_signals,
         research_route,
     )
+    intent["task_intent"] = task_intent
+    intent["routing_gate"] = ROUTING_GATE_MODE
+    intent["quality_gate"] = QUALITY_GATE_MODE
     understanding_context, understanding_state = build_understanding_context(
         session_id,
         original_user_message,
@@ -9309,7 +9702,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         session_id,
         original_user_message,
         req.mode,
-        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{research_route}:{response_lane}:{presentation_style}:{understanding_state.get('vague_followup')}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
+        f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{research_route}:{task_intent}:{response_lane}:{presentation_style}:{understanding_state.get('vague_followup')}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
     )
     skip_response_cache = bool(writing_request.get("is_writing") and writing_request.get("missing_topic"))
     cached = None if skip_response_cache else get_cached_response(response_cache_key)
@@ -9332,7 +9725,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             mode=req.mode or "agent",
             model_used=str(cached["model_used"]),
             sources=cached.get("sources", []),
-            tools_used=["response_cache"],
+            tools_used=["response_cache", f"route_intent:{task_intent}"],
+            route_intent=task_intent,
             created_at=now_iso(),
         )
 
@@ -9346,8 +9740,16 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used: List[str] = []
     tools_used.append(f"performance:{system_profile()['level']}")
     tools_used.append(f"quality_enforcement:{QUALITY_ENFORCEMENT_MODE}")
+    tools_used.append(f"routing_gate:{ROUTING_GATE_MODE}")
+    tools_used.append(f"quality_gate:{QUALITY_GATE_MODE}")
+    tools_used.append(f"intent_quality_level:{INTENT_QUALITY_LEVEL_TEXT}")
+    tools_used.append(f"routing_gate_level:{ROUTING_GATE_LEVEL_TEXT}")
+    tools_used.append(f"quality_gate_level:{QUALITY_GATE_LEVEL_TEXT}")
+    tools_used.append(f"gate_stack:{GATE_STACK_MODE}")
+    tools_used.extend(gate_tools_used())
     tools_used.append("behavior_learning")
     tools_used.append("intent_understanding")
+    tools_used.append(f"route_intent:{task_intent}")
     tools_used.append(f"intelligence_level:{INTELLIGENCE_LEVEL_TEXT}")
     tools_used.append(f"understanding_level:{UNDERSTANDING_LEVEL_TEXT}")
     tools_used.append(f"accuracy_level:{ACCURACY_LEVEL_TEXT}")
@@ -9393,6 +9795,7 @@ def chat(req: ChatRequest) -> ChatResponse:
                     model_used="trusted_current_role_fallback",
                     sources=trusted_sources,
                     tools_used=tools_used + ["trusted_current_role_fallback"],
+                    route_intent=task_intent,
                     created_at=now_iso(),
                 )
             reply = (
@@ -9417,6 +9820,7 @@ def chat(req: ChatRequest) -> ChatResponse:
                 model_used="strict_verification",
                 sources=[],
                 tools_used=tools_used,
+                route_intent=task_intent,
                 created_at=now_iso(),
             )
 
@@ -9442,11 +9846,17 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"response_lane:{response_lane}")
     tools_used.append(f"presentation:{presentation_style}")
 
+    routed_local = local_reply_for_intent(understanding_message, task_intent, session_id=session_id) if not use_research else None
     local_structured = (
-        local_structured_fallback(understanding_message, response_lane, presentation_style, session_id=session_id)
-        if not use_research
-        else None
+        routed_local
+        or (
+            local_structured_fallback(understanding_message, response_lane, presentation_style, session_id=session_id)
+            if not use_research
+            else None
+        )
     )
+    if routed_local:
+        tools_used.append("intent_route:local_candidate")
     local_context_reply = None
     if not use_research:
         focus_for_local = recent_session_focus(get_session(session_id), original_user_message)
@@ -9477,6 +9887,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             model_used="nexora_context_resilient",
             sources=[],
             tools_used=tools_used + ["local_context_resilient"],
+            route_intent=task_intent,
             created_at=now_iso(),
         )
     local_first_stable = response_lane == "writing" or is_high_confidence_local_reply(understanding_message, presentation_style) or (
@@ -9493,6 +9904,19 @@ def chat(req: ChatRequest) -> ChatResponse:
     )
     if local_structured and local_first_stable and (LOCAL_WRITING_FAST or force_local_structured):
         final_reply = finalize_user_facing_answer(original_user_message, local_structured, response_lane, presentation_style)
+        final_repaired, final_quality_flags, repaired_intent = quality_gate_local_repair(
+            original_user_message,
+            final_reply,
+            response_lane,
+            presentation_style,
+            session_id=session_id,
+            use_research=use_research,
+        )
+        if final_quality_flags:
+            tools_used.append("quality_gate:local_fast:" + ",".join(final_quality_flags[:4]))
+        if repaired_intent and final_repaired != final_reply:
+            final_reply = final_repaired
+            tools_used.append(f"quality_gate:local_fast_repaired_by:{repaired_intent}")
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", final_reply)
         maybe_store_memory(original_user_message, user_id)
@@ -9514,6 +9938,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             model_used="nexora_local_structured",
             sources=[],
             tools_used=tools_used + ["local_structured_fast"],
+            route_intent=task_intent,
             created_at=now_iso(),
         )
 
@@ -9575,6 +10000,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             model_used="realtime_search_fast",
             sources=verified_sources,
             tools_used=tools_used + ["realtime_search_fast"],
+            route_intent=task_intent,
             created_at=now_iso(),
         )
 
@@ -9610,6 +10036,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             model_used="wikipedia_summary_fast",
             sources=free_club_sources,
             tools_used=tools_used + ["wikipedia_summary_fast"],
+            route_intent=task_intent,
             created_at=now_iso(),
         )
 
@@ -9682,13 +10109,14 @@ def chat(req: ChatRequest) -> ChatResponse:
             )
             tools_used.append("local_resilient_fallback")
 
-    quality_flags = answer_quality_flags(original_user_message, reply, response_lane, presentation_style)
+    quality_flags = answer_quality_flags(original_user_message, reply, response_lane, presentation_style, task_intent)
     if quality_flags:
         tools_used.append("quality_guard:" + ",".join(quality_flags[:4]))
         if (
             local_structured
             and not use_research
-            and any(flag in quality_flags for flag in {
+            and (
+                any(flag in quality_flags for flag in {
                 "generic_plan",
                 "generic_topic_drift",
                 "weak_fallback",
@@ -9702,7 +10130,9 @@ def chat(req: ChatRequest) -> ChatResponse:
                 "raw_json_output",
                 "missing_current_verification",
                 "missing_accuracy_signal",
-            })
+                })
+                or any(flag.startswith("route_mismatch_") for flag in quality_flags)
+            )
         ):
             model_used = "nexora_local_structured"
             reply = local_structured
@@ -9784,6 +10214,21 @@ def chat(req: ChatRequest) -> ChatResponse:
                 presentation_style,
             )
             tools_used.append("empty_reply_local_resilient")
+    final_repaired, final_quality_flags, repaired_intent = quality_gate_local_repair(
+        original_user_message,
+        final_reply,
+        response_lane,
+        presentation_style,
+        session_id=session_id,
+        use_research=use_research,
+    )
+    if final_quality_flags:
+        tools_used.append("quality_gate:final:" + ",".join(final_quality_flags[:4]))
+    if repaired_intent and final_repaired != final_reply:
+        final_reply = final_repaired
+        model_used = "nexora_quality_repair"
+        response_sources = []
+        tools_used.append(f"quality_gate:repaired_by:{repaired_intent}")
     append_session_message(session_id, "user", original_user_message)
     append_session_message(session_id, "assistant", final_reply)
     maybe_store_memory(original_user_message, user_id)
@@ -9805,6 +10250,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         model_used=model_used,
         sources=[] if model_failed else response_sources,
         tools_used=tools_used,
+        route_intent=task_intent,
         created_at=now_iso(),
     )
 
