@@ -37,13 +37,14 @@ except Exception:
 
 
 APP_NAME = "Nexora Agent"
-APP_VERSION = "8.63.0-full-gate-stack"
+APP_VERSION = "10.02.0-language-routing-max-expanded"
 CAPABILITY_SCALE_MAX = 15.00
 CAPABILITY_SCALE_TEXT = f"{CAPABILITY_SCALE_MAX:.2f}"
 QUALITY_ENFORCEMENT_MODE = "max_precision_guardrails"
 ROUTING_GATE_MODE = "intent_first_max"
 QUALITY_GATE_MODE = "repair_or_fallback"
 GATE_STACK_MODE = "intent_route_quality_stack"
+ROUTING_MATRIX_VERSION = "expanded_360_plus_language_fields_realtime"
 INTENT_QUALITY_LEVEL = 10.00
 INTENT_QUALITY_LEVEL_TEXT = f"{INTENT_QUALITY_LEVEL:.2f}"
 ROUTING_GATE_LEVEL = INTENT_QUALITY_LEVEL
@@ -98,6 +99,380 @@ def gate_levels_payload() -> Dict[str, str]:
 
 def gate_tools_used() -> List[str]:
     return [f"gate:{name}:{level}" for name, level in gate_levels_payload().items()]
+
+
+def routing_matrix_payload() -> Dict[str, Any]:
+    return {
+        "version": ROUTING_MATRIX_VERSION,
+        "intents": [
+            "realtime_search",
+            "realtime_current_fact",
+            "realtime_news",
+            "realtime_weather",
+            "realtime_market",
+            "realtime_product_recommendation",
+            "realtime_sports",
+            "realtime_local_places",
+            "realtime_travel_status",
+            "realtime_events",
+            "realtime_jobs",
+            "realtime_version_release",
+            "realtime_schedule",
+            "realtime_exchange_rate",
+            "realtime_law_policy_update",
+            "realtime_exam_result",
+            "realtime_public_transport",
+            "realtime_outage",
+            "realtime_holiday_calendar",
+            "realtime_movie_showtimes",
+            "realtime_shopping_availability",
+            "realtime_platform_status",
+            "realtime_academic_deadline",
+            "realtime_government_scheme",
+            "realtime_crypto_price",
+            "realtime_github_repo",
+            "realtime_package_version",
+            "realtime_security_advisory",
+            "realtime_academic_paper",
+            "realtime_dataset_lookup",
+            "realtime_earthquake",
+            "realtime_air_quality",
+            "realtime_space_launch",
+            "realtime_public_record",
+            "realtime_fuel_price",
+            "realtime_product_price",
+            "realtime_tax_deadline",
+            "realtime_university_admission",
+            "realtime_food_delivery",
+            "realtime_local_emergency",
+            "calculation",
+            "math_reasoning",
+            "image_generation",
+            "code_or_debug",
+            "bug_triage",
+            "troubleshooting_steps",
+            "system_design",
+            "api_design",
+            "database_query",
+            "cybersecurity_info",
+            "excel_formula",
+            "regex_help",
+            "git_help",
+            "devops_deploy",
+            "test_generation",
+            "log_analysis",
+            "performance_tuning",
+            "architecture_review",
+            "code_review",
+            "ui_ux_feedback",
+            "accessibility_review",
+            "prompt_engineering",
+            "image_prompt",
+            "translation",
+            "language_learning",
+            "language_detection",
+            "transliteration",
+            "romanization",
+            "script_conversion",
+            "word_meaning",
+            "dictionary_definition",
+            "etymology",
+            "synonym_antonym",
+            "idiom_explanation",
+            "proverb_explanation",
+            "vocabulary_builder",
+            "spelling_help",
+            "punctuation_help",
+            "sentence_parsing",
+            "parts_of_speech",
+            "tense_practice",
+            "verb_conjugation",
+            "phrasal_verbs",
+            "collocations",
+            "tone_conversion",
+            "formal_informal_rewrite",
+            "bilingual_explanation",
+            "phrasebook",
+            "conversation_practice",
+            "dialogue_translation",
+            "reading_comprehension",
+            "comprehension_questions",
+            "cloze_test",
+            "dictation_practice",
+            "language_exam_prep",
+            "language_localization",
+            "dialect_rewrite",
+            "subtitle_translation",
+            "phonetics_ipa",
+            "accent_reduction",
+            "language_skill_assessment",
+            "cefr_leveling",
+            "language_curriculum",
+            "grammar_drill",
+            "vocabulary_quiz",
+            "flashcards",
+            "minimal_pairs",
+            "syllable_stress",
+            "word_usage",
+            "sentence_correction",
+            "translation_review",
+            "natural_translation",
+            "literal_translation",
+            "back_translation",
+            "cultural_context",
+            "politeness_register",
+            "multilingual_compare",
+            "essay_correction",
+            "email_rewrite",
+            "language_hindi",
+            "language_english",
+            "language_tamil",
+            "language_telugu",
+            "language_kannada",
+            "language_malayalam",
+            "language_marathi",
+            "language_bengali",
+            "language_gujarati",
+            "language_punjabi",
+            "language_urdu",
+            "language_sanskrit",
+            "language_arabic",
+            "language_french",
+            "language_spanish",
+            "language_german",
+            "language_italian",
+            "language_portuguese",
+            "language_russian",
+            "language_chinese",
+            "language_japanese",
+            "language_korean",
+            "language_turkish",
+            "language_dutch",
+            "language_greek",
+            "language_latin",
+            "language_assamese",
+            "language_odia",
+            "language_nepali",
+            "language_sinhala",
+            "language_thai",
+            "language_vietnamese",
+            "language_indonesian",
+            "language_malay",
+            "language_swahili",
+            "language_hebrew",
+            "language_persian",
+            "language_polish",
+            "language_ukrainian",
+            "language_czech",
+            "language_swedish",
+            "language_norwegian",
+            "language_danish",
+            "language_finnish",
+            "language_hungarian",
+            "language_romanian",
+            "language_albanian",
+            "language_armenian",
+            "language_azerbaijani",
+            "language_basque",
+            "language_bosnian",
+            "language_bulgarian",
+            "language_burmese",
+            "language_catalan",
+            "language_croatian",
+            "language_estonian",
+            "language_filipino",
+            "language_georgian",
+            "language_haitian_creole",
+            "language_hausa",
+            "language_icelandic",
+            "language_irish",
+            "language_javanese",
+            "language_kazakh",
+            "language_khmer",
+            "language_lao",
+            "language_latvian",
+            "language_lithuanian",
+            "language_serbian",
+            "language_slovak",
+            "language_slovenian",
+            "language_somali",
+            "language_welsh",
+            "language_yoruba",
+            "language_zulu",
+            "language_amharic",
+            "language_pashto",
+            "language_kurdish",
+            "language_uzbek",
+            "language_mongolian",
+            "language_maori",
+            "language_quechua",
+            "language_luxembourgish",
+            "language_galician",
+            "language_belarusian",
+            "language_macedonian",
+            "language_maltese",
+            "language_esperanto",
+            "pronunciation_help",
+            "grammar_explanation",
+            "grammar_fix",
+            "rewrite_polish",
+            "text_summary",
+            "key_points",
+            "table_format",
+            "document_review",
+            "contract_explainer",
+            "form_fill_help",
+            "notes_cleanup",
+            "brainstorm_ideas",
+            "decision_advice",
+            "decision_matrix",
+            "checklist",
+            "risk_assessment",
+            "swot_analysis",
+            "okr_planning",
+            "sop_process",
+            "recipe_or_cooking",
+            "meal_plan",
+            "shopping_list",
+            "travel_itinerary",
+            "packing_list",
+            "recommendation",
+            "product_comparison",
+            "health_info",
+            "legal_info",
+            "finance_info",
+            "budget_plan",
+            "expense_analysis",
+            "accounting_help",
+            "tax_help",
+            "audit_checklist",
+            "insurance_guidance",
+            "real_estate_guidance",
+            "procurement_plan",
+            "hr_policy",
+            "operations_plan",
+            "logistics_plan",
+            "supply_chain_plan",
+            "manufacturing_process",
+            "quality_control",
+            "product_management",
+            "project_management",
+            "agile_scrum",
+            "data_science",
+            "machine_learning",
+            "statistics_help",
+            "dashboard_design",
+            "research_methods",
+            "academic_citation",
+            "grant_proposal",
+            "policy_analysis",
+            "journalism_draft",
+            "ngo_program_plan",
+            "event_planning",
+            "hospitality_plan",
+            "retail_plan",
+            "agriculture_guidance",
+            "environmental_science",
+            "sustainability_plan",
+            "civil_engineering",
+            "mechanical_engineering",
+            "electrical_engineering",
+            "electronics_help",
+            "architecture_building",
+            "interior_design",
+            "urban_planning",
+            "medicine_info",
+            "nursing_info",
+            "pharmacy_info",
+            "dentistry_info",
+            "veterinary_info",
+            "psychology_info",
+            "parenting_guidance",
+            "personal_productivity",
+            "sports_coaching",
+            "music_theory",
+            "film_analysis",
+            "game_design",
+            "legal_memo",
+            "case_brief",
+            "compliance_check",
+            "privacy_guidance",
+            "ethics_analysis",
+            "theology_religion",
+            "mathematics_proof",
+            "career_resume",
+            "career_roadmap",
+            "resume_bullets",
+            "cover_letter",
+            "linkedin_profile",
+            "interview_prep",
+            "mock_interview",
+            "presentation_outline",
+            "speech_draft",
+            "debate_prep",
+            "lesson_plan",
+            "rubric_feedback",
+            "research_brief",
+            "essay_draft",
+            "essay_feedback",
+            "book_summary",
+            "poem_analysis",
+            "lab_report",
+            "science_explanation",
+            "history_explanation",
+            "geography_explanation",
+            "economics_explanation",
+            "philosophy_explanation",
+            "meeting_notes",
+            "social_caption",
+            "marketing_copy",
+            "brand_naming",
+            "slogan_tagline",
+            "business_strategy",
+            "market_research",
+            "sales_pitch",
+            "customer_support_reply",
+            "creative_story",
+            "poem_or_original_song",
+            "joke_fun",
+            "emotional_support",
+            "relationship_advice",
+            "habit_plan",
+            "mental_wellness",
+            "negotiation_script",
+            "apology_message",
+            "flashcards",
+            "quiz_generation",
+            "timeline",
+            "homework_help",
+            "exam_answer",
+            "concept_tutoring",
+            "data_analysis",
+            "email_reply",
+            "diagnostic_deficiency",
+            "project_plan",
+            "reminder",
+            "schedule_planning",
+            "workflow_plan",
+            "study_management_plan",
+            "fitness_plan",
+            "file_summary",
+            "study_plan",
+            "study_timetable",
+            "email_draft",
+            "writing_*",
+            "song_recommendation",
+            "comparison",
+            "pros_cons",
+            "youtube_plan",
+            "website_plan",
+            "business_plan",
+            "general_plan",
+            "capability_status",
+            "learning_topic",
+            "chat",
+        ],
+    }
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("NEXORA_DATA_DIR", BASE_DIR / "nexora_data")).expanduser()
@@ -191,6 +566,8 @@ MAX_PERSONA_RULES = 16
 MAX_BEHAVIOR_EVENTS = 40
 RESPONSE_CACHE_TTL = int(os.getenv("NEXORA_RESPONSE_CACHE_TTL", "600"))
 RESPONSE_CACHE_MAX = int(os.getenv("NEXORA_RESPONSE_CACHE_MAX", "180"))
+SEARCH_CACHE_TTL = int(os.getenv("NEXORA_SEARCH_CACHE_TTL", "900"))
+SEARCH_CACHE_MAX = int(os.getenv("NEXORA_SEARCH_CACHE_MAX", "120"))
 LOCAL_WRITING_FAST = os.getenv("NEXORA_LOCAL_WRITING_FAST", "false").strip().lower() not in {"0", "false", "off", "no"}
 PERFORMANCE_LEVEL = os.getenv("NEXORA_PERFORMANCE_LEVEL", "auto").strip().lower()
 IMAGE_PROVIDER = os.getenv("NEXORA_IMAGE_PROVIDER", "pollinations").strip().lower()
@@ -205,8 +582,10 @@ SYSTEM_PROFILE_CACHE: Optional[Dict[str, Any]] = None
 
 HTTP = requests.Session()
 RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
+SEARCH_RESULT_CACHE: Dict[str, Dict[str, Any]] = {}
 POLLINATIONS_LOCK = threading.Lock()
 JSON_WRITE_LOCK = threading.RLock()
+SEARCH_CACHE_LOCK = threading.Lock()
 PROVIDER_COOLDOWNS: Dict[str, float] = {}
 LOG_LEVEL = os.getenv("NEXORA_LOG_LEVEL", "INFO").strip().upper() or "INFO"
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
@@ -301,6 +680,7 @@ class ChatResponse(BaseModel):
     quality_gate_level: str = QUALITY_GATE_LEVEL_TEXT
     gate_stack_mode: str = GATE_STACK_MODE
     gate_levels: Dict[str, str] = Field(default_factory=gate_levels_payload)
+    routing_matrix: Dict[str, Any] = Field(default_factory=routing_matrix_payload)
     intelligence_level: str = INTELLIGENCE_LEVEL_TEXT
     understanding_level: str = UNDERSTANDING_LEVEL_TEXT
     accuracy_level: str = ACCURACY_LEVEL_TEXT
@@ -2104,7 +2484,7 @@ def local_study_management_reply(message: str) -> Optional[str]:
 
 def local_file_summary_reply(message: str, session_id: Optional[str]) -> Optional[str]:
     lower = clean_text(message).lower()
-    if not session_id or not re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) or not re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+    if not session_id or not re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) or not re.search(r"\b(file|pdf|document|upload|uploaded)\b|\bthis\s+(?:file|pdf|document|upload)\b", lower):
         return None
     session = get_session(session_id)
     files = session.get("files", [])
@@ -2127,9 +2507,503 @@ def local_file_summary_reply(message: str, session_id: Optional[str]) -> Optiona
     return "\n".join(lines)
 
 
+def extract_inline_payload(message: str, command_pattern: str = "") -> str:
+    text = clean_text(message)
+    quote_match = re.search(r'"([^"]{8,})"', text)
+    if quote_match:
+        return clean_text(quote_match.group(1))
+    quote_match = re.search(r"'([^']{8,})'", text)
+    if quote_match:
+        return clean_text(quote_match.group(1))
+    if ":" in text:
+        after = clean_text(text.split(":", 1)[1])
+        if len(after.split()) >= 3:
+            return after
+    if command_pattern:
+        payload = re.sub(command_pattern, "", text, flags=re.IGNORECASE).strip(" .,:;-")
+        if len(payload.split()) >= 3:
+            return clean_text(payload)
+    return ""
+
+
+def local_text_summary_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(summarize|summarise|summary|shorten|key points|main points|takeaways)\b", lower):
+        return None
+    if re.search(r"\b(file|pdf|document|upload|uploaded)\b", lower):
+        return None
+    payload = extract_inline_payload(
+        message,
+        r"(?i)^(please\s+)?(summarize|summarise|summary of|shorten|give me|extract|list)\s+(the\s+)?(key points|main points|takeaways|this|text)?\s*",
+    )
+    if not payload or len(payload.split()) < 10:
+        return None
+    result = summarize_text_locally(payload, 5)
+    lines = [
+        "Summary:",
+        result["summary"],
+    ]
+    if result["key_points"]:
+        lines.extend(["", "Key points:"])
+        lines.extend(f"- {point}" for point in result["key_points"][:5])
+    if result["action_items"]:
+        lines.extend(["", "Action items:"])
+        lines.extend(f"- {item}" for item in result["action_items"][:4])
+    return "\n".join(lines)
+
+
+def basic_polish_text(text: str) -> str:
+    cleaned = clean_text(text)
+    replacements = {
+        r"\bi\b": "I",
+        r"\bim\b": "I'm",
+        r"\bdont\b": "don't",
+        r"\bcant\b": "can't",
+        r"\bwont\b": "won't",
+        r"\bdoesnt\b": "doesn't",
+        r"\bdidnt\b": "didn't",
+        r"\bisnt\b": "isn't",
+        r"\barent\b": "aren't",
+        r"\bu\b": "you",
+        r"\bur\b": "your",
+        r"\bpls\b": "please",
+    }
+    for pattern, value in replacements.items():
+        cleaned = re.sub(pattern, value, cleaned, flags=re.IGNORECASE)
+    if cleaned:
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    if cleaned and cleaned[-1] not in ".!?":
+        cleaned += "."
+    return cleaned
+
+
+def local_text_transform_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    is_transform = bool(re.search(
+        r"\b(fix grammar|correct grammar|grammar check|correct this|rewrite|rephrase|polish|make this clearer|improve this sentence|improve this text)\b",
+        lower,
+    ))
+    if not is_transform:
+        return None
+    payload = extract_inline_payload(
+        message,
+        r"(?i)^(please\s+)?(fix grammar|correct grammar|grammar check|correct this|rewrite|rephrase|polish|make this clearer|improve this sentence|improve this text)\s*",
+    )
+    if not payload:
+        return None
+    polished = basic_polish_text(payload)
+    label = "Polished version:" if re.search(r"\b(rewrite|rephrase|polish|clearer|improve)\b", lower) else "Corrected version:"
+    return f"{label}\n{polished}"
+
+
+def local_brainstorm_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(brainstorm|ideas?|suggest names?|give me ideas|topic ideas|content ideas)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    topic = re.sub(r"(?i)\b(brainstorm|ideas?|suggest names?|give me ideas|topic ideas|content ideas)\b\s*(for|about|on)?\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "the project")
+    if not topic or topic.lower() in {"ideas", "idea", "this"}:
+        topic = "the project"
+    return (
+        f"Ideas for {topic.lower()}:\n\n"
+        f"1. Simple beginner version: Make a small, clear version of {topic.lower()} that can be finished quickly.\n"
+        f"2. Useful problem-solver: Focus on one real problem people have with {topic.lower()} and solve only that.\n"
+        f"3. Comparison idea: Compare two ways to do {topic.lower()} and explain which one works better.\n"
+        f"4. Step-by-step guide: Turn {topic.lower()} into a checklist, tutorial, or short explainer.\n"
+        f"5. Creative version: Add a unique style, story, or visual angle so it feels memorable.\n\n"
+        "Best pick:\n"
+        "Choose the idea that is easiest to finish and easiest for someone else to understand."
+    )
+
+
+def local_decision_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(which should i choose|which is better|should i|better option|choose between|decide between)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    topic = re.sub(r"(?i)\b(which should i choose|which is better|should i|better option|choose between|decide between)\b\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "this choice")
+    return (
+        "Decision framework:\n\n"
+        f"For {topic.lower()}, choose the option that wins on three things: usefulness, risk, and effort.\n\n"
+        "How to decide:\n"
+        "1. Usefulness: Which option solves the real problem better?\n"
+        "2. Risk: Which option is less likely to waste time, money, or trust?\n"
+        "3. Effort: Which option can you actually do consistently?\n"
+        "4. Reversibility: If the choice fails, can you change direction easily?\n\n"
+        "Bottom line:\n"
+        "If both options look equal, pick the one with lower risk and faster feedback first."
+    )
+
+
+def local_recipe_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(recipe|cook|make food|ingredients|how to make)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    topic = re.sub(r"(?i)\b(give me|make|create|cook|recipe|ingredients|how to make)\b\s*(a|an|the|for|of)?\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "a simple dish")
+    if not topic or topic.lower() in {"recipe", "cook"}:
+        topic = "a simple dish"
+    if "pasta" in topic.lower():
+        return (
+            "Simple pasta recipe:\n\n"
+            "Ingredients:\n"
+            "Pasta, salt, oil or butter, garlic, onion, tomato sauce or vegetables, and cheese or herbs if available.\n\n"
+            "Steps:\n"
+            "1. Boil water, add salt, and cook the pasta until soft but not mushy.\n"
+            "2. Save a little pasta water, then drain the pasta.\n"
+            "3. Heat oil or butter in a pan and cook garlic, onion, or vegetables.\n"
+            "4. Add tomato sauce or seasoning, then mix in the pasta.\n"
+            "5. Add a little pasta water if it feels dry, then finish with cheese or herbs.\n\n"
+            "Bottom line:\n"
+            "Keep the pasta slightly firm, season the sauce well, and mix everything while hot."
+        )
+    return (
+        f"Simple recipe plan for {topic.lower()}:\n\n"
+        "Ingredients:\n"
+        "Use the main ingredient, salt, basic spices, oil or butter, and onion, tomato, garlic, or herbs if they fit the dish.\n\n"
+        "Steps:\n"
+        "1. Prepare and cut the ingredients first.\n"
+        "2. Heat the pan and cook aromatics or spices gently.\n"
+        "3. Add the main ingredient and cook until done.\n"
+        "4. Taste and adjust salt, spice, or texture.\n"
+        "5. Serve hot with a simple side.\n\n"
+        "Bottom line:\n"
+        "Tell me the exact dish name and ingredients you have, and I can make this into a precise recipe."
+    )
+
+
+def local_travel_itinerary_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(travel plan|trip plan|itinerary|visit|tour plan)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    topic = re.sub(r"(?i)\b(make|create|give me|travel plan|trip plan|itinerary|tour plan)\b\s*(a|an|the|for|to|of)?\s*", " ", topic)
+    topic = re.sub(r"(?i)\b\d+\s*(day|days)\b", " ", topic)
+    topic = re.sub(r"(?i)\btravel\b", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "the trip")
+    return (
+        f"Travel itinerary for {topic.lower()}:\n\n"
+        "Day 1: Arrival and easy exploration.\n"
+        "- Check in, rest, and visit one nearby place.\n"
+        "- Keep the evening light so the trip starts smoothly.\n\n"
+        "Day 2: Main attractions.\n"
+        "- Visit the most important places early.\n"
+        "- Keep food, transport time, and rest breaks in the plan.\n\n"
+        "Day 3: Flexible day.\n"
+        "- Add shopping, local food, photos, or one missed attraction.\n"
+        "- Leave buffer time for travel back.\n\n"
+        "Checklist:\n"
+        "- Confirm travel time, opening hours, tickets, weather, and local transport before going.\n\n"
+        "Bottom line:\n"
+        "For an accurate itinerary, share the city, number of days, budget, and who is travelling."
+    )
+
+
+def local_health_info_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(health|symptom|pain|fever|medicine|doctor|diet|sleep|stress|exercise injury|injury)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    return (
+        "General health guidance:\n\n"
+        f"For {topic.lower()}, treat this as general information, not a diagnosis.\n\n"
+        "Safe steps:\n"
+        "1. Notice the main symptom, how long it has lasted, and what makes it better or worse.\n"
+        "2. Rest, hydrate, and avoid anything that clearly worsens it.\n"
+        "3. Do not take prescription medicine unless a qualified clinician told you to.\n"
+        "4. Seek urgent medical help for severe pain, breathing trouble, fainting, heavy bleeding, chest pain, confusion, or symptoms that worsen quickly.\n\n"
+        "Bottom line:\n"
+        "I can help you understand possibilities and questions to ask, but a doctor or local medical service is the right source for diagnosis or treatment."
+    )
+
+
+def local_legal_info_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(legal|law|contract|rights|court|case|sue|police|agreement|terms)\b", lower):
+        return None
+    if re.search(r"\b(explain|summarize|summarise|review|simplify|read)\b", lower) and re.search(r"\b(contract|agreement|terms|document)\b", lower):
+        payload = extract_inline_payload(message)
+        if not payload:
+            return (
+                "Paste the contract text or the exact clause you want explained.\n\n"
+                "I will then break it into:\n"
+                "1. Plain meaning.\n"
+                "2. Duties or promises.\n"
+                "3. Risks or unclear parts.\n"
+                "4. Questions to ask a qualified lawyer if it matters legally.\n\n"
+                "Bottom line:\n"
+                "Without the actual text, I should not guess what the contract says."
+            )
+    topic = extract_goal_topic(message)
+    return (
+        "General legal information:\n\n"
+        f"For {topic.lower()}, I can explain the issue in plain language, but I cannot replace a qualified lawyer.\n\n"
+        "How to handle it:\n"
+        "1. Identify the country/state because law depends heavily on location.\n"
+        "2. Collect the contract, messages, receipts, dates, and names involved.\n"
+        "3. Separate facts from assumptions before making any claim.\n"
+        "4. For deadlines, court papers, police matters, or money at risk, contact a local legal professional quickly.\n\n"
+        "Bottom line:\n"
+        "The safe answer depends on jurisdiction and exact facts, so use this as preparation, not final legal advice."
+    )
+
+
+def local_finance_info_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(finance|money|budget|saving|investment|invest|stock|crypto|loan|debt|tax|profit)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    return (
+        "General finance guidance:\n\n"
+        f"For {topic.lower()}, focus on risk, time horizon, cash flow, and evidence before deciding.\n\n"
+        "Useful checklist:\n"
+        "1. Emergency money: Keep basic savings before taking big risks.\n"
+        "2. Debt: High-interest debt usually matters before investing.\n"
+        "3. Risk: Never put essential money into something volatile.\n"
+        "4. Evidence: Current prices, taxes, and rules need fresh verification.\n"
+        "5. Fit: A good financial choice depends on your income, goals, age, and responsibilities.\n\n"
+        "Bottom line:\n"
+        "I can help compare options and build a plan, but I should not promise returns or give personalized financial advice as fact."
+    )
+
+
+def local_career_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(resume|cv|job application|cover letter|career|portfolio|linkedin|interview)\b", lower):
+        return None
+    if re.search(r"\b(interview|hr round|technical round|interview questions)\b", lower):
+        return (
+            "Interview prep plan:\n\n"
+            "1. Prepare your intro: who you are, what you know, and what role you want.\n"
+            "2. Review the job description and match each requirement with one example from your work or study.\n"
+            "3. Practise 5 common questions: strengths, weakness, project, challenge, and why this role.\n"
+            "4. Prepare 2-3 questions to ask the interviewer.\n"
+            "5. After each practice answer, make it shorter and more specific.\n\n"
+            "Bottom line:\n"
+            "The best answers use real examples, not memorized lines."
+        )
+    return (
+        "Resume/CV improvement plan:\n\n"
+        "1. Put your strongest role, skill, or project near the top.\n"
+        "2. Use bullet points that show action and result, not only duties.\n"
+        "3. Add skills that match the job, but only if you can explain them.\n"
+        "4. Keep formatting simple and readable.\n"
+        "5. Remove weak filler like 'hardworking' unless you prove it with examples.\n\n"
+        "Bottom line:\n"
+        "A strong resume makes the reader understand your value in the first 10 seconds."
+    )
+
+
+def local_presentation_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(presentation|ppt|slides|slide deck|speech outline)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    topic = re.sub(r"(?i)\b(make|create|give me|presentation|ppt|slides|slide deck|speech outline|outline)\b\s*(about|on|for)?\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "the topic")
+    return (
+        f"Presentation outline for {topic.lower()}:\n\n"
+        "Slide 1: Title and main idea.\n"
+        "Slide 2: Why the topic matters.\n"
+        "Slide 3: Key point 1 with an example.\n"
+        "Slide 4: Key point 2 with a fact, image, or comparison.\n"
+        "Slide 5: Key point 3 with practical impact.\n"
+        "Slide 6: Conclusion and takeaway.\n\n"
+        "Speaking tip:\n"
+        "Use short slide text and explain the details with your voice.\n\n"
+        "Bottom line:\n"
+        "A good presentation has one clear message, not too much text on each slide."
+    )
+
+
+def local_meeting_notes_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(meeting notes|minutes of meeting|mom|action items|meeting summary)\b", lower):
+        return None
+    payload = extract_inline_payload(message)
+    source = payload if payload else "the meeting"
+    result = summarize_text_locally(source, 5) if payload else {"summary": "Add the meeting text after a colon and I will summarize it.", "key_points": [], "action_items": []}
+    lines = [
+        "Meeting notes:",
+        "",
+        "Summary:",
+        result["summary"],
+    ]
+    if result.get("key_points"):
+        lines.extend(["", "Decisions/key points:"])
+        lines.extend(f"- {point}" for point in result["key_points"][:5])
+    if result.get("action_items"):
+        lines.extend(["", "Action items:"])
+        lines.extend(f"- {item}" for item in result["action_items"][:5])
+    return "\n".join(lines)
+
+
+def local_social_caption_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(caption|instagram caption|youtube title|tweet|post caption|social media post)\b", lower):
+        return None
+    topic = extract_goal_topic(message)
+    topic = re.sub(r"(?i)\b(write|make|create|give me|instagram caption|youtube title|tweet|post caption|social media post|caption)\b\s*(for|about|on)?\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "the post")
+    return (
+        f"Caption ideas for {topic.lower()}:\n\n"
+        "1. Short: Small steps, real progress.\n"
+        "2. Clean: Learning, building, improving - one day at a time.\n"
+        "3. Energetic: New idea. New effort. Better result.\n"
+        "4. Thoughtful: Progress looks simple when you keep showing up.\n"
+        "5. Direct: Built this with focus, patience, and a little trial and error.\n\n"
+        "Best pick:\n"
+        "Use the caption that matches the mood of the post, not the longest one."
+    )
+
+
+def local_creative_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if re.search(r"\b(poem|original song|song lyrics|rap|shayari)\b", lower):
+        topic = extract_goal_topic(message)
+        return (
+            f"Original poem about {topic.lower()}:\n\n"
+            "A quiet thought begins to rise,\n"
+            "A little spark behind the eyes.\n"
+            "With every step, the path grows clear,\n"
+            "And doubt becomes a smaller fear.\n\n"
+            "Bottom line:\n"
+            "Tell me the mood you want, and I can make it happier, sadder, romantic, or more powerful."
+        )
+    if re.search(r"\b(story|short story|creative writing|plot|character idea)\b", lower):
+        topic = extract_goal_topic(message)
+        return (
+            f"Story idea for {topic.lower()}:\n\n"
+            "Title: The Small Door\n\n"
+            "Premise:\n"
+            "A student finds a door that appears only when they are about to give up. Behind it is not magic treasure, but a room showing the result of every choice they avoided.\n\n"
+            "Plot:\n"
+            "1. The student faces a problem they keep delaying.\n"
+            "2. The door appears after a difficult day.\n"
+            "3. Inside, they see possible futures shaped by courage, laziness, honesty, and fear.\n"
+            "4. They return and make one small brave choice.\n\n"
+            "Bottom line:\n"
+            "The theme is simple: the future changes when the next action changes."
+        )
+    if re.search(r"\b(joke|funny|make me laugh)\b", lower):
+        return "Quick joke:\n\nWhy did the developer go broke? Because they used up all their cache.\n\nTiny, harmless, and painfully accurate."
+    return None
+
+
+def local_emotional_support_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(stressed|sad|anxious|worried|lonely|angry|overwhelmed|i feel bad|relationship|friend problem|family problem)\b", lower):
+        return None
+    if re.search(r"\b(relationship|crush|friend problem|breakup|family problem)\b", lower):
+        return (
+            "Relationship advice:\n\n"
+            "Start with what you can control: your words, your boundaries, and your timing.\n\n"
+            "What to do:\n"
+            "1. Do not react while emotions are at their peak.\n"
+            "2. Write down what happened, what you feel, and what you need.\n"
+            "3. Talk calmly using specific examples instead of blame.\n"
+            "4. If the other person keeps disrespecting you, protect your peace and step back.\n\n"
+            "Bottom line:\n"
+            "A healthy relationship needs honesty, respect, and space for both people to be heard."
+        )
+    return (
+        "I hear you. When things feel heavy, start smaller than the whole problem.\n\n"
+        "Try this now:\n"
+        "1. Take a slow breath and unclench your shoulders.\n"
+        "2. Name the feeling in one sentence.\n"
+        "3. Pick one small action for the next 10 minutes: water, a walk, a message to someone safe, or writing the problem down.\n\n"
+        "Bottom line:\n"
+        "You do not have to solve everything at once. Start with the next safe step."
+    )
+
+
+def local_flashcards_or_quiz_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(flashcards?|quiz|practice questions|test me|mcq|multiple choice)\b", lower):
+        return None
+    topic = clean_learning_topic(message)
+    topic = re.sub(r"(?i)\b(make|create|give me|flashcards?|quiz|practice questions|test me|mcq|multiple choice)\b\s*(about|on|for)?\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "this topic")
+    if re.search(r"\b(flashcards?)\b", lower):
+        return (
+            f"Flashcards on {topic.lower()}:\n\n"
+            "1. Q: What is the main idea?\n"
+            f"A: The main idea of {topic.lower()} is the core concept you should understand first.\n\n"
+            "2. Q: Why does it matter?\n"
+            "A: It matters because it connects facts with real understanding.\n\n"
+            "3. Q: How should you revise it?\n"
+            "A: Read the concept, close the book, recall it, then check mistakes.\n\n"
+            "4. Q: What is a good exam habit?\n"
+            "A: Use keywords, examples, and a clear final point."
+        )
+    return (
+        f"Practice quiz on {topic.lower()}:\n\n"
+        "1. What is the main idea of this topic?\n"
+        "2. Name two important points about it.\n"
+        "3. Give one example connected to real life.\n"
+        "4. Write a short answer in 3-4 lines.\n"
+        "5. What mistake should students avoid?\n\n"
+        "Answer key:\n"
+        "Send your answers, and I will check them clearly."
+    )
+
+
+def local_timeline_reply(message: str) -> Optional[str]:
+    lower = clean_text(message).lower()
+    if not re.search(r"\b(timeline|chronology|order of events|sequence of events)\b", lower):
+        return None
+    if is_world_war_two_topic(message):
+        return (
+            "World War II timeline:\n\n"
+            "1939: Germany invades Poland; Britain and France declare war.\n"
+            "1940: Germany conquers much of Western Europe; Battle of Britain begins.\n"
+            "1941: Germany invades the Soviet Union; Japan attacks Pearl Harbor; the United States enters the war.\n"
+            "1942: Battle of Midway and major fighting in North Africa and the Soviet Union.\n"
+            "1943: Germany loses at Stalingrad; Allies advance in Italy.\n"
+            "1944: D-Day landings begin the liberation of Western Europe.\n"
+            "1945: Germany surrenders in May; Japan surrenders in September after atomic bombings and Soviet entry into the Pacific war.\n\n"
+            "Bottom line:\n"
+            "The war moved from Axis expansion to Allied counterattack and ended in 1945."
+        )
+    topic = clean_learning_topic(message)
+    topic = re.sub(r"(?i)\b(make|create|give me|timeline|chronology|order of events|sequence of events)\b\s*(about|on|for|of)?\s*", " ", topic)
+    topic = title_case_topic(clean_text(topic).strip(" .,:;-") or "this topic")
+    return (
+        f"Timeline for {topic.lower()}:\n\n"
+        "1. Start: Define the beginning event or cause.\n"
+        "2. Development: Add the major turning points in order.\n"
+        "3. Peak: Mark the most important event or conflict.\n"
+        "4. Result: Explain what changed after it.\n"
+        "5. Impact: End with why it matters.\n\n"
+        "Bottom line:\n"
+        "Share the exact topic and I can make a date-based timeline."
+    )
+
+
 def is_high_confidence_local_reply(message: str, presentation_style: str = "balanced") -> bool:
     lower = clean_text(message).lower()
-    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded)\b|\bthis\s+(?:file|pdf|document|upload)\b", lower):
+        return True
+    if local_text_summary_reply(message) or local_text_transform_reply(message):
+        return True
+    if local_brainstorm_reply(message) or local_decision_reply(message) or local_recipe_reply(message) or local_travel_itinerary_reply(message):
+        return True
+    if (
+        local_health_info_reply(message)
+        or local_legal_info_reply(message)
+        or local_finance_info_reply(message)
+        or local_career_reply(message)
+        or local_presentation_reply(message)
+        or local_meeting_notes_reply(message)
+        or local_social_caption_reply(message)
+        or local_creative_reply(message)
+        or local_emotional_support_reply(message)
+        or local_flashcards_or_quiz_reply(message)
+        or local_timeline_reply(message)
+    ):
         return True
     if re.search(r"\b(who is|who are|who was|who were|what is|what are|explain|define|describe|meaning of|teach me|history of|overview of|background of|timeline of)\b", lower):
         _, card = find_knowledge_card(clean_learning_topic(message))
@@ -2163,39 +3037,649 @@ def detect_task_intent(message: str, use_research: bool = False) -> str:
     if not lower:
         return "empty"
     if use_research:
+        if re.search(r"\b(github repo|github repository|github stars|github issues|latest commit|pull requests?|repo stars)\b|github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", lower):
+            return "realtime_github_repo"
+        if re.search(r"\b(pypi|pip package|python package|npm package|node package|package version|latest package|latest version of package)\b", lower):
+            return "realtime_package_version"
+        if re.search(r"\b(cve|security advisory|zero[- ]day|vulnerability|patch status|exploit|security update)\b", lower):
+            return "realtime_security_advisory"
+        if re.search(r"\b(crypto|cryptocurrency|bitcoin|btc|ethereum|eth|solana|sol|dogecoin|doge|cardano|ada|xrp|bnb)\b", lower) and re.search(r"\b(price|rate|today|current|live|worth)\b", lower):
+            return "realtime_crypto_price"
+        if re.search(r"\b(earthquake|tremor|seismic|aftershock)\b", lower):
+            return "realtime_earthquake"
+        if re.search(r"\b(air quality|aqi|pollution level|pm2\.?5|pm10)\b", lower):
+            return "realtime_air_quality"
+        if re.search(r"\b(space launch|rocket launch|next launch|upcoming launch|launch schedule)\b", lower):
+            return "realtime_space_launch"
+        if re.search(r"\b(fuel price|petrol price|diesel price|gasoline price)\b", lower):
+            return "realtime_fuel_price"
+        if re.search(r"\b(tax deadline|tax due date|itr deadline|filing deadline)\b", lower):
+            return "realtime_tax_deadline"
+        if re.search(r"\b(university admission|college admission|admission result|admission list|counselling schedule|counseling schedule)\b", lower):
+            return "realtime_university_admission"
+        if re.search(r"\b(dataset|kaggle dataset|data portal|download dataset)\b", lower) and re.search(r"\b(latest|current|find|search|where|available)\b", lower):
+            return "realtime_dataset_lookup"
+        if re.search(r"\b(public record|court record|case status|land record|company filing|sec filing)\b", lower):
+            return "realtime_public_record"
+        if re.search(r"\b(weather|temperature|rain|forecast)\b", lower):
+            return "realtime_weather"
+        if re.search(r"\b(score|scores|match|matches|game|games|fixture|fixtures|standings|points table|league table|ipl|nba|nfl|cricket|football|soccer|tennis)\b", lower):
+            return "realtime_sports"
+        if re.search(r"\b(public transport|metro|subway|local bus|bus timetable|train timetable)\b", lower):
+            return "realtime_public_transport"
+        if re.search(r"\b(flights?|trains?|buses|bus|traffic|delay|delayed|cancelled|canceled|pnr|route status|departure|arrival)\b", lower):
+            return "realtime_travel_status"
+        if re.search(r"\b(platform status|server status|service status|is .{1,35} down|outage|downtime|not loading right now)\b", lower):
+            return "realtime_platform_status"
+        if re.search(r"\b(power cut|power outage|internet outage|network outage|service outage|blackout)\b", lower):
+            return "realtime_outage"
+        if re.search(r"\b(showtimes?|movie times?|cinema times?|theater times?)\b", lower):
+            return "realtime_movie_showtimes"
+        if re.search(r"\b(near me|nearby|open now|restaurant|cafe|hotel|hospital|pharmacy|movie times|cinema|store hours)\b", lower):
+            return "realtime_local_places"
+        if re.search(r"\b(events?|concert|conference|festival|meetup|tickets?|happening)\b", lower):
+            return "realtime_events"
+        if re.search(r"\b(job openings?|hiring|vacancy|vacancies|internship|walk[- ]?in)\b", lower):
+            return "realtime_jobs"
+        if re.search(r"\b(exam result|results? out|board result|admit card|hall ticket|answer key|cutoff|cut[- ]?off)\b", lower):
+            return "realtime_exam_result"
+        if re.search(r"\b(scholarship|application deadline|last date|admission deadline|registration deadline)\b", lower):
+            return "realtime_academic_deadline"
+        if re.search(r"\b(holiday|bank holiday|public holiday|school holiday|calendar date)\b", lower):
+            return "realtime_holiday_calendar"
+        if re.search(r"\b(government scheme|govt scheme|yojana|subsidy|benefit scheme|official portal)\b", lower):
+            return "realtime_government_scheme"
+        if re.search(r"\b(new law|latest law|current law|new rule|latest rule|regulation update|policy update|guidelines? updated)\b", lower):
+            return "realtime_law_policy_update"
+        if re.search(r"\b(exchange rate|currency rate|usd to|inr to|eur to|gbp to)\b", lower):
+            return "realtime_exchange_rate"
+        if re.search(r"\b(price|cost|deal|discount)\b", lower) and re.search(r"\b(phone|laptop|tablet|gpu|cpu|camera|headphones|earbuds|car|bike|product|iphone|android|macbook|playstation|xbox)\b", lower):
+            return "realtime_product_price"
+        if re.search(r"\b(stock|share|market|sensex|nifty|nasdaq|dow|s&p|inflation|rupee|dollar|stock price|share price|market price)\b", lower):
+            return "realtime_market"
+        if re.search(
+            r"\b(latest|current|new|newest|updated|released)\b.{0,55}\b(version|model|specs?|release|download|phone|iphone|android|ios|windows|app)\b"
+            r"|\b(version|model|specs?|release|download|phone|iphone|android|ios|windows|app)\b.{0,55}\b(latest|current|newest|updated|released)\b"
+            r"|\b(release date|available now|availability)\b",
+            lower,
+        ):
+            return "realtime_version_release"
+        if re.search(r"\b(in stock|out of stock|available near me|store availability|where to buy)\b", lower):
+            return "realtime_shopping_availability"
+        if re.search(r"\b(best|top|recommend|which should i buy|buy|purchase|worth it|review)\b", lower):
+            return "realtime_product_recommendation"
+        if re.search(r"\b(schedule|timetable|calendar|when is|date for|exam date|result date)\b", lower):
+            return "realtime_schedule"
+        if re.search(r"\b(news|latest|recent|today|right now|current conflict|ongoing war|election)\b", lower):
+            return "realtime_news"
+        if re.search(r"\b(current|ceo|president|prime minister|pm of|who is|who are|verify|fact[- ]?check)\b", lower):
+            return "realtime_current_fact"
         return "realtime_search"
     if re.fullmatch(
         r"(?:what is|calculate|solve)?\s*-?\d+(?:\.\d+)?\s*[+\-*/x]\s*-?\d+(?:\.\d+)?\??",
         lower,
     ):
         return "calculation"
+    if re.search(r"\b(solve|calculate|math|equation|percentage|percent|ratio|average|profit and loss|speed|distance)\b", lower):
+        return "math_reasoning"
     if local_deficiency_diagnosis_reply(message):
         return "diagnostic_deficiency"
     if re.search(r"\b(create|generate|make|draw|give me)\b", lower) and re.search(r"\b(image|picture|photo|art|poster|logo|wallpaper|thumbnail|banner)\b", lower):
         return "image_generation"
-    if re.search(r"\b(fix|debug|error|bug|traceback|issue|not working|backend|frontend|api|html|css|javascript|python|code)\b", lower):
+    if re.search(r"\b(detect language|what language is this|identify language|language detection)\b", lower):
+        return "language_detection"
+    if re.search(r"\b(transliterate|transliteration|write .* in english letters|convert .* to english letters)\b", lower):
+        return "transliteration"
+    if re.search(r"\b(romanize|romanization|romaji|pinyin)\b", lower):
+        return "romanization"
+    if re.search(r"\b(script conversion|convert script|devanagari|latin script|arabic script|tamil script|telugu script|kannada script|malayalam script)\b", lower):
+        return "script_conversion"
+    if re.search(r"\b(conversation practice|speaking practice|practice dialogue|roleplay in)\b", lower):
+        return "conversation_practice"
+    if re.search(r"\b(dialogue translation|translate dialogue|conversation translation)\b", lower):
+        return "dialogue_translation"
+    if re.search(r"\b(check translation|review translation|is this translation accurate|translation accuracy|fix translation)\b", lower):
+        return "translation_review"
+    if re.search(r"\b(natural translation|translate naturally|make the translation natural|sound natural in)\b", lower):
+        return "natural_translation"
+    if re.search(r"\b(literal translation|word for word translation|translate word by word)\b", lower):
+        return "literal_translation"
+    if re.search(r"\b(back translation|translate it back|back-translate)\b", lower):
+        return "back_translation"
+    if re.search(r"\b(cultural context|culture note|cultural meaning|does this sound rude|rude or polite)\b", lower):
+        return "cultural_context"
+    if re.search(r"\b(politeness register|register|honorific|honorifics|formal register|casual register)\b", lower):
+        return "politeness_register"
+    translation_language_pattern = (
+        r"hindi|english|tamil|telugu|kannada|malayalam|marathi|bengali|bangla|gujarati|punjabi|urdu|sanskrit|"
+        r"arabic|french|spanish|german|italian|portuguese|russian|chinese|mandarin|japanese|korean|turkish|dutch|"
+        r"greek|latin|assamese|odia|oriya|nepali|sinhala|thai|vietnamese|indonesian|malay|swahili|hebrew|persian|farsi|"
+        r"polish|ukrainian|czech|swedish|norwegian|danish|finnish|hungarian|romanian|albanian|armenian|azerbaijani|"
+        r"basque|bosnian|bulgarian|burmese|myanmar|catalan|croatian|estonian|filipino|tagalog|georgian|haitian creole|"
+        r"hausa|icelandic|irish|javanese|kazakh|khmer|lao|latvian|lithuanian|serbian|slovak|slovenian|somali|welsh|"
+        r"yoruba|zulu|amharic|pashto|kurdish|uzbek|mongolian|maori|quechua|luxembourgish|galician|belarusian|macedonian|"
+        r"maltese|esperanto"
+    )
+    if re.search(
+        rf"\b(translate|translation|convert this to|convert to|say .{{0,80}} in|how to say .{{0,80}} in|to (?:{translation_language_pattern})|in (?:{translation_language_pattern}))\b",
+        lower,
+    ):
+        return "translation"
+    if re.search(r"\b(ipa|phonetic transcription|phonetics|phoneme|phonology)\b", lower):
+        return "phonetics_ipa"
+    if re.search(r"\b(pronounce|pronunciation|how to say|accent practice)\b", lower):
+        return "pronunciation_help"
+    if re.search(r"\b(accent reduction|speak like|fluency practice|intonation practice)\b", lower):
+        return "accent_reduction"
+    if re.search(r"\b(language level|level test|placement test|skill assessment|assess my language|fluency level)\b", lower):
+        return "language_skill_assessment"
+    if re.search(r"\b(cefr|a1|a2|b1|b2|c1|c2)\b", lower) and re.search(r"\b(language|english|french|spanish|german|speaking|writing|reading|listening)\b", lower):
+        return "cefr_leveling"
+    if re.search(r"\b(language roadmap|language curriculum|study plan for .* language|learn .* in .* days|learn .* in .* months)\b", lower):
+        return "language_curriculum"
+    if re.search(r"\b(grammar drill|grammar exercise|grammar practice|practice grammar)\b", lower):
+        return "grammar_drill"
+    if re.search(r"\b(vocabulary quiz|vocab quiz|word quiz|quiz me on words)\b", lower):
+        return "vocabulary_quiz"
+    if re.search(r"\b(flashcard|flashcards|anki card|anki cards)\b", lower):
+        return "flashcards"
+    if re.search(r"\b(minimal pair|minimal pairs|sound pairs)\b", lower):
+        return "minimal_pairs"
+    if re.search(r"\b(syllable stress|word stress|stress pattern|stressed syllable)\b", lower):
+        return "syllable_stress"
+    if re.search(r"\b(word usage|usage of|how to use .* word|use this word)\b", lower):
+        return "word_usage"
+    if re.search(r"\b(sentence correction|correct sentence|fix sentence|is this sentence correct)\b", lower):
+        return "sentence_correction"
+    if re.search(r"\b(cultural context|culture note|cultural meaning|does this sound rude|rude or polite)\b", lower):
+        return "cultural_context"
+    if re.search(r"\b(politeness register|register|honorific|honorifics|formal register|casual register)\b", lower):
+        return "politeness_register"
+    if re.search(r"\b(compare languages|difference between .* and .* language|multilingual comparison)\b", lower):
+        return "multilingual_compare"
+    if re.search(r"\b(essay correction|correct my essay|essay feedback|improve my essay)\b", lower):
+        return "essay_correction"
+    if re.search(r"\b(email rewrite|rewrite my email|professional email|formal email)\b", lower):
+        return "email_rewrite"
+    if re.search(r"\b(grammar rule|explain grammar|tense|parts of speech|sentence structure)\b", lower):
+        return "grammar_explanation"
+    if re.search(r"\b(meaning of|word meaning|what does .* mean|dictionary definition|define this word)\b", lower):
+        return "word_meaning"
+    if re.search(r"\b(dictionary|definition)\b", lower) and re.search(r"\b(word|term|phrase)\b", lower):
+        return "dictionary_definition"
+    if re.search(r"\b(etymology|word origin|origin of the word)\b", lower):
+        return "etymology"
+    if re.search(r"\b(synonym|synonyms|antonym|antonyms|similar words|opposite words)\b", lower):
+        return "synonym_antonym"
+    if re.search(r"\b(idiom|idioms|figure of speech)\b", lower):
+        return "idiom_explanation"
+    if re.search(r"\b(proverb|saying|moral saying)\b", lower):
+        return "proverb_explanation"
+    if re.search(r"\b(vocabulary|vocab|learn words|word list|new words)\b", lower):
+        return "vocabulary_builder"
+    if re.search(r"\b(spelling|spell check|how to spell|misspelled)\b", lower):
+        return "spelling_help"
+    if re.search(r"\b(punctuation|comma|semicolon|colon|apostrophe|quotation marks)\b", lower):
+        return "punctuation_help"
+    if re.search(r"\b(parse this sentence|sentence parsing|parse sentence|clause analysis)\b", lower):
+        return "sentence_parsing"
+    if re.search(r"\b(parts of speech|noun|pronoun|verb|adjective|adverb|preposition|conjunction)\b", lower):
+        return "parts_of_speech"
+    if re.search(r"\b(tense practice|tenses|present perfect|past perfect|future tense|tense exercise)\b", lower):
+        return "tense_practice"
+    if re.search(r"\b(conjugate|verb conjugation|conjugation)\b", lower):
+        return "verb_conjugation"
+    if re.search(r"\b(phrasal verb|phrasal verbs)\b", lower):
+        return "phrasal_verbs"
+    if re.search(r"\b(collocation|collocations|natural phrase|word combination)\b", lower):
+        return "collocations"
+    if re.search(r"\b(make it formal|make it informal|formal tone|informal tone|polite tone|friendly tone)\b", lower):
+        return "formal_informal_rewrite"
+    if re.search(r"\b(change tone|tone conversion|make it polite|make it professional|make it casual)\b", lower):
+        return "tone_conversion"
+    if re.search(r"\b(bilingual|explain in both|english and hindi|english and tamil|dual language)\b", lower):
+        return "bilingual_explanation"
+    if re.search(r"\b(phrasebook|travel phrases|common phrases|useful phrases)\b", lower):
+        return "phrasebook"
+    if re.search(r"\b(reading comprehension|comprehension passage|read the passage)\b", lower):
+        return "reading_comprehension"
+    if re.search(r"\b(comprehension questions|questions from passage|make questions from passage)\b", lower):
+        return "comprehension_questions"
+    if re.search(r"\b(cloze test|fill in the blanks|fill blanks)\b", lower):
+        return "cloze_test"
+    if re.search(r"\b(dictation|listening practice|dictation practice)\b", lower):
+        return "dictation_practice"
+    if re.search(r"\b(ielts|toefl|duolingo english test|cambridge english|language exam)\b", lower):
+        return "language_exam_prep"
+    if re.search(r"\b(localize|localise|localization|localisation|adapt for audience)\b", lower):
+        return "language_localization"
+    if re.search(r"\b(dialect|slang|british english|american english|indian english|australian english)\b", lower):
+        return "dialect_rewrite"
+    if re.search(r"\b(subtitle|subtitles|srt|caption translation)\b", lower):
+        return "subtitle_translation"
+    language_patterns = [
+        ("language_hindi", r"\b(hindi|हिंदी)\b"),
+        ("language_english", r"\b(english|अंग्रेजी)\b"),
+        ("language_tamil", r"\b(tamil|தமிழ்)\b"),
+        ("language_telugu", r"\b(telugu|తెలుగు)\b"),
+        ("language_kannada", r"\b(kannada|ಕನ್ನಡ)\b"),
+        ("language_malayalam", r"\b(malayalam|മലയാളം)\b"),
+        ("language_marathi", r"\b(marathi|मराठी)\b"),
+        ("language_bengali", r"\b(bengali|bangla|বাংলা)\b"),
+        ("language_gujarati", r"\b(gujarati|ગુજરાતી)\b"),
+        ("language_punjabi", r"\b(punjabi|ਪੰਜਾਬੀ)\b"),
+        ("language_urdu", r"\b(urdu|اردو)\b"),
+        ("language_sanskrit", r"\b(sanskrit|संस्कृत)\b"),
+        ("language_arabic", r"\b(arabic|العربية)\b"),
+        ("language_french", r"\b(french|français)\b"),
+        ("language_spanish", r"\b(spanish|español)\b"),
+        ("language_german", r"\b(german|deutsch)\b"),
+        ("language_italian", r"\b(italian|italiano)\b"),
+        ("language_portuguese", r"\b(portuguese|português)\b"),
+        ("language_russian", r"\b(russian|русский)\b"),
+        ("language_chinese", r"\b(chinese|mandarin|中文|汉语)\b"),
+        ("language_japanese", r"\b(japanese|日本語)\b"),
+        ("language_korean", r"\b(korean|한국어)\b"),
+        ("language_turkish", r"\b(turkish|türkçe)\b"),
+        ("language_dutch", r"\b(dutch|nederlands)\b"),
+        ("language_greek", r"\b(greek|ελληνικά)\b"),
+        ("language_latin", r"\b(latin)\b"),
+        ("language_assamese", r"\b(assamese|অসমীয়া)\b"),
+        ("language_odia", r"\b(odia|oriya|ଓଡ଼ିଆ)\b"),
+        ("language_nepali", r"\b(nepali|नेपाली)\b"),
+        ("language_sinhala", r"\b(sinhala|sinhalese|සිංහල)\b"),
+        ("language_thai", r"\b(thai|ภาษาไทย)\b"),
+        ("language_vietnamese", r"\b(vietnamese|tiếng việt)\b"),
+        ("language_indonesian", r"\b(indonesian|bahasa indonesia)\b"),
+        ("language_malay", r"\b(malay|bahasa melayu)\b"),
+        ("language_swahili", r"\b(swahili|kiswahili)\b"),
+        ("language_hebrew", r"\b(hebrew|עברית)\b"),
+        ("language_persian", r"\b(persian|farsi|فارسی)\b"),
+        ("language_polish", r"\b(polish|polski)\b"),
+        ("language_ukrainian", r"\b(ukrainian|українська)\b"),
+        ("language_czech", r"\b(czech|čeština)\b"),
+        ("language_swedish", r"\b(swedish|svenska)\b"),
+        ("language_norwegian", r"\b(norwegian|norsk)\b"),
+        ("language_danish", r"\b(danish|dansk)\b"),
+        ("language_finnish", r"\b(finnish|suomi)\b"),
+        ("language_hungarian", r"\b(hungarian|magyar)\b"),
+        ("language_romanian", r"\b(romanian|română)\b"),
+        ("language_albanian", r"\b(albanian|shqip)\b"),
+        ("language_armenian", r"\b(armenian|հայերեն)\b"),
+        ("language_azerbaijani", r"\b(azerbaijani|azeri|azərbaycan)\b"),
+        ("language_basque", r"\b(basque|euskara)\b"),
+        ("language_bosnian", r"\b(bosnian|bosanski)\b"),
+        ("language_bulgarian", r"\b(bulgarian|български)\b"),
+        ("language_burmese", r"\b(burmese|myanmar|မြန်မာ)\b"),
+        ("language_catalan", r"\b(catalan|català)\b"),
+        ("language_croatian", r"\b(croatian|hrvatski)\b"),
+        ("language_estonian", r"\b(estonian|eesti)\b"),
+        ("language_filipino", r"\b(filipino|tagalog)\b"),
+        ("language_georgian", r"\b(georgian|ქართული)\b"),
+        ("language_haitian_creole", r"\b(haitian creole|kreyòl)\b"),
+        ("language_hausa", r"\b(hausa)\b"),
+        ("language_icelandic", r"\b(icelandic|íslenska)\b"),
+        ("language_irish", r"\b(irish|gaeilge)\b"),
+        ("language_javanese", r"\b(javanese|jawa)\b"),
+        ("language_kazakh", r"\b(kazakh|қазақ)\b"),
+        ("language_khmer", r"\b(khmer|cambodian|ខ្មែរ)\b"),
+        ("language_lao", r"\b(lao|laotian|ລາວ)\b"),
+        ("language_latvian", r"\b(latvian|latviešu)\b"),
+        ("language_lithuanian", r"\b(lithuanian|lietuvių)\b"),
+        ("language_serbian", r"\b(serbian|српски|srpski)\b"),
+        ("language_slovak", r"\b(slovak|slovenčina)\b"),
+        ("language_slovenian", r"\b(slovenian|slovene|slovenščina)\b"),
+        ("language_somali", r"\b(somali|soomaali)\b"),
+        ("language_welsh", r"\b(welsh|cymraeg)\b"),
+        ("language_yoruba", r"\b(yoruba|yorùbá)\b"),
+        ("language_zulu", r"\b(zulu|isizulu)\b"),
+        ("language_amharic", r"\b(amharic|አማርኛ)\b"),
+        ("language_pashto", r"\b(pashto|پښتو)\b"),
+        ("language_kurdish", r"\b(kurdish|kurmanji|sorani)\b"),
+        ("language_uzbek", r"\b(uzbek|oʻzbek|o'zbek)\b"),
+        ("language_mongolian", r"\b(mongolian|монгол)\b"),
+        ("language_maori", r"\b(maori|māori)\b"),
+        ("language_quechua", r"\b(quechua|runa simi)\b"),
+        ("language_luxembourgish", r"\b(luxembourgish|lëtzebuergesch)\b"),
+        ("language_galician", r"\b(galician|galego)\b"),
+        ("language_belarusian", r"\b(belarusian|беларуская)\b"),
+        ("language_macedonian", r"\b(macedonian|македонски)\b"),
+        ("language_maltese", r"\b(maltese|malti)\b"),
+        ("language_esperanto", r"\b(esperanto)\b"),
+    ]
+    if re.search(r"\b(learn|practice|teach me|grammar|vocabulary|phrases|speaking|writing|reading)\b", lower):
+        for route_name, pattern in language_patterns:
+            if re.search(pattern, lower):
+                return route_name
+    if re.search(r"\b(language learning|learn a language|practice language|language practice)\b", lower):
+        return "language_learning"
+    if re.search(r"\b(fix grammar|correct grammar|grammar check|correct this|rewrite|rephrase|polish|make this clearer|improve this sentence|improve this text)\b", lower):
+        return "grammar_fix" if re.search(r"\b(grammar|correct)\b", lower) else "rewrite_polish"
+    if re.search(r"\b(summarize|summarise|summary|shorten|key points|main points|takeaways)\b", lower) and not re.search(r"\b(file|pdf|document|upload|uploaded)\b", lower):
+        return "key_points" if re.search(r"\b(key points|main points|takeaways)\b", lower) else "text_summary"
+    if re.search(r"\b(make|create|format|put|show)\b.{0,40}\b(table|tabular|columns)\b|\btable format\b", lower):
+        return "table_format"
+    if re.search(r"\b(excel formula|spreadsheet formula|google sheets formula|vlookup|xlookup|pivot table)\b", lower):
+        return "excel_formula"
+    if re.search(r"\b(regex|regular expression|pattern match)\b", lower):
+        return "regex_help"
+    if re.search(r"\b(git|github)\b", lower) and re.search(r"\b(commit|branch|merge|rebase|pull request|push|clone|conflict)\b", lower):
+        return "git_help"
+    if re.search(r"\b(deploy|deployment|docker|kubernetes|vercel|render|netlify|aws|azure|gcp|ci/cd|cicd)\b", lower):
+        return "devops_deploy"
+    if re.search(r"\b(unit test|tests?|test cases?|pytest|jest|vitest|playwright test)\b", lower):
+        return "test_generation"
+    if re.search(r"\b(log analysis|analyze logs|error logs|server logs)\b", lower):
+        return "log_analysis"
+    if re.search(r"\b(performance|optimize|optimise|slow|latency|memory leak|speed up)\b", lower) and re.search(r"\b(code|app|website|api|backend|frontend|query|database)\b", lower):
+        return "performance_tuning"
+    if re.search(r"\b(review this code|code review|review my code)\b", lower):
+        return "code_review"
+    if re.search(r"\b(architecture review|review architecture|system architecture)\b", lower):
+        return "architecture_review"
+    if re.search(r"\b(ui|ux|user interface|user experience|design feedback|layout feedback)\b", lower):
+        return "ui_ux_feedback"
+    if re.search(r"\b(accessibility|a11y|screen reader|wcag|contrast ratio)\b", lower):
+        return "accessibility_review"
+    if re.search(r"\b(image prompt|prompt for image|stable diffusion prompt|midjourney prompt)\b", lower):
+        return "image_prompt"
+    if re.search(r"\b(prompt|prompt engineering|system prompt|improve my prompt)\b", lower):
+        return "prompt_engineering"
+    if re.search(r"\b(contract|agreement|terms|clause|legal document)\b", lower) and re.search(r"\b(explain|review|summarize|simplify|check|what does)\b", lower):
+        return "contract_explainer"
+    if re.search(r"\b(document|pdf|text|article|essay|report)\b", lower) and re.search(r"\b(review|summarize|analyse|analyze|extract|explain)\b", lower):
+        return "document_review"
+    if re.search(r"\b(fill|complete|help with)\b.{0,40}\b(form|application form|template)\b", lower):
+        return "form_fill_help"
+    if re.search(r"\b(clean up|organize|organise|format)\b.{0,40}\b(notes|class notes|rough notes)\b", lower):
+        return "notes_cleanup"
+    if re.search(r"\b(system design|architecture|scalable design|design a system)\b", lower):
+        return "system_design"
+    if re.search(r"\b(api design|rest api|endpoint design|openapi|webhook)\b", lower):
+        return "api_design"
+    if re.search(r"\b(sql|database|schema|query|indexing|postgres|mysql|mongodb)\b", lower):
+        return "database_query"
+    if re.search(r"\b(cybersecurity|security risk|vulnerability|phishing|malware|xss|csrf|sql injection)\b", lower):
+        return "cybersecurity_info"
+    if re.search(r"\b(debug|bug|traceback|stack trace|error log|exception)\b", lower):
+        return "bug_triage"
+    if re.search(r"\b(not working|won't work|doesn't work|broken|issue|problem|fix this)\b", lower):
+        return "troubleshooting_steps"
+    if re.search(r"\b(fix|debug|error|bug|traceback|issue|not working)\b", lower) and re.search(r"\b(code|backend|frontend|api|html|css|javascript|python|server|app|website|function|script)\b", lower):
         return "code_or_debug"
+    if re.search(r"\b(backend|frontend|api|html|css|javascript|python|code|github|deploy)\b", lower):
+        return "code_or_debug"
+    if re.search(r"\b(meeting notes|minutes of meeting|mom|action items|meeting summary)\b", lower):
+        return "meeting_notes"
+    if re.search(r"\b(presentation|ppt|slides|slide deck|speech outline)\b", lower):
+        return "presentation_outline"
+    if re.search(r"\b(essay feedback|review my essay|improve my essay|grade my essay)\b", lower):
+        return "essay_feedback"
+    if re.search(r"\b(essay|paragraph writing|composition)\b", lower) and re.search(r"\b(write|draft|make|create)\b", lower):
+        return "essay_draft"
+    if re.search(r"\b(book summary|summarize book|chapter summary|novel summary)\b", lower):
+        return "book_summary"
+    if re.search(r"\b(poem analysis|analyze poem|poetry analysis)\b", lower):
+        return "poem_analysis"
+    if re.search(r"\b(lab report|practical report|experiment report)\b", lower):
+        return "lab_report"
+    if re.search(r"\b(physics|chemistry|biology|science concept|scientific explanation)\b", lower):
+        return "science_explanation"
+    if re.search(r"\b(history|ww1|ww2|world war|ancient|medieval|modern history)\b", lower):
+        return "history_explanation"
+    if re.search(r"\b(geography|map work|climate zones|landforms|rivers)\b", lower):
+        return "geography_explanation"
+    if re.search(r"\b(economics|demand and supply|inflation meaning|gdp|market economy)\b", lower):
+        return "economics_explanation"
+    if re.search(r"\b(philosophy|ethics|logic|stoicism|existentialism)\b", lower):
+        return "philosophy_explanation"
+    if re.search(r"\b(speech|welcome speech|anchoring script|talk script)\b", lower):
+        return "speech_draft"
+    if re.search(r"\b(debate|argument for|argument against|motion)\b", lower):
+        return "debate_prep"
+    if re.search(r"\b(lesson plan|teaching plan|class activity)\b", lower):
+        return "lesson_plan"
+    if re.search(r"\b(rubric|grade this|feedback on|mark this|evaluate this)\b", lower):
+        return "rubric_feedback"
+    if re.search(r"\b(research brief|briefing note|background research|source brief)\b", lower):
+        return "research_brief"
+    if re.search(r"\b(career roadmap|career path|how to become|roadmap to become)\b", lower):
+        return "career_roadmap"
+    if re.search(r"\b(resume bullet|resume bullets|achievement bullet|cv bullet)\b", lower):
+        return "resume_bullets"
+    if re.search(r"\b(cover letter|application letter for job)\b", lower):
+        return "cover_letter"
+    if re.search(r"\b(linkedin profile|linkedin headline|linkedin about)\b", lower):
+        return "linkedin_profile"
+    if re.search(r"\b(mock interview|interview practice|simulate interview)\b", lower):
+        return "mock_interview"
+    if re.search(r"\b(resume|cv|job application|cover letter|career|portfolio|linkedin)\b", lower):
+        return "career_resume"
+    if re.search(r"\b(interview|hr round|technical round|interview questions)\b", lower):
+        return "interview_prep"
+    if re.search(r"\b(caption|instagram caption|youtube title|tweet|post caption|social media post)\b", lower):
+        return "social_caption"
+    if re.search(r"\b(brand name|name my brand|business name|startup name)\b", lower):
+        return "brand_naming"
+    if re.search(r"\b(slogan|tagline|catchphrase)\b", lower):
+        return "slogan_tagline"
+    if re.search(r"\b(business strategy|growth strategy|go-to-market|go to market)\b", lower):
+        return "business_strategy"
+    if re.search(r"\b(market research|competitor research|customer research)\b", lower):
+        return "market_research"
+    if re.search(r"\b(sales pitch|pitch email|elevator pitch)\b", lower):
+        return "sales_pitch"
+    if re.search(r"\b(customer support|support reply|reply to customer|complaint response)\b", lower):
+        return "customer_support_reply"
+    if re.search(r"\b(ad copy|sales copy|landing page copy|marketing copy|product description)\b", lower):
+        return "marketing_copy"
+    if re.search(r"\b(poem|original song|song lyrics|rap|shayari)\b", lower):
+        return "poem_or_original_song"
+    if re.search(r"\b(story|short story|creative writing|plot|character idea)\b", lower):
+        return "creative_story"
+    if re.search(r"\b(joke|funny|make me laugh)\b", lower):
+        return "joke_fun"
+    if re.search(r"\b(habit|routine|build discipline|daily habit|break a habit)\b", lower):
+        return "habit_plan"
+    if re.search(r"\b(mental wellness|mental health plan|calm down|burnout|self care)\b", lower):
+        return "mental_wellness"
+    if re.search(r"\b(stressed|sad|anxious|worried|lonely|angry|overwhelmed|i feel bad)\b", lower):
+        return "emotional_support"
+    if re.search(r"\b(relationship|crush|friend problem|breakup|family problem)\b", lower):
+        return "relationship_advice"
+    if re.search(r"\b(negotiate|negotiation|ask for raise|bargain|counter offer)\b", lower):
+        return "negotiation_script"
+    if re.search(r"\b(apology|say sorry|apologize|apologise)\b", lower):
+        return "apology_message"
+    if re.search(r"\b(flashcards?|quiz|practice questions|test me|mcq|multiple choice)\b", lower):
+        return "flashcards" if re.search(r"\bflashcards?\b", lower) else "quiz_generation"
+    if re.search(r"\b(timeline|chronology|order of events|sequence of events)\b", lower):
+        return "timeline"
+    if re.search(r"\b(study timetable|revision timetable|exam timetable plan)\b", lower):
+        return "study_timetable"
+    if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
+        return "study_plan"
+    if re.search(r"\b(homework|assignment|exam answer|answer this question|question answer|class \d+|grade \d+)\b", lower):
+        return "exam_answer" if re.search(r"\b(exam answer|answer this question|question answer)\b", lower) else "homework_help"
+    if re.search(r"\b(medical|medicine|diagnosis|clinical|patient|disease|treatment plan)\b", lower):
+        return "medicine_info"
+    if re.search(r"\b(nursing|patient care plan|care plan|vital signs)\b", lower):
+        return "nursing_info"
+    if re.search(r"\b(pharmacy|drug interaction|dosage form|medication counseling)\b", lower):
+        return "pharmacy_info"
+    if re.search(r"\b(dental|dentistry|tooth|teeth|oral hygiene|cavity)\b", lower):
+        return "dentistry_info"
+    if re.search(r"\b(veterinary|pet health|animal health|dog health|cat health)\b", lower):
+        return "veterinary_info"
+    if re.search(r"\b(psychology|cognitive behavioral|cbt|therapy plan|behavior analysis)\b", lower):
+        return "psychology_info"
+    if re.search(r"\b(parenting|child behavior|teen problem|study habit for child)\b", lower):
+        return "parenting_guidance"
+    if re.search(r"\b(productivity|time management|focus plan|deep work|procrastination)\b", lower):
+        return "personal_productivity"
+    if re.search(r"\b(sports coaching|training drill|football training|cricket practice|basketball drill)\b", lower):
+        return "sports_coaching"
+    if re.search(r"\b(music theory|chord progression|scale practice|melody writing)\b", lower):
+        return "music_theory"
+    if re.search(r"\b(film analysis|movie analysis|cinematography|screenplay analysis)\b", lower):
+        return "film_analysis"
+    if re.search(r"\b(game design|game mechanic|level design|game balance)\b", lower):
+        return "game_design"
+    if re.search(r"\b(legal memo|legal memorandum|issue rule analysis conclusion|irac)\b", lower):
+        return "legal_memo"
+    if re.search(r"\b(case brief|brief this case|case law summary)\b", lower):
+        return "case_brief"
+    if re.search(r"\b(compliance|regulatory checklist|policy compliance|controls checklist)\b", lower):
+        return "compliance_check"
+    if re.search(r"\b(privacy policy|data privacy|gdpr|ccpa|privacy notice)\b", lower):
+        return "privacy_guidance"
+    if re.search(r"\b(ethics|ethical analysis|moral dilemma|professional ethics)\b", lower):
+        return "ethics_analysis"
+    if re.search(r"\b(religion|theology|scripture|spiritual meaning)\b", lower):
+        return "theology_religion"
+    if re.search(r"\b(prove that|mathematical proof|proof by induction|proof contradiction)\b", lower):
+        return "mathematics_proof"
+    if re.search(r"\b(health|symptom|pain|fever|medicine|doctor|diet|sleep|stress|injury)\b", lower):
+        return "health_info"
+    if re.search(r"\b(legal|law|contract|rights|court|case|sue|police|agreement|terms)\b", lower):
+        return "legal_info"
+    if re.search(r"\b(budget plan|monthly budget|save money plan)\b", lower):
+        return "budget_plan"
+    if re.search(r"\b(expense analysis|spending analysis|analyze my expenses)\b", lower):
+        return "expense_analysis"
+    if re.search(r"\b(accounting|journal entry|ledger|balance sheet|income statement|cash flow statement|bookkeeping)\b", lower):
+        return "accounting_help"
+    if re.search(r"\b(tax planning|tax return|income tax|gst|vat|deduction|tax saving)\b", lower):
+        return "tax_help"
+    if re.search(r"\b(audit|internal control|audit checklist|audit finding)\b", lower):
+        return "audit_checklist"
+    if re.search(r"\b(insurance|premium|claim|policy coverage|deductible)\b", lower):
+        return "insurance_guidance"
+    if re.search(r"\b(real estate|property|rent agreement|home buying|mortgage|lease)\b", lower):
+        return "real_estate_guidance"
+    if re.search(r"\b(procurement|vendor selection|rfp|purchase order|supplier)\b", lower):
+        return "procurement_plan"
+    if re.search(r"\b(finance|money|budget|saving|investment|invest|stock|crypto|loan|debt|tax|profit)\b", lower):
+        return "finance_info"
+    if re.search(r"\b(hr policy|human resources|employee policy|leave policy|performance review)\b", lower):
+        return "hr_policy"
+    if re.search(r"\b(operations plan|operational plan|standard process|workflow improvement)\b", lower):
+        return "operations_plan"
+    if re.search(r"\b(logistics|shipment|warehouse|inventory movement|delivery route)\b", lower):
+        return "logistics_plan"
+    if re.search(r"\b(supply chain|supplier chain|demand planning|inventory planning)\b", lower):
+        return "supply_chain_plan"
+    if re.search(r"\b(manufacturing|production line|factory process|lean manufacturing)\b", lower):
+        return "manufacturing_process"
+    if re.search(r"\b(quality control|qa process|qc checklist|inspection checklist)\b", lower):
+        return "quality_control"
+    if re.search(r"\b(product management|product roadmap|prd|user story|feature prioritization)\b", lower):
+        return "product_management"
+    if re.search(r"\b(project management|project charter|risk register|gantt|milestone plan)\b", lower):
+        return "project_management"
+    if re.search(r"\b(agile|scrum|sprint planning|kanban|retrospective)\b", lower):
+        return "agile_scrum"
+    if re.search(r"\b(data science|data cleaning|feature engineering|exploratory data analysis|eda)\b", lower):
+        return "data_science"
+    if re.search(r"\b(machine learning|ml model|classification model|regression model|neural network|ai model training)\b", lower):
+        return "machine_learning"
+    if re.search(r"\b(statistics|probability|standard deviation|hypothesis test|p value|confidence interval)\b", lower):
+        return "statistics_help"
+    if re.search(r"\b(dashboard|kpi dashboard|power bi|tableau|looker|analytics dashboard)\b", lower):
+        return "dashboard_design"
+    if re.search(r"\b(data|dataset|csv|spreadsheet|analyze these numbers|statistics|chart this)\b", lower):
+        return "data_analysis"
+    if re.search(r"\b(research methodology|research methods|survey design|sample size|literature review)\b", lower):
+        return "research_methods"
+    if re.search(r"\b(citation|apa|mla|chicago style|bibliography|reference list)\b", lower):
+        return "academic_citation"
+    if re.search(r"\b(grant proposal|funding proposal|research grant|ngo grant)\b", lower):
+        return "grant_proposal"
+    if re.search(r"\b(policy analysis|public policy|policy brief|governance)\b", lower):
+        return "policy_analysis"
+    if re.search(r"\b(news article|journalism|press release|reporting)\b", lower):
+        return "journalism_draft"
+    if re.search(r"\b(ngo program|nonprofit program|community program|social impact project)\b", lower):
+        return "ngo_program_plan"
+    if re.search(r"\b(event plan|event planning|wedding plan|conference plan|workshop plan)\b", lower):
+        return "event_planning"
+    if re.search(r"\b(hotel management|hospitality|restaurant operations|guest service)\b", lower):
+        return "hospitality_plan"
+    if re.search(r"\b(retail|store layout|merchandising|pos system|shop operations)\b", lower):
+        return "retail_plan"
+    if re.search(r"\b(agriculture|farming|crop plan|soil health|irrigation)\b", lower):
+        return "agriculture_guidance"
+    if re.search(r"\b(environmental science|climate change|pollution control|biodiversity)\b", lower):
+        return "environmental_science"
+    if re.search(r"\b(sustainability|esg|carbon footprint|green plan)\b", lower):
+        return "sustainability_plan"
+    if re.search(r"\b(civil engineering|concrete|beam design|foundation|construction plan)\b", lower):
+        return "civil_engineering"
+    if re.search(r"\b(mechanical engineering|machine design|thermodynamics|cad model|hvac)\b", lower):
+        return "mechanical_engineering"
+    if re.search(r"\b(electrical engineering|circuit design|power system|motor control|wiring diagram)\b", lower):
+        return "electrical_engineering"
+    if re.search(r"\b(electronics|arduino|raspberry pi|sensor circuit|microcontroller)\b", lower):
+        return "electronics_help"
+    if re.search(r"\b(architectural plan|building design|floor plan|site plan)\b", lower):
+        return "architecture_building"
+    if re.search(r"\b(interior design|room design|space planning|furniture layout)\b", lower):
+        return "interior_design"
+    if re.search(r"\b(urban planning|city planning|transport planning|zoning)\b", lower):
+        return "urban_planning"
     if re.search(r"\b(science fair|school project|science project|project plan)\b", lower):
         return "project_plan"
     if re.search(r"\b(reminder|remind me|due|todo|to-do)\b", lower):
         return "reminder"
+    if re.search(r"\b(calendar|schedule my|plan my day|time block|appointment)\b", lower):
+        return "schedule_planning"
     if re.search(r"\b(workflow|automation|automate|checklist|pipeline)\b", lower):
         return "workflow_plan"
     if is_study_management_request(message):
         return "study_management_plan"
     if is_fitness_plan_request(message):
         return "fitness_plan"
-    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+    if re.search(r"\b(brainstorm|ideas?|suggest names?|give me ideas|topic ideas|content ideas)\b", lower):
+        return "brainstorm_ideas"
+    if re.search(r"\b(which should i choose|which is better|should i|better option|choose between|decide between)\b", lower):
+        return "decision_advice"
+    if re.search(r"\b(decision matrix|score these options|rank these options|weighted decision)\b", lower):
+        return "decision_matrix"
+    if re.search(r"\b(risk assessment|risks?|failure points|what could go wrong)\b", lower):
+        return "risk_assessment"
+    if re.search(r"\b(swot|strengths weaknesses opportunities threats)\b", lower):
+        return "swot_analysis"
+    if re.search(r"\b(okr|objectives and key results|quarterly goals)\b", lower):
+        return "okr_planning"
+    if re.search(r"\b(sop|standard operating procedure|process document)\b", lower):
+        return "sop_process"
+    if re.search(r"\b(checklist|check list|things to do|steps list)\b", lower):
+        return "checklist"
+    if re.search(r"\b(meal plan|diet plan|weekly meals|nutrition plan)\b", lower):
+        return "meal_plan"
+    if re.search(r"\b(shopping list|grocery list|things to buy)\b", lower):
+        return "shopping_list"
+    if re.search(r"\b(recipe|cook|make food|ingredients|how to make)\b", lower):
+        return "recipe_or_cooking"
+    if re.search(r"\b(travel plan|trip plan|itinerary|visit|tour plan)\b", lower):
+        return "travel_itinerary"
+    if re.search(r"\b(packing list|what to pack|travel packing)\b", lower):
+        return "packing_list"
+    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|notes from|key points from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded)\b|\bthis\s+(?:file|pdf|document|upload)\b", lower):
         return "file_summary"
-    if re.search(r"\b(study plan|study planner|revision plan|timetable|schedule for study)\b", lower):
-        return "study_plan"
     if re.search(r"\b(email|e-mail|mail)\b", lower) and re.search(r"\b(write|draft|compose|make|create|ask|request)\b", lower):
         return "email_draft"
+    if re.search(r"\b(reply to|respond to)\b", lower) and re.search(r"\b(email|message|text|dm)\b", lower):
+        return "email_reply"
     writing = analyze_writing_request(message)
     if writing.get("is_writing"):
         return f"writing_{clean_text(str(writing.get('kind') or 'draft')).lower()}"
     if re.search(r"\b(song|music|track|recommend|suggest)\b", lower):
         return "song_recommendation"
+    if re.search(r"\b(compare products|product comparison|compare phones|compare laptops|versus| vs )\b", lower):
+        return "product_comparison"
+    if re.search(r"\b(recommend|suggest|best|good option|what should i watch|what should i read)\b", lower):
+        return "recommendation"
     if split_comparison_subjects(message):
         return "comparison"
     if re.search(r"\b(advantages and disadvantages|pros and cons|benefits and drawbacks)\b", lower):
@@ -2211,13 +3695,685 @@ def detect_task_intent(message: str, use_research: bool = False) -> str:
     if local_capability_reply(message):
         return "capability_status"
     if re.search(r"\b(who is|who are|who was|who were|what is|what are|explain|define|describe|meaning of|teach me|history of|overview of|background of|timeline of|how does|why is)\b", lower):
-        return "learning_topic"
+        return "concept_tutoring" if re.search(r"\b(teach me|explain|how does|why is|with example|simple words)\b", lower) else "learning_topic"
+    if "?" in lower:
+        return "general_question"
     return "chat"
 
 
-def local_reply_for_intent(message: str, task_intent: str, session_id: Optional[str] = None) -> Optional[str]:
-    if task_intent in {"calculation", "image_generation", "code_or_debug", "reminder"}:
+LANGUAGE_ROUTE_NAMES = {
+    "translation",
+    "language_detection", "transliteration", "romanization", "script_conversion", "word_meaning",
+    "dictionary_definition", "etymology", "synonym_antonym", "idiom_explanation",
+    "proverb_explanation", "vocabulary_builder", "spelling_help", "punctuation_help",
+    "sentence_parsing", "parts_of_speech", "tense_practice", "verb_conjugation",
+    "phrasal_verbs", "collocations", "tone_conversion", "formal_informal_rewrite",
+    "bilingual_explanation", "phrasebook", "conversation_practice", "dialogue_translation",
+    "reading_comprehension", "comprehension_questions", "cloze_test", "dictation_practice",
+    "language_exam_prep", "language_localization", "dialect_rewrite", "subtitle_translation",
+    "phonetics_ipa", "accent_reduction", "pronunciation_help", "grammar_explanation",
+    "language_skill_assessment", "cefr_leveling", "language_curriculum", "grammar_drill",
+    "vocabulary_quiz", "flashcards", "minimal_pairs", "syllable_stress", "word_usage",
+    "sentence_correction", "translation_review", "natural_translation", "literal_translation",
+    "back_translation", "cultural_context", "politeness_register", "multilingual_compare",
+    "essay_correction", "email_rewrite",
+    "language_learning", "language_hindi", "language_english", "language_tamil",
+    "language_telugu", "language_kannada", "language_malayalam", "language_marathi",
+    "language_bengali", "language_gujarati", "language_punjabi", "language_urdu",
+    "language_sanskrit", "language_arabic", "language_french", "language_spanish",
+    "language_german", "language_italian", "language_portuguese", "language_russian",
+    "language_chinese", "language_japanese", "language_korean", "language_turkish",
+    "language_dutch", "language_greek", "language_latin", "language_assamese",
+    "language_odia", "language_nepali", "language_sinhala", "language_thai",
+    "language_vietnamese", "language_indonesian", "language_malay", "language_swahili",
+    "language_hebrew", "language_persian", "language_polish", "language_ukrainian",
+    "language_czech", "language_swedish", "language_norwegian", "language_danish",
+    "language_finnish", "language_hungarian", "language_romanian",
+    "language_albanian", "language_armenian", "language_azerbaijani", "language_basque",
+    "language_bosnian", "language_bulgarian", "language_burmese", "language_catalan",
+    "language_croatian", "language_estonian", "language_filipino", "language_georgian",
+    "language_haitian_creole", "language_hausa", "language_icelandic", "language_irish",
+    "language_javanese", "language_kazakh", "language_khmer", "language_lao",
+    "language_latvian", "language_lithuanian", "language_serbian", "language_slovak",
+    "language_slovenian", "language_somali", "language_welsh", "language_yoruba",
+    "language_zulu", "language_amharic", "language_pashto", "language_kurdish",
+    "language_uzbek", "language_mongolian", "language_maori", "language_quechua",
+    "language_luxembourgish", "language_galician", "language_belarusian",
+    "language_macedonian", "language_maltese", "language_esperanto",
+}
+
+
+LANGUAGE_LABELS = {
+    "language_hindi": "Hindi",
+    "language_english": "English",
+    "language_tamil": "Tamil",
+    "language_telugu": "Telugu",
+    "language_kannada": "Kannada",
+    "language_malayalam": "Malayalam",
+    "language_marathi": "Marathi",
+    "language_bengali": "Bengali",
+    "language_gujarati": "Gujarati",
+    "language_punjabi": "Punjabi",
+    "language_urdu": "Urdu",
+    "language_sanskrit": "Sanskrit",
+    "language_arabic": "Arabic",
+    "language_french": "French",
+    "language_spanish": "Spanish",
+    "language_german": "German",
+    "language_italian": "Italian",
+    "language_portuguese": "Portuguese",
+    "language_russian": "Russian",
+    "language_chinese": "Chinese/Mandarin",
+    "language_japanese": "Japanese",
+    "language_korean": "Korean",
+    "language_turkish": "Turkish",
+    "language_dutch": "Dutch",
+    "language_greek": "Greek",
+    "language_latin": "Latin",
+    "language_assamese": "Assamese",
+    "language_odia": "Odia",
+    "language_nepali": "Nepali",
+    "language_sinhala": "Sinhala",
+    "language_thai": "Thai",
+    "language_vietnamese": "Vietnamese",
+    "language_indonesian": "Indonesian",
+    "language_malay": "Malay",
+    "language_swahili": "Swahili",
+    "language_hebrew": "Hebrew",
+    "language_persian": "Persian/Farsi",
+    "language_polish": "Polish",
+    "language_ukrainian": "Ukrainian",
+    "language_czech": "Czech",
+    "language_swedish": "Swedish",
+    "language_norwegian": "Norwegian",
+    "language_danish": "Danish",
+    "language_finnish": "Finnish",
+    "language_hungarian": "Hungarian",
+    "language_romanian": "Romanian",
+    "language_albanian": "Albanian",
+    "language_armenian": "Armenian",
+    "language_azerbaijani": "Azerbaijani",
+    "language_basque": "Basque",
+    "language_bosnian": "Bosnian",
+    "language_bulgarian": "Bulgarian",
+    "language_burmese": "Burmese/Myanmar",
+    "language_catalan": "Catalan",
+    "language_croatian": "Croatian",
+    "language_estonian": "Estonian",
+    "language_filipino": "Filipino/Tagalog",
+    "language_georgian": "Georgian",
+    "language_haitian_creole": "Haitian Creole",
+    "language_hausa": "Hausa",
+    "language_icelandic": "Icelandic",
+    "language_irish": "Irish",
+    "language_javanese": "Javanese",
+    "language_kazakh": "Kazakh",
+    "language_khmer": "Khmer",
+    "language_lao": "Lao",
+    "language_latvian": "Latvian",
+    "language_lithuanian": "Lithuanian",
+    "language_serbian": "Serbian",
+    "language_slovak": "Slovak",
+    "language_slovenian": "Slovenian",
+    "language_somali": "Somali",
+    "language_welsh": "Welsh",
+    "language_yoruba": "Yoruba",
+    "language_zulu": "Zulu",
+    "language_amharic": "Amharic",
+    "language_pashto": "Pashto",
+    "language_kurdish": "Kurdish",
+    "language_uzbek": "Uzbek",
+    "language_mongolian": "Mongolian",
+    "language_maori": "Maori",
+    "language_quechua": "Quechua",
+    "language_luxembourgish": "Luxembourgish",
+    "language_galician": "Galician",
+    "language_belarusian": "Belarusian",
+    "language_macedonian": "Macedonian",
+    "language_maltese": "Maltese",
+    "language_esperanto": "Esperanto",
+}
+
+
+def extract_language_payload(message: str) -> str:
+    payload = extract_inline_payload(message)
+    if payload:
+        return payload
+    text = clean_text(message)
+    patterns = [
+        r"(?i)\b(?:meaning of|define|definition of|synonym(?:s)? for|antonym(?:s)? for|pronounce|pronunciation of|how to say|translate|transliterate|romanize)\s+(.+)$",
+        r"(?i)\b(?:idiom|idioms|proverb|proverbs|phrase)\s+(.+)$",
+        r"(?i)\b(?:vocabulary|vocab|word list)\s+(?:for|about|on)\s+(.+)$",
+        r"(?i)\b(?:correct|fix|rewrite|localize|localise|make it formal|make it informal|change tone)\s+(.+)$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = clean_text(match.group(1)).strip(" .,:;\"'")
+            if candidate:
+                return candidate
+    return ""
+
+
+def detect_script_hint(text: str) -> str:
+    if re.search(r"[\u0900-\u097F]", text):
+        return "Devanagari script, commonly used for Hindi/Marathi/Sanskrit and related languages"
+    if re.search(r"[\u0B80-\u0BFF]", text):
+        return "Tamil script"
+    if re.search(r"[\u0C00-\u0C7F]", text):
+        return "Telugu script"
+    if re.search(r"[\u0C80-\u0CFF]", text):
+        return "Kannada script"
+    if re.search(r"[\u0D00-\u0D7F]", text):
+        return "Malayalam script"
+    if re.search(r"[\u0980-\u09FF]", text):
+        return "Bengali/Assamese script"
+    if re.search(r"[\u0A80-\u0AFF]", text):
+        return "Gujarati script"
+    if re.search(r"[\u0A00-\u0A7F]", text):
+        return "Gurmukhi script, commonly used for Punjabi"
+    if re.search(r"[\u0B00-\u0B7F]", text):
+        return "Odia script"
+    if re.search(r"[\u0D80-\u0DFF]", text):
+        return "Sinhala script"
+    if re.search(r"[\u0E00-\u0E7F]", text):
+        return "Thai script"
+    if re.search(r"[\u0E80-\u0EFF]", text):
+        return "Lao script"
+    if re.search(r"[\u1780-\u17FF]", text):
+        return "Khmer script"
+    if re.search(r"[\u1000-\u109F]", text):
+        return "Burmese/Myanmar script"
+    if re.search(r"[\u0600-\u06FF]", text):
+        return "Arabic/Urdu-script text"
+    if re.search(r"[\u0590-\u05FF]", text):
+        return "Hebrew script"
+    if re.search(r"[\u0370-\u03FF]", text):
+        return "Greek script"
+    if re.search(r"[\u0400-\u04FF]", text):
+        return "Cyrillic script, used by Russian/Ukrainian/Bulgarian/Serbian and related languages"
+    if re.search(r"[\u0530-\u058F]", text):
+        return "Armenian script"
+    if re.search(r"[\u10A0-\u10FF]", text):
+        return "Georgian script"
+    if re.search(r"[\u1200-\u137F]", text):
+        return "Ethiopic script, commonly used for Amharic and related languages"
+    if re.search(r"[\u4E00-\u9FFF]", text):
+        return "Chinese characters"
+    if re.search(r"[\u3040-\u30FF]", text):
+        return "Japanese kana/kanji text"
+    if re.search(r"[\uAC00-\uD7AF]", text):
+        return "Korean Hangul"
+    if re.search(r"[A-Za-z]", text):
+        return "Latin-script text"
+    return "unclear from the text provided"
+
+
+def language_practice_plan(language: str) -> str:
+    return (
+        f"{language} learning route:\n\n"
+        "Short answer:\n"
+        f"Study {language} through four lanes: pronunciation, vocabulary, grammar patterns, and real conversation.\n\n"
+        "Daily practice:\n"
+        "1. Pronunciation: repeat 5-10 useful phrases aloud.\n"
+        "2. Vocabulary: learn 10 words in one topic, such as school, travel, food, or work.\n"
+        "3. Grammar: practise one pattern with 5 original sentences.\n"
+        "4. Conversation: write a short dialogue and speak both sides.\n\n"
+        "Best route:\n"
+        "- Beginner: phrases + pronunciation first.\n"
+        "- Intermediate: grammar patterns + reading.\n"
+        "- Advanced: writing correction + conversation practice.\n\n"
+        "Bottom line:\n"
+        f"To improve fast in {language}, practise small real sentences every day instead of memorizing isolated rules."
+    )
+
+
+def local_language_route_reply(message: str, task_intent: str) -> Optional[str]:
+    if task_intent not in LANGUAGE_ROUTE_NAMES:
         return None
+    payload = extract_language_payload(message)
+
+    if task_intent == "language_detection":
+        sample = payload or re.sub(r"(?i)\b(detect language|what language is this|identify language|language detection)\b", "", clean_text(message)).strip()
+        script = detect_script_hint(sample)
+        return (
+            "Language detection:\n\n"
+            f"- Script clue: {script}.\n"
+            "- For exact language detection, longer text is more reliable than one short word.\n\n"
+            "Bottom line:\n"
+            f"The safest current guess from the visible script is: {script}."
+        )
+
+    if task_intent in {"transliteration", "romanization", "script_conversion"}:
+        return (
+            "Transliteration route:\n\n"
+            "What I can do:\n"
+            "- Convert text from one script to another script style.\n"
+            "- Keep pronunciation close to the original.\n"
+            "- Mark uncertain sounds when the source language has sounds English does not have.\n\n"
+            "Needed for exact output:\n"
+            "- Source text.\n"
+            "- Target script, such as English letters, Devanagari, Tamil, or Arabic script.\n\n"
+            "Bottom line:\n"
+            "Paste the exact text and target script, and I will transliterate it cleanly."
+        )
+
+    if task_intent == "translation":
+        lower_message = clean_text(message).lower()
+        common_translations = {
+            ("thank you", "albanian"): "Faleminderit.",
+            ("thanks", "albanian"): "Faleminderit.",
+            ("hello", "albanian"): "Pershendetje.",
+            ("please", "albanian"): "Te lutem.",
+            ("sorry", "albanian"): "Me fal.",
+            ("thank you", "spanish"): "Gracias.",
+            ("hello", "spanish"): "Hola.",
+            ("thank you", "french"): "Merci.",
+            ("hello", "french"): "Bonjour.",
+            ("thank you", "german"): "Danke.",
+            ("hello", "german"): "Hallo.",
+            ("thank you", "italian"): "Grazie.",
+            ("hello", "italian"): "Ciao.",
+            ("thank you", "portuguese"): "Obrigado/Obrigada.",
+            ("hello", "portuguese"): "Ola.",
+            ("thank you", "japanese"): "Arigato gozaimasu.",
+            ("hello", "japanese"): "Konnichiwa.",
+            ("thank you", "korean"): "Gamsahamnida.",
+            ("hello", "korean"): "Annyeonghaseyo.",
+            ("thank you", "hindi"): "Dhanyavaad.",
+            ("hello", "hindi"): "Namaste.",
+            ("thank you", "tamil"): "Nandri.",
+            ("hello", "tamil"): "Vanakkam.",
+        }
+        for (phrase, language), translated in common_translations.items():
+            if phrase in lower_message and language in lower_message:
+                return (
+                    f"Translation to {language.title()}:\n\n"
+                    f"{translated}\n\n"
+                    "Usage note:\n"
+                    "- Use it as a short everyday phrase.\n"
+                    "- For formal speech, add the situation or audience so I can adjust the tone.\n\n"
+                    "Bottom line:\n"
+                    f"{phrase.title()} in {language.title()} is: {translated}"
+                )
+        return (
+            "Translation route:\n\n"
+            "What I need:\n"
+            "- Exact text to translate.\n"
+            "- Target language.\n"
+            "- Tone: simple, formal, friendly, natural, literal, or professional.\n\n"
+            "Best format:\n"
+            "Use: translate '<text>' to <language> in a natural tone.\n\n"
+            "Bottom line:\n"
+            "Precise translation needs the exact source text and target language."
+        )
+
+    if task_intent in {"word_meaning", "dictionary_definition"}:
+        word = payload or "the word"
+        return (
+            f"Meaning route for {word}:\n\n"
+            "Answer structure:\n"
+            "- Meaning: give the simple definition first.\n"
+            "- Use: show one natural sentence.\n"
+            "- Tone: mention whether it is formal, casual, literary, slang, or technical.\n"
+            "- Related words: add synonyms and opposites when useful.\n\n"
+            "Bottom line:\n"
+            "Send the exact word and language if you want a precise dictionary-style answer."
+        )
+
+    if task_intent == "synonym_antonym":
+        word = payload or "the word"
+        if word.lower().strip(" .") == "happy":
+            return (
+                "Synonyms and antonyms for happy:\n\n"
+                "Synonyms:\n"
+                "- glad\n"
+                "- joyful\n"
+                "- pleased\n"
+                "- cheerful\n"
+                "- delighted\n\n"
+                "Antonyms:\n"
+                "- sad\n"
+                "- unhappy\n"
+                "- miserable\n"
+                "- upset\n\n"
+                "Best use:\n"
+                "- Happy is general.\n"
+                "- Delighted is stronger.\n"
+                "- Pleased is more formal.\n\n"
+                "Bottom line:\n"
+                "Choose the synonym by intensity and tone, not only by meaning."
+            )
+        return (
+            f"Synonym/antonym route for {word}:\n\n"
+            "Synonyms:\n"
+            "- Similar words should match the context, not just the dictionary.\n\n"
+            "Antonyms:\n"
+            "- Opposite words depend on the exact meaning being used.\n\n"
+            "Best way to ask:\n"
+            f"Use: 'Give synonyms and antonyms for {word} in this sentence: ...'\n\n"
+            "Bottom line:\n"
+            "Context matters; the best synonym is the one that fits the sentence naturally."
+        )
+
+    if task_intent in {"idiom_explanation", "proverb_explanation", "etymology"}:
+        item = payload or "the phrase"
+        if item.lower().strip(" .") == "break the ice":
+            return (
+                "Idiom: break the ice\n\n"
+                "Meaning:\n"
+                "- To make people feel more comfortable at the start of a conversation or meeting.\n\n"
+                "Example:\n"
+                "- The teacher told a funny story to break the ice on the first day of class.\n\n"
+                "Similar meaning:\n"
+                "- Start a conversation.\n"
+                "- Make the situation less awkward.\n\n"
+                "Bottom line:\n"
+                "Break the ice means to reduce awkwardness and help people start talking naturally."
+            )
+        return (
+            f"Language explanation for {item}:\n\n"
+            "Use this structure:\n"
+            "- Literal meaning: what the words say directly.\n"
+            "- Real meaning: what the phrase actually means.\n"
+            "- Example: one sentence in normal use.\n"
+            "- Similar phrase: a close equivalent if one exists.\n\n"
+            "Bottom line:\n"
+            "Idioms and proverbs should be explained by meaning and use, not translated word by word."
+        )
+
+    if task_intent == "vocabulary_builder":
+        topic = clean_text(payload or "daily English")
+        if re.search(r"\b(business|work|office|professional)\b", topic.lower()):
+            return (
+                "Business English vocabulary:\n\n"
+                "| Word/Phrase | Simple meaning | Example |\n"
+                "|---|---|---|\n"
+                "| deadline | final date/time | The deadline is Friday. |\n"
+                "| proposal | suggested plan | I sent the project proposal. |\n"
+                "| revenue | money earned | Revenue increased this month. |\n"
+                "| negotiate | discuss to reach agreement | We need to negotiate the price. |\n"
+                "| client | customer/customer company | The client approved the design. |\n"
+                "| feedback | comments for improvement | Please share your feedback. |\n"
+                "| update | new information | Send me an update by evening. |\n"
+                "| priority | most important task | This report is our priority. |\n\n"
+                "Practice:\n"
+                "- Write one sentence with each word.\n"
+                "- Then rewrite the sentence in a formal tone.\n\n"
+                "Bottom line:\n"
+                "Business vocabulary becomes useful when you practise it in emails, meetings, and short status updates."
+            )
+        return (
+            "Vocabulary builder:\n\n"
+            "| Level | Words to learn | Practice |\n"
+            "|---|---|---|\n"
+            "| Basic | common nouns, verbs, adjectives | make simple sentences |\n"
+            "| Intermediate | connectors, phrases, topic words | write short paragraphs |\n"
+            "| Advanced | idioms, collocations, tone words | rewrite with nuance |\n\n"
+            "Daily method:\n"
+            "1. Pick one topic.\n"
+            "2. Learn 10 words.\n"
+            "3. Use each word in your own sentence.\n"
+            "4. Review after 1 day, 3 days, and 7 days.\n\n"
+            "Bottom line:\n"
+            "Vocabulary grows fastest when you use words in sentences, not when you only memorize lists."
+        )
+
+    if task_intent in {"language_skill_assessment", "cefr_leveling", "language_curriculum"}:
+        return (
+            "Language planning route:\n\n"
+            "What I will check:\n"
+            "- Current level: beginner, intermediate, advanced, or CEFR-style A1-C2.\n"
+            "- Weakest skill: reading, writing, listening, speaking, grammar, vocabulary, or pronunciation.\n"
+            "- Goal: exam, school, travel, work, conversation, or native-like fluency.\n\n"
+            "Best next step:\n"
+            "- Send a short writing sample or tell me your target language and goal.\n"
+            "- I will build a focused plan with daily practice, review, and measurable progress checks.\n\n"
+            "Bottom line:\n"
+            "A strong language plan starts by diagnosing the weakest skill, then practising that skill with real sentences."
+        )
+
+    if task_intent in {"vocabulary_quiz", "flashcards"}:
+        return (
+            "Vocabulary practice route:\n\n"
+            "I can create:\n"
+            "- Flashcards with word, meaning, example, and memory cue.\n"
+            "- Multiple-choice vocabulary quizzes.\n"
+            "- Fill-in-the-blank practice.\n"
+            "- Review sets by topic, level, or exam.\n\n"
+            "Best format:\n"
+            "Tell me the language, topic, level, and number of words.\n\n"
+            "Bottom line:\n"
+            "Vocabulary sticks when each word is learned with an example sentence and reviewed more than once."
+        )
+
+    if task_intent in {"spelling_help", "punctuation_help", "grammar_explanation", "parts_of_speech", "sentence_parsing", "tense_practice", "verb_conjugation", "phrasal_verbs", "collocations", "grammar_drill", "word_usage", "sentence_correction"}:
+        return (
+            "Grammar route:\n\n"
+            "How I will handle it:\n"
+            "- Identify the grammar point.\n"
+            "- Explain the rule in simple words.\n"
+            "- Show correct and incorrect examples.\n"
+            "- Give practice sentences if useful.\n\n"
+            "Best format:\n"
+            "Send the sentence or grammar topic, and I will break it down clearly.\n\n"
+            "Bottom line:\n"
+            "Good grammar help should explain the pattern and show how to use it, not just give the answer."
+        )
+
+    if task_intent in {"cultural_context", "politeness_register"}:
+        return (
+            "Cultural language check:\n\n"
+            "What decides whether it sounds rude:\n"
+            "- Exact words used.\n"
+            "- Relationship: friend, teacher, elder, customer, manager, or stranger.\n"
+            "- Formality level and honorifics.\n"
+            "- Directness, tone, and situation.\n\n"
+            "For Japanese especially:\n"
+            "- Politeness changes with endings, honorifics, and how direct the request is.\n"
+            "- A sentence can be grammatically correct but still sound too blunt.\n\n"
+            "Bottom line:\n"
+            "Send the exact sentence and who you are saying it to, and I will tell you whether it sounds natural, polite, rude, or too direct."
+        )
+
+    if task_intent in {"tone_conversion", "formal_informal_rewrite", "dialect_rewrite", "language_localization", "essay_correction", "email_rewrite"}:
+        if payload:
+            lower_payload = payload.lower()
+            if task_intent == "formal_informal_rewrite" and re.search(r"\b(teacher|sir|madam|school|class)\b", lower_payload) and re.search(r"\b(can'?t|cannot|cant|come|attend)\b", lower_payload):
+                polished = "Respected Teacher, I am sorry, but I will not be able to attend today."
+            else:
+                polished = basic_polish_text(payload)
+            return (
+                "Tone rewrite:\n\n"
+                f"{polished}\n\n"
+                "Bottom line:\n"
+                "For a stronger rewrite, tell me the target tone: formal, friendly, confident, polite, simple, or professional."
+            )
+        return (
+            "Tone and localization route:\n\n"
+            "I can adapt text for:\n"
+            "- Formal or informal tone.\n"
+            "- American, British, Indian, or other audience styles.\n"
+            "- Polite, confident, friendly, academic, or professional wording.\n\n"
+            "Bottom line:\n"
+            "Paste the exact text and target audience/tone, and I will rewrite it cleanly."
+        )
+
+    if task_intent in {"phrasebook", "conversation_practice"}:
+        return (
+            "Conversation practice route:\n\n"
+            "Useful starter phrases:\n"
+            "- Hello, how are you?\n"
+            "- Could you help me?\n"
+            "- I am learning this language.\n"
+            "- Please say that again slowly.\n"
+            "- Thank you, I understand now.\n\n"
+            "Practice method:\n"
+            "1. Choose a situation: school, travel, shopping, work, or friends.\n"
+            "2. Practise a short dialogue.\n"
+            "3. Replace one word at a time to make new sentences.\n\n"
+            "Bottom line:\n"
+            "Conversation improves fastest through short repeatable dialogues."
+        )
+
+    if task_intent in {"reading_comprehension", "comprehension_questions", "cloze_test", "dictation_practice", "language_exam_prep"}:
+        return (
+            "Language exam/practice route:\n\n"
+            "I can create:\n"
+            "- Reading comprehension questions.\n"
+            "- Fill-in-the-blanks exercises.\n"
+            "- Vocabulary and grammar drills.\n"
+            "- Model answers with explanations.\n\n"
+            "Best structure:\n"
+            "Send the passage, class/level, and number of questions.\n\n"
+            "Bottom line:\n"
+            "Practice should test meaning, vocabulary, grammar, and inference separately."
+        )
+
+    if task_intent == "translation_review":
+        lower_message = clean_text(message).lower()
+        if "bonjour" in lower_message and "hello" in lower_message:
+            return (
+                "Translation check:\n\n"
+                "Yes. Bonjour can mean hello in French.\n\n"
+                "Usage note:\n"
+                "- Bonjour is used as hello during the day.\n"
+                "- It can also mean good morning or good day depending on context.\n\n"
+                "Bottom line:\n"
+                "Bonjour means hello, but it is more specifically a daytime greeting."
+            )
+        if "merci" in lower_message and re.search(r"\b(thank you|thanks)\b", lower_message):
+            return (
+                "Translation check:\n\n"
+                "Yes. Merci means thank you or thanks in French.\n\n"
+                "Bottom line:\n"
+                "Merci is the normal French word for thank you."
+            )
+        return (
+            "Translation review route:\n\n"
+            "How I will check it:\n"
+            "- Compare the source text with the translation.\n"
+            "- Check meaning, tone, grammar, and naturalness.\n"
+            "- Mark anything that is literal, awkward, incomplete, or wrong.\n\n"
+            "Best format:\n"
+            "Send: source text, translation, source language, and target language.\n\n"
+            "Bottom line:\n"
+            "A good translation review checks meaning and natural wording, not only dictionary matches."
+        )
+
+    if task_intent in {"bilingual_explanation", "dialogue_translation", "subtitle_translation", "natural_translation", "literal_translation", "back_translation", "multilingual_compare"}:
+        return (
+            "Bilingual language route:\n\n"
+            "I can format the answer as:\n"
+            "| Original | Translation | Simple meaning |\n"
+            "|---|---|---|\n"
+            "| text | translated text | explanation |\n\n"
+            "Bottom line:\n"
+            "For subtitles or dialogue, send the exact lines and target language so timing and tone stay natural."
+        )
+
+    if task_intent in {"pronunciation_help", "phonetics_ipa", "accent_reduction", "minimal_pairs", "syllable_stress"}:
+        word = clean_text(payload)
+        if word:
+            if word.lower() == "schedule":
+                return (
+                    "Pronunciation of schedule:\n\n"
+                    "- American English: SKED-jool\n"
+                    "- British English: SHED-yool\n"
+                    "- Simple practice: say it slowly as two parts: sched + ule.\n\n"
+                    "Bottom line:\n"
+                    "Both pronunciations are accepted; use the one that matches your accent target."
+                )
+            return (
+                f"Pronunciation route for {word}:\n\n"
+                "Breakdown:\n"
+                "- Say the word slowly first.\n"
+                "- Split it into syllables.\n"
+                "- Stress the strongest syllable.\n"
+                "- Repeat it inside a full sentence.\n\n"
+                "Bottom line:\n"
+                "Tell me the accent target, such as Indian English, American English, or British English, for a sharper pronunciation guide."
+            )
+        return (
+            "Pronunciation route:\n\n"
+            "What I can provide:\n"
+            "- Simple pronunciation spelling.\n"
+            "- Syllable breaks.\n"
+            "- Stress pattern.\n"
+            "- IPA-style guidance when useful.\n"
+            "- Common mistake warnings.\n\n"
+            "Bottom line:\n"
+            "Send the word or sentence and the accent target, and I will break down how to say it."
+        )
+
+    if task_intent.startswith("language_"):
+        return language_practice_plan(LANGUAGE_LABELS.get(task_intent, task_intent.replace("language_", "").title()))
+
+    if task_intent == "language_learning":
+        return language_practice_plan("your target language")
+
+    return None
+
+
+def local_reply_for_intent(message: str, task_intent: str, session_id: Optional[str] = None) -> Optional[str]:
+    if task_intent in {
+        "calculation",
+        "math_reasoning",
+        "image_generation",
+        "code_or_debug",
+        "reminder",
+        "table_format",
+        "recommendation",
+        "data_analysis",
+        "email_reply",
+        "general_question",
+        "realtime_current_fact",
+        "realtime_news",
+        "realtime_weather",
+        "realtime_market",
+        "realtime_product_recommendation",
+        "realtime_search",
+    }:
+        return None
+    language_reply = local_language_route_reply(message, task_intent)
+    if language_reply:
+        return language_reply
+    if task_intent in {"text_summary", "key_points"}:
+        return local_text_summary_reply(message)
+    if task_intent in {"grammar_fix", "rewrite_polish"}:
+        return local_text_transform_reply(message)
+    if task_intent == "brainstorm_ideas":
+        return local_brainstorm_reply(message)
+    if task_intent == "decision_advice":
+        return local_decision_reply(message)
+    if task_intent == "recipe_or_cooking":
+        return local_recipe_reply(message)
+    if task_intent == "travel_itinerary":
+        return local_travel_itinerary_reply(message)
+    if task_intent == "health_info":
+        return local_health_info_reply(message)
+    if task_intent == "legal_info":
+        return local_legal_info_reply(message)
+    if task_intent == "finance_info":
+        return local_finance_info_reply(message)
+    if task_intent in {"career_resume", "interview_prep"}:
+        return local_career_reply(message)
+    if task_intent == "presentation_outline":
+        return local_presentation_reply(message)
+    if task_intent == "meeting_notes":
+        return local_meeting_notes_reply(message)
+    if task_intent == "social_caption":
+        return local_social_caption_reply(message)
+    if task_intent in {"creative_story", "poem_or_original_song", "joke_fun"}:
+        return local_creative_reply(message)
+    if task_intent in {"emotional_support", "relationship_advice"}:
+        return local_emotional_support_reply(message)
+    if task_intent in {"flashcards", "quiz_generation"}:
+        return local_flashcards_or_quiz_reply(message)
+    if task_intent == "timeline":
+        return local_timeline_reply(message)
+    if task_intent in {"homework_help", "exam_answer", "concept_tutoring"}:
+        return local_knowledge_reply(message) or local_semantic_reply(message, "learning", "teaching_structure")
     if task_intent == "diagnostic_deficiency":
         return local_deficiency_diagnosis_reply(message)
     if task_intent == "study_management_plan":
@@ -2246,7 +4402,189 @@ def local_reply_for_intent(message: str, task_intent: str, session_id: Optional[
         return local_capability_reply(message)
     if task_intent == "learning_topic":
         return local_knowledge_reply(message)
+    field_reply = local_field_expert_reply(message, task_intent)
+    if field_reply:
+        return field_reply
     return None
+
+
+FIELD_AWARE_INTENTS = {
+    "accounting_help", "tax_help", "audit_checklist", "insurance_guidance", "real_estate_guidance",
+    "procurement_plan", "hr_policy", "operations_plan", "logistics_plan", "supply_chain_plan",
+    "manufacturing_process", "quality_control", "product_management", "project_management",
+    "agile_scrum", "data_science", "machine_learning", "statistics_help", "dashboard_design",
+    "research_methods", "academic_citation", "grant_proposal", "policy_analysis", "journalism_draft",
+    "ngo_program_plan", "event_planning", "hospitality_plan", "retail_plan", "agriculture_guidance",
+    "environmental_science", "sustainability_plan", "civil_engineering", "mechanical_engineering",
+    "electrical_engineering", "electronics_help", "architecture_building", "interior_design",
+    "urban_planning", "medicine_info", "nursing_info", "pharmacy_info", "dentistry_info",
+    "veterinary_info", "psychology_info", "parenting_guidance", "personal_productivity",
+    "sports_coaching", "music_theory", "film_analysis", "game_design", "legal_memo",
+    "case_brief", "compliance_check", "privacy_guidance", "ethics_analysis", "theology_religion",
+    "mathematics_proof", "excel_formula", "regex_help", "git_help", "devops_deploy",
+    "test_generation", "log_analysis", "performance_tuning", "architecture_review", "code_review",
+    "ui_ux_feedback", "accessibility_review", "prompt_engineering", "image_prompt",
+}
+
+
+FIELD_PROFILES: Dict[str, Tuple[str, List[str], str]] = {
+    "accounting_help": ("Accounting", ["Identify the accounts affected.", "Classify each account as asset, liability, equity, income, or expense.", "Apply debit/credit rules.", "Check that total debits equal total credits."], "A clean accounting answer should show the entry and the reasoning behind the debit and credit."),
+    "nursing_info": ("Nursing", ["Assess the patient first: temperature, pulse, breathing, hydration, pain, and warning signs.", "State nursing goals clearly.", "List interventions with monitoring points.", "Escalate red flags to a qualified clinician."], "For health-related work, use this as education/support, not a substitute for professional care."),
+    "medicine_info": ("Medicine", ["Clarify symptoms, timing, severity, and risk factors.", "Separate possible causes from confirmed facts.", "Give safe general guidance.", "Name red flags that need urgent medical help."], "Do not self-diagnose from a short prompt; use a clinician for personal medical decisions."),
+    "legal_memo": ("Legal memo", ["Issue: define the legal question.", "Rule: state the governing rule in plain language.", "Analysis: apply the rule to the facts.", "Conclusion: give the likely answer and uncertainty."], "A strong legal memo is structured, fact-specific, and careful about jurisdiction."),
+    "case_brief": ("Case brief", ["Facts: only the legally important facts.", "Issue: the question the court decided.", "Holding: the court's answer.", "Reasoning: why the court reached that result."], "Keep a case brief tight; it should help you recall the rule and reasoning fast."),
+    "machine_learning": ("Machine learning", ["Define the prediction target.", "List input features and data source.", "Choose a baseline model first.", "Evaluate with the right metric and test split.", "Check leakage, bias, and deployment constraints."], "A good ML plan starts simple, measures honestly, and improves only after a baseline works."),
+    "data_science": ("Data science", ["Clarify the business or research question.", "Audit the data quality.", "Explore patterns and outliers.", "Choose the right metric or visualization.", "Turn findings into a decision."], "Useful data science connects analysis to a decision, not just charts."),
+    "civil_engineering": ("Civil engineering", ["Define loads, soil/site conditions, codes, and constraints.", "Sketch the structural path.", "Check safety factors and serviceability.", "Send final designs to a licensed engineer."], "Engineering plans need code checks and professional validation before real construction."),
+    "electrical_engineering": ("Electrical engineering", ["Define voltage, current, load, protection, and environment.", "Draw the circuit or power path.", "Size components conservatively.", "Verify safety, grounding, heat, and isolation."], "Electrical work can be dangerous; verify real installations with a qualified professional."),
+    "mechanical_engineering": ("Mechanical engineering", ["Define forces, motion, material, tolerance, and environment.", "Estimate loads and failure modes.", "Choose a simple mechanism first.", "Validate with calculations, simulation, or a prototype."], "Good mechanical design balances function, manufacturability, safety, and maintenance."),
+    "product_management": ("Product management", ["Define the user and problem.", "State success metrics.", "Prioritize the smallest valuable feature.", "List tradeoffs, risks, and rollout checks."], "A good product answer turns ideas into decisions and testable next steps."),
+    "project_management": ("Project management", ["Define scope and deliverables.", "Break work into milestones.", "Assign owners and dates.", "Track risks, dependencies, and acceptance criteria."], "A project plan is useful only when it makes ownership and next actions clear."),
+    "grant_proposal": ("Grant proposal", ["State the need.", "Define the target group.", "Explain activities and timeline.", "Show budget logic.", "Describe measurable outcomes."], "A strong grant proposal connects problem, action, evidence, budget, and impact."),
+}
+
+
+def local_field_topic(message: str, task_intent: str) -> str:
+    topic = clean_text(message)
+    topic = re.sub(
+        r"(?i)\b(make|create|write|draft|give me|help me|plan|about|for|with|a|an|the)\b",
+        " ",
+        topic,
+    )
+    topic = re.sub(r"(?i)\b(accounting|journal entry|nursing care plan|legal memo|machine learning|model plan|ml model|model|civil engineering|project management|grant proposal)\b", " ", topic)
+    topic = clean_text(topic).strip(" .,:;-")
+    return topic or task_intent.replace("_", " ")
+
+
+def accounting_journal_entry_reply(message: str) -> str:
+    lower = clean_text(message).lower()
+    if "cash sales" in lower or ("cash" in lower and "sales" in lower):
+        return (
+            "Journal entry for cash sales:\n\n"
+            "| Account | Debit | Credit |\n"
+            "|---|---:|---:|\n"
+            "| Cash | Amount |  |\n"
+            "| Sales Revenue |  | Amount |\n\n"
+            "Why:\n"
+            "- Cash increases, so it is debited.\n"
+            "- Sales revenue increases, so it is credited.\n\n"
+            "Bottom line:\n"
+            "If sales tax/GST is involved, credit Sales Revenue for the sale value and credit Tax Payable for the tax portion."
+        )
+    return ""
+
+
+def nursing_care_plan_reply(message: str) -> str:
+    lower = clean_text(message).lower()
+    if "fever" not in lower:
+        return ""
+    return (
+        "Nursing care plan for fever:\n\n"
+        "Assessment:\n"
+        "- Check temperature pattern, pulse, breathing, blood pressure, hydration, pain, and associated symptoms.\n"
+        "- Look for red flags: confusion, stiff neck, breathing difficulty, persistent high fever, dehydration, seizure, or fever in an infant.\n\n"
+        "Goals:\n"
+        "- Reduce discomfort.\n"
+        "- Maintain hydration.\n"
+        "- Monitor for worsening signs.\n\n"
+        "Interventions:\n"
+        "1. Encourage fluids if safe and not restricted.\n"
+        "2. Keep clothing and bedding light; avoid over-bundling.\n"
+        "3. Monitor temperature and vital signs regularly.\n"
+        "4. Give prescribed antipyretics only as ordered or per local clinical guidance.\n"
+        "5. Escalate to a clinician if red flags appear or fever persists.\n\n"
+        "Bottom line:\n"
+        "This is a general care-plan structure; real patient care should follow clinical protocol and qualified medical advice."
+    )
+
+
+def legal_memo_reply(message: str) -> str:
+    topic = local_field_topic(message, "legal_memo")
+    return (
+        f"Legal memo: {title_case_topic(topic)}\n\n"
+        "Issue:\n"
+        f"- What legal question must be answered about {topic}?\n\n"
+        "Rule:\n"
+        "- State the governing rule, statute, or case principle. The exact rule depends on jurisdiction.\n\n"
+        "Analysis:\n"
+        "- Apply each element of the rule to the facts.\n"
+        "- Separate strong facts, weak facts, missing facts, and assumptions.\n"
+        "- Address the strongest counterargument.\n\n"
+        "Conclusion:\n"
+        "- Give the likely result in one careful sentence, then note what fact or law could change it.\n\n"
+        "Bottom line:\n"
+        "A legal memo should be fact-specific and jurisdiction-specific; use this as a structure, not legal advice."
+    )
+
+
+def machine_learning_plan_reply(message: str) -> str:
+    topic = local_field_topic(message, "machine_learning")
+    return (
+        f"Machine learning plan for {topic}:\n\n"
+        "Goal:\n"
+        f"- Predict or estimate {topic} with a model that can be measured against real outcomes.\n\n"
+        "Workflow:\n"
+        "1. Define the target variable clearly.\n"
+        "2. Collect reliable data and remove duplicates, impossible values, and leakage.\n"
+        "3. Start with a simple baseline model before using complex models.\n"
+        "4. Split data into train/validation/test sets.\n"
+        "5. Evaluate with the right metric, such as MAE/RMSE for prices or F1/AUC for classification.\n"
+        "6. Inspect errors by segment so the model is not only good on average.\n\n"
+        "Quality checks:\n"
+        "- Check data leakage.\n"
+        "- Track missing values and outliers.\n"
+        "- Compare against a simple rule-based baseline.\n"
+        "- Document assumptions before deployment.\n\n"
+        "Bottom line:\n"
+        "Build a simple measurable baseline first; then improve features and model complexity only when the metric proves it helps."
+    )
+
+
+def local_field_expert_reply(message: str, task_intent: str) -> Optional[str]:
+    if task_intent not in FIELD_AWARE_INTENTS:
+        return None
+    if task_intent == "accounting_help":
+        direct = accounting_journal_entry_reply(message)
+        if direct:
+            return direct
+    if task_intent == "nursing_info":
+        direct = nursing_care_plan_reply(message)
+        if direct:
+            return direct
+    if task_intent == "legal_memo":
+        return legal_memo_reply(message)
+    if task_intent == "machine_learning":
+        return machine_learning_plan_reply(message)
+
+    label, steps, bottom = FIELD_PROFILES.get(
+        task_intent,
+        (
+            title_case_topic(task_intent.replace("_", " ")),
+            ["Clarify the goal and constraints.", "Break the task into steps.", "Check quality, risk, and next action."],
+            "A strong answer should be specific, practical, and easy to act on.",
+        ),
+    )
+    topic = local_field_topic(message, task_intent)
+    lines = [
+        f"{label} answer for {topic}:",
+        "",
+        "Short answer:",
+        f"Treat this as a {label.lower()} task: define the goal, identify constraints, choose the safest method, and check the result before acting.",
+        "",
+        "Working structure:",
+    ]
+    lines.extend(f"- {step}" for step in steps)
+    lines.extend([
+        "",
+        "Quality check:",
+        "- What fact, rule, measurement, or constraint could change the answer?",
+        "- What would a qualified reviewer check first?",
+        "- What is the smallest next step that produces evidence?",
+        "",
+        "Bottom line:",
+        bottom,
+    ])
+    return "\n".join(lines)
 
 
 def local_structured_fallback(
@@ -2271,6 +4609,12 @@ def local_structured_fallback(
     file_summary = local_file_summary_reply(message, session_id)
     if file_summary:
         return file_summary
+    text_summary = local_text_summary_reply(message)
+    if text_summary:
+        return text_summary
+    text_transform = local_text_transform_reply(message)
+    if text_transform:
+        return text_transform
     study_plan = local_study_plan_reply(message)
     if study_plan:
         return study_plan
@@ -2283,6 +4627,18 @@ def local_structured_fallback(
     capability = local_capability_reply(message)
     if capability:
         return capability
+    brainstorm = local_brainstorm_reply(message)
+    if brainstorm:
+        return brainstorm
+    decision = local_decision_reply(message)
+    if decision:
+        return decision
+    recipe = local_recipe_reply(message)
+    if recipe:
+        return recipe
+    travel = local_travel_itinerary_reply(message)
+    if travel:
+        return travel
     semantic = local_semantic_reply(message, response_lane, presentation_style)
     if semantic:
         return semantic
@@ -2457,6 +4813,14 @@ def local_vague_improvement_reply(message: str, focus: Dict[str, Any]) -> Option
 
 def local_capability_reply(message: str) -> Optional[str]:
     lower = clean_text(message).lower()
+    if re.search(r"\b(presentation|ppt|slides|slide deck|outline)\b", lower) and not re.search(r"\b(answer structure|presentation level|show answers|display|capability|capable|intelligence)\b", lower):
+        return None
+    if re.search(
+        r"\b(translation|translate|grammar|sentence|word|phrase|language|pronunciation|synonym|antonym|idiom|proverb|cefr|flashcard)\b.*\b(accuracy|accurate|level|structure)\b|"
+        r"\b(accuracy|accurate|level|structure)\b.*\b(translation|translate|grammar|sentence|word|phrase|language|pronunciation|synonym|antonym|idiom|proverb|cefr|flashcard)\b",
+        lower,
+    ):
+        return None
     capability_intent = re.search(
         r"\b(powerful|capability|capable|capability status|intelligence|intelligece|intelligence level|understand|understanding|understanding level|accuracy|accuracy level|accuaray|accurate|verification|reasoning|reasoing|reasoning level|structure|structured|strucutre|strucutres|answer structure|presentation|display|show answers|intelligent|smart|smarter|highest|advanced|maxed out|max precision|max-precision|know everything|100 questions|hundred questions|chatgpt|working level|problem solving|real ai)\b",
         lower,
@@ -2474,6 +4838,7 @@ def local_capability_reply(message: str) -> Optional[str]:
         f"What the {CAPABILITY_SCALE_TEXT} setup means here:\n"
         "- Intelligence level: It combines intent understanding, reasoning, accuracy, memory/context, tool routing, and answer shaping into one behavior profile.\n"
         f"- Intent quality level: The intent router and quality gate are set to {INTENT_QUALITY_LEVEL_TEXT}/10.00 for route selection and route-mismatch repair.\n"
+        f"- Routing matrix: {ROUTING_MATRIX_VERSION} covers realtime search, current facts, weather, markets, crypto, GitHub repos, package versions, earthquakes, launches, language learning, translation, pronunciation, grammar, vocabulary, transliteration, conversation practice, engineering, medicine, law, finance, education, operations, research, creative work, travel, local places, jobs, releases, code/debug, writing, study, planning, images, workflows, and normal chat.\n"
         "- Gate stack: Intent detection, context resolution, route selection, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, and final output cleanup are each exposed as 10.00 gates.\n"
         "- Question contract: It identifies the task type, target, constraints, accuracy need, and best answer format before replying.\n"
         "- Intent first: It corrects messy wording and answers what you likely meant, not only the exact words typed.\n"
@@ -2540,12 +4905,30 @@ def local_resilient_reply(
     file_summary = local_file_summary_reply(state.get("normalized") or message, session_id)
     if file_summary:
         return file_summary
+    text_summary = local_text_summary_reply(state.get("normalized") or message)
+    if text_summary:
+        return text_summary
+    text_transform = local_text_transform_reply(state.get("normalized") or message)
+    if text_transform:
+        return text_transform
     study_plan = local_study_plan_reply(state.get("normalized") or message)
     if study_plan:
         return study_plan
     email = local_email_reply(state.get("normalized") or message)
     if email:
         return email
+    brainstorm = local_brainstorm_reply(state.get("normalized") or message)
+    if brainstorm:
+        return brainstorm
+    decision = local_decision_reply(state.get("normalized") or message)
+    if decision:
+        return decision
+    recipe = local_recipe_reply(state.get("normalized") or message)
+    if recipe:
+        return recipe
+    travel = local_travel_itinerary_reply(state.get("normalized") or message)
+    if travel:
+        return travel
     semantic = local_semantic_reply(state.get("normalized") or message, response_lane, presentation_style)
     if semantic:
         return semantic
@@ -2748,6 +5131,7 @@ def system_profile() -> Dict[str, Any]:
             "mode": GATE_STACK_MODE,
             "scale": "0.00-10.00",
             "levels": gate_levels_payload(),
+            "routing_matrix": routing_matrix_payload(),
             "description": "Separate 10.00 gates for intent detection, context resolution, routing, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, and final cleanup.",
         },
         "intelligence": {
@@ -2807,6 +5191,7 @@ def runtime_efficiency_context() -> str:
         f"- Level: {profile['level']}\n"
         f"- Quality enforcement: {QUALITY_ENFORCEMENT_MODE}.\n"
         f"- Gate stack mode: {GATE_STACK_MODE}.\n"
+        f"- Routing matrix: {ROUTING_MATRIX_VERSION}.\n"
         f"- Intent quality level: {INTENT_QUALITY_LEVEL_TEXT}/10.00.\n"
         f"- Routing gate: {ROUTING_GATE_MODE} at {ROUTING_GATE_LEVEL_TEXT}/10.00; quality gate: {QUALITY_GATE_MODE} at {QUALITY_GATE_LEVEL_TEXT}/10.00.\n"
         "- Extra 10.00 gates: intent detection, context resolution, route selection, route confidence, task-shape validation, answer quality, accuracy, reasoning, answer structure, repair, and final output cleanup.\n"
@@ -4931,13 +7316,31 @@ def classify_response_lane(user_message: str, use_research: bool) -> str:
     text = clean_text(user_message).lower()
     if use_research:
         return "realtime_search"
+    if re.search(r"\b(fix grammar|correct grammar|grammar check|correct this|rewrite|rephrase|polish|make this clearer|improve this sentence|improve this text|translate|translation|translation review|natural translation|literal translation|back translation|transliterate|romanize|subtitle|tone conversion|make it formal|make it informal|localize|localise|politeness register|email rewrite|essay correction)\b", text):
+        return "writing"
+    if re.search(r"\b(language learning|language level|cefr|detect language|identify language|learn hindi|learn english|learn tamil|learn french|learn spanish|learn german|learn japanese|learn korean|learn arabic|learn chinese|learn portuguese|learn russian|learn italian|learn dutch|learn greek|learn bengali|learn marathi|learn telugu|learn kannada|learn malayalam|learn urdu|learn swahili|learn thai|learn vietnamese|pronunciation|vocabulary|vocab quiz|flashcard|grammar rule|grammar drill|tense practice|parts of speech|minimal pair|syllable stress|reading comprehension|cloze test|language exam|conversation practice|phrasebook|idiom|idioms|proverb|proverbs|synonym|synonyms|antonym|antonyms|word meaning|cultural context|compare languages)\b", text):
+        return "learning"
+    if re.search(r"\b(summarize|summarise|summary|shorten|key points|main points|takeaways)\b", text) and not re.search(r"\b(file|pdf|document|upload|uploaded)\b", text):
+        return "learning"
+    if re.search(r"\b(brainstorm|ideas?|which should i choose|which is better|should i|better option|recipe|cook|travel plan|trip plan|itinerary)\b", text):
+        return "planning"
+    if re.search(r"\b(legal memo|case brief|grant proposal|press release|journalism|sales pitch|customer support reply|essay|lab report|policy brief|research brief)\b", text):
+        return "writing"
+    if re.search(r"\b(health|symptom|pain|fever|medicine|doctor|legal|law|contract|finance|money|budget|saving|investment|loan|debt|tax|insurance|real estate|procurement|operations|logistics|supply chain|manufacturing|quality control|hr policy|compliance|policy analysis|sustainability|agriculture|parenting|sports coaching)\b", text):
+        return "planning"
+    if re.search(r"\b(resume|cv|job application|career|portfolio|linkedin|interview|presentation|ppt|slides|meeting notes|minutes of meeting|caption|social media post|essay|lab report|legal memo|case brief|grant proposal|press release|journalism|sales pitch|customer support|brand name|slogan|tagline)\b", text):
+        return "writing"
+    if re.search(r"\b(poem|original song|story|creative writing|joke|funny|relationship|stressed|sad|anxious|worried|lonely|angry|overwhelmed)\b", text):
+        return "human_chat"
+    if re.search(r"\b(flashcards?|quiz|practice questions|test me|mcq|timeline|chronology|homework|assignment|exam answer|answer this question)\b", text):
+        return "learning"
     if analyze_writing_request(user_message).get("is_writing") or re.search(r"\b(email|e-mail|mail|letter|application|notice|message|reply to|cover letter|resume|cv|apology|invitation|complaint|request|proposal|draft)\b", text):
         return "writing"
     if is_goal_or_problem_request(user_message):
         return "planning"
-    if re.search(r"\b(explain|teach|learn|class|chapter|homework|notes|summary|revise|study|history of|overview of|background of|timeline of)\b", text):
+    if re.search(r"\b(explain|teach|learn|class|chapter|homework|notes|summary|revise|study|history of|overview of|background of|timeline of|science|biology|physics|chemistry|geography|economics|philosophy|psychology|music theory|film analysis|theology|mathematical proof)\b", text):
         return "learning"
-    if re.search(r"\b(code|bug|debug|frontend|backend|api|html|css|javascript|python|github|deploy|website)\b", text):
+    if re.search(r"\b(code|bug|debug|frontend|backend|api|html|css|javascript|python|github|deploy|website|regex|excel formula|database|sql|data science|machine learning|dashboard|civil engineering|mechanical engineering|electrical engineering|electronics|arduino|architecture review)\b", text):
         return "build"
     return "human_chat"
 
@@ -4989,6 +7392,9 @@ def build_presentation_context(user_message: str, response_lane: str, use_resear
         "- Use this section order for explainers: 'Short answer:', 'Key points:', 'Why it matters:' or 'How it works:', then 'Bottom line:'.",
         "- Use this section order for how-to/planning tasks: 'Short answer:', concrete steps or workflow, optional checklist, then 'Bottom line:'.",
         "- Use this section order for research answers: 'Answer:', 'Key evidence:', 'Context:', then 'Bottom line:'.",
+        "- Use field-aware styling: definitions for learning, ordered steps for workflows, concise tables for comparisons, and direct finished drafts for writing.",
+        "- Prefer plain section labels, not oversized titles. Bold text is allowed only for genuinely important labels or emphasis.",
+        "- Make the answer feel finished: no dangling labels, no repeated punctuation, no source dumps, no awkward filler, and no giant single paragraph.",
         "- Never put a colon on its own line. Keep labels as 'Key points:' on one line.",
         "- Keep simple direct questions to 1-3 short paragraphs with no headings unless a heading makes the answer easier to scan.",
         "- Use a table only when comparing items across features, pros/cons, options, prices, specs, timelines, or tradeoffs.",
@@ -5065,6 +7471,10 @@ def build_response_lane_context(user_message: str, use_research: bool) -> str:
         "  - Research: Perplexity-style synthesis with citations and uncertainty handling.",
         "  - Creative: Claude-style prose with rhythm, clarity, and emotional intelligence.",
         "  - Business: strategic, sharp, concise, and action-oriented.",
+        "  - Professional fields: use domain-aware structure, practical constraints, risks, and next actions.",
+        "  - Healthcare/legal/finance: be careful, uncertainty-aware, and clear that high-stakes decisions need qualified review.",
+        "  - Engineering/data/operations: use specs, assumptions, checks, and implementation order.",
+        "  - Academic fields: define terms, explain the reasoning, give examples, and finish with the core takeaway.",
         "  - Casual: conversational, warm, and light without becoming sloppy.",
     ])
     if lane == "writing":
@@ -6605,24 +9015,754 @@ def duckduckgo_search(query: str, max_results: int = MAX_SEARCH_RESULTS) -> List
     return results
 
 
-def realtime_search_loop(query: str, max_rounds: int = 1) -> Dict[str, Any]:
+def duckduckgo_lite_search(query: str, max_results: int = MAX_SEARCH_RESULTS) -> List[Dict[str, Any]]:
+    search_url = "https://lite.duckduckgo.com/lite/"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    response = HTTP.post(search_url, data={"q": query}, headers=headers, timeout=SEARCH_TIMEOUT)
+    response.raise_for_status()
+    html = response.text
+    link_pattern = re.compile(
+        r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    results: List[Dict[str, Any]] = []
+    seen_urls = set()
+    for match in link_pattern.finditer(html):
+        title = clean_html_fragment(match.group(2))
+        url = decode_search_url(match.group(1))
+        if not url.startswith(("http://", "https://")) or not title:
+            continue
+        if "duckduckgo.com" in source_domain(url):
+            continue
+        if url in seen_urls:
+            continue
+        start = match.end()
+        snippet_chunk = html[start:start + 900]
+        snippet = clean_html_fragment(snippet_chunk)
+        snippet = re.sub(r"(?i)\b(Next Page|More Results|Images|Videos|News)\b.*$", "", snippet).strip()
+        seen_urls.add(url)
+        results.append({
+            "title": title[:170],
+            "url": url,
+            "domain": source_domain(url),
+            "snippet": snippet[:700],
+            "score": max(1, 92 - len(results) * 8),
+            "provider": "web_search:duckduckgo_lite",
+        })
+        if len(results) >= max_results:
+            break
+    return results
+
+
+def cached_search_results(provider: str, query: str, max_results: int = MAX_SEARCH_RESULTS) -> List[Dict[str, Any]]:
+    clean_query = clean_text(query)
+    key = f"{provider}:{max_results}:{clean_query.lower()}"
+    now = time.time()
+    with SEARCH_CACHE_LOCK:
+        cached = SEARCH_RESULT_CACHE.get(key)
+        if cached and now - float(cached.get("created", 0)) <= SEARCH_CACHE_TTL:
+            return [dict(item) for item in cached.get("results", [])[:max_results]]
+        expired = [
+            cache_key
+            for cache_key, value in SEARCH_RESULT_CACHE.items()
+            if now - float(value.get("created", 0)) > SEARCH_CACHE_TTL
+        ]
+        for cache_key in expired[:25]:
+            SEARCH_RESULT_CACHE.pop(cache_key, None)
+        if len(SEARCH_RESULT_CACHE) > SEARCH_CACHE_MAX:
+            oldest = sorted(SEARCH_RESULT_CACHE.items(), key=lambda item: float(item[1].get("created", 0)))
+            for cache_key, _value in oldest[: max(1, len(SEARCH_RESULT_CACHE) - SEARCH_CACHE_MAX)]:
+                SEARCH_RESULT_CACHE.pop(cache_key, None)
+    if provider == "duckduckgo_lite":
+        results = duckduckgo_lite_search(clean_query, max_results=max_results)
+    else:
+        results = duckduckgo_search(clean_query, max_results=max_results)
+    if results:
+        with SEARCH_CACHE_LOCK:
+            SEARCH_RESULT_CACHE[key] = {
+                "created": now,
+                "results": [dict(item) for item in results[:max_results]],
+            }
+    return [dict(item) for item in results[:max_results]]
+
+
+def current_search_date_label() -> str:
+    return datetime.now().strftime("%B %d, %Y")
+
+
+def build_realtime_query_variants(query: str) -> Tuple[str, List[str]]:
+    clean_query = clean_text(query)
+    route = detect_task_intent(clean_query, True)
+    year = str(datetime.now().year)
+    today = current_search_date_label()
+    variants = [clean_query]
+    lower = clean_query.lower()
+
+    if route == "realtime_weather":
+        variants.append(f"{clean_query} weather forecast today {today}")
+    elif route == "realtime_crypto_price":
+        variants.append(f"{clean_query} live crypto price today {year}")
+    elif route == "realtime_github_repo":
+        variants.append(f"{clean_query} GitHub repository stars issues latest")
+    elif route == "realtime_package_version":
+        variants.append(f"{clean_query} latest package version official registry {year}")
+    elif route == "realtime_security_advisory":
+        variants.append(f"{clean_query} CVE security advisory official latest {year}")
+    elif route == "realtime_academic_paper":
+        variants.append(f"{clean_query} research paper DOI arXiv latest {year}")
+    elif route == "realtime_dataset_lookup":
+        variants.append(f"{clean_query} dataset download official latest {year}")
+    elif route == "realtime_earthquake":
+        variants.append(f"{clean_query} earthquake latest USGS today {today}")
+    elif route == "realtime_air_quality":
+        variants.append(f"{clean_query} AQI air quality today {today}")
+    elif route == "realtime_space_launch":
+        variants.append(f"{clean_query} next space launch upcoming latest {year}")
+    elif route == "realtime_public_record":
+        variants.append(f"{clean_query} official public record status {year}")
+    elif route == "realtime_fuel_price":
+        variants.append(f"{clean_query} fuel price today official {today}")
+    elif route == "realtime_product_price":
+        variants.append(f"{clean_query} price availability latest {year}")
+    elif route == "realtime_tax_deadline":
+        variants.append(f"{clean_query} official tax deadline due date {year}")
+    elif route == "realtime_university_admission":
+        variants.append(f"{clean_query} official admission counselling schedule {year}")
+    elif route == "realtime_food_delivery":
+        variants.append(f"{clean_query} food delivery open now latest")
+    elif route == "realtime_local_emergency":
+        variants.append(f"{clean_query} emergency service official current")
+    elif route == "realtime_sports":
+        variants.append(f"{clean_query} live score latest {year}")
+    elif route == "realtime_market":
+        variants.append(f"{clean_query} live price market today {year}")
+    elif route == "realtime_exchange_rate":
+        variants.append(f"{clean_query} exchange rate today {year}")
+    elif route == "realtime_product_recommendation":
+        variants.append(f"{clean_query} latest reviews {year}")
+    elif route == "realtime_current_fact":
+        variants.append(f"{clean_query} official current {year}")
+    elif route == "realtime_news":
+        variants.append(f"{clean_query} latest news {today}")
+    elif route == "realtime_local_places":
+        variants.append(f"{clean_query} open now latest")
+    elif route == "realtime_travel_status":
+        variants.append(f"{clean_query} status live today {today}")
+    elif route == "realtime_events":
+        variants.append(f"{clean_query} events tickets {year}")
+    elif route == "realtime_jobs":
+        variants.append(f"{clean_query} jobs hiring latest {year}")
+    elif route == "realtime_version_release":
+        variants.append(f"{clean_query} official release latest {year}")
+    elif route == "realtime_schedule":
+        variants.append(f"{clean_query} official schedule date {year}")
+    elif route == "realtime_law_policy_update":
+        variants.append(f"{clean_query} official latest law policy update {year}")
+    elif route == "realtime_exam_result":
+        variants.append(f"{clean_query} official result admit card answer key {year}")
+    elif route == "realtime_public_transport":
+        variants.append(f"{clean_query} live transport status schedule today {today}")
+    elif route == "realtime_outage":
+        variants.append(f"{clean_query} outage status live today {today}")
+    elif route == "realtime_holiday_calendar":
+        variants.append(f"{clean_query} official holiday calendar date {year}")
+    elif route == "realtime_movie_showtimes":
+        variants.append(f"{clean_query} movie showtimes today {today}")
+    elif route == "realtime_shopping_availability":
+        variants.append(f"{clean_query} in stock availability price latest {year}")
+    elif route == "realtime_platform_status":
+        variants.append(f"{clean_query} status outage latest today {today}")
+    elif route == "realtime_academic_deadline":
+        variants.append(f"{clean_query} official deadline last date {year}")
+    elif route == "realtime_government_scheme":
+        variants.append(f"{clean_query} official government scheme latest {year}")
+    elif re.search(r"\b(latest|current|today|recent|news|2026|2025)\b", lower):
+        variants.append(f"{clean_query} {today}")
+
+    unique: List[str] = []
+    for variant in variants:
+        compact = clean_text(variant)
+        if compact and compact.lower() not in {item.lower() for item in unique}:
+            unique.append(compact)
+    return route, unique[:3]
+
+
+def realtime_source(title: str, url: str, snippet: str, provider: str, score: int = 112) -> Dict[str, Any]:
+    return {
+        "title": clean_text(title)[:170],
+        "url": url,
+        "domain": source_domain(url),
+        "snippet": clean_text(snippet)[:700],
+        "score": score,
+        "provider": provider,
+    }
+
+
+def extract_weather_location(query: str) -> str:
+    text = clean_text(query)
+    text = re.sub(
+        r"(?i)\b(what is|what's|show me|tell me|please|current|live|right now|now|today|tomorrow|weather|forecast|temperature|rain|in|for|at)\b",
+        " ",
+        text,
+    )
+    text = clean_text(text).strip(" ?.,;:-")
+    return title_case_topic(text) if text else ""
+
+
+def fetch_wttr_weather_source(query: str) -> Optional[Dict[str, Any]]:
+    location = extract_weather_location(query)
+    if not location:
+        return None
+    api_url = f"https://wttr.in/{quote(location, safe='')}?format=j1"
     try:
-        sources = duckduckgo_search(query, max_results=MAX_SEARCH_RESULTS)
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6))
+        response.raise_for_status()
+        data = response.json()
+        current = (data.get("current_condition") or [{}])[0]
+        forecast = (data.get("weather") or [{}])[0]
+    except Exception:
+        return None
+    condition = clean_text(" ".join(item.get("value", "") for item in current.get("weatherDesc", []) if isinstance(item, dict)))
+    temp_c = clean_text(str(current.get("temp_C", "")))
+    temp_f = clean_text(str(current.get("temp_F", "")))
+    humidity = clean_text(str(current.get("humidity", "")))
+    wind = clean_text(str(current.get("windspeedKmph", "")))
+    high_c = clean_text(str(forecast.get("maxtempC", "")))
+    low_c = clean_text(str(forecast.get("mintempC", "")))
+    observed = clean_text(str(current.get("localObsDateTime", ""))) or current_search_date_label()
+    parts = [
+        f"Checked today {current_search_date_label()} for {location}.",
+        f"Observed {observed}.",
+    ]
+    if condition:
+        parts.append(f"Condition: {condition}.")
+    if temp_c:
+        temp_part = f"Temperature: {temp_c} C"
+        if temp_f:
+            temp_part += f" ({temp_f} F)"
+        parts.append(temp_part + ".")
+    if high_c or low_c:
+        parts.append(f"Forecast range today: {low_c or '?'} C to {high_c or '?'} C.")
+    if humidity:
+        parts.append(f"Humidity: {humidity} percent.")
+    if wind:
+        parts.append(f"Wind: {wind} km/h.")
+    return realtime_source(
+        f"Live weather for {location}",
+        f"https://wttr.in/{quote(location, safe='')}",
+        " ".join(parts),
+        "realtime_api:wttr_in",
+        score=125,
+    )
+
+
+def parse_currency_pair(query: str) -> Optional[Tuple[str, str]]:
+    upper = clean_text(query).upper()
+    match = re.search(r"\b([A-Z]{3})\s*(?:TO|/|-)\s*([A-Z]{3})\b", upper)
+    if match:
+        return match.group(1), match.group(2)
+    return None
+
+
+def fetch_exchange_rate_source(query: str) -> Optional[Dict[str, Any]]:
+    pair = parse_currency_pair(query)
+    if not pair:
+        return None
+    base, target = pair
+    api_url = f"https://open.er-api.com/v6/latest/{base}"
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6))
+        response.raise_for_status()
+        data = response.json()
+        rate = data.get("rates", {}).get(target)
+    except Exception:
+        return None
+    if rate is None:
+        return None
+    updated = clean_text(str(data.get("time_last_update_utc", ""))) or current_search_date_label()
+    snippet = (
+        f"Checked today {current_search_date_label()}. "
+        f"Open Exchange Rates mirror reports 1 {base} = {rate} {target}. "
+        f"Last update: {updated}. Exchange rates change constantly."
+    )
+    return realtime_source(
+        f"{base} to {target} exchange rate",
+        api_url,
+        snippet,
+        "realtime_api:open_er_api",
+        score=124,
+    )
+
+
+def format_live_number(value: Any) -> str:
+    try:
+        number = float(value)
+    except Exception:
+        return clean_text(str(value))
+    if abs(number) >= 100:
+        return f"{number:.2f}".rstrip("0").rstrip(".")
+    if abs(number) >= 1:
+        return f"{number:.4f}".rstrip("0").rstrip(".")
+    return f"{number:.6g}"
+
+
+def parse_crypto_asset(query: str) -> Optional[Tuple[str, str, str]]:
+    lower = clean_text(query).lower()
+    assets = [
+        ("bitcoin", "BTC", r"\b(bitcoin|btc)\b"),
+        ("ethereum", "ETH", r"\b(ethereum|eth)\b"),
+        ("solana", "SOL", r"\b(solana|sol)\b"),
+        ("dogecoin", "DOGE", r"\b(dogecoin|doge)\b"),
+        ("cardano", "ADA", r"\b(cardano|ada)\b"),
+        ("ripple", "XRP", r"\b(ripple|xrp)\b"),
+        ("binancecoin", "BNB", r"\b(bnb|binance coin)\b"),
+        ("polkadot", "DOT", r"\b(polkadot|dot)\b"),
+        ("litecoin", "LTC", r"\b(litecoin|ltc)\b"),
+        ("chainlink", "LINK", r"\b(chainlink|link)\b"),
+        ("tron", "TRX", r"\b(tron|trx)\b"),
+        ("matic-network", "MATIC", r"\b(polygon|matic)\b"),
+    ]
+    for coin_id, symbol, pattern in assets:
+        if re.search(pattern, lower):
+            return coin_id, symbol, symbol
+    return None
+
+
+def fetch_crypto_price_source(query: str) -> Optional[Dict[str, Any]]:
+    asset = parse_crypto_asset(query)
+    if not asset:
+        return None
+    coin_id, symbol, label = asset
+    vs_currencies = "usd,inr" if re.search(r"\b(inr|rupee|india)\b", query, re.IGNORECASE) else "usd"
+    api_url = (
+        "https://api.coingecko.com/api/v3/simple/price"
+        f"?ids={quote(coin_id, safe='')}&vs_currencies={vs_currencies}"
+        "&include_24hr_change=true&include_last_updated_at=true"
+    )
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Mozilla/5.0"})
+        response.raise_for_status()
+        data = response.json().get(coin_id, {})
+    except Exception:
+        return None
+    if not data:
+        return None
+    price_bits = []
+    for currency in vs_currencies.split(","):
+        if currency in data:
+            price_bits.append(f"{format_live_number(data[currency])} {currency.upper()}")
+    if not price_bits:
+        return None
+    change = data.get("usd_24h_change") if "usd_24h_change" in data else None
+    updated_raw = data.get("last_updated_at")
+    updated = ""
+    if updated_raw:
+        try:
+            updated = datetime.fromtimestamp(float(updated_raw), timezone.utc).strftime("%Y-%m-%d %Hh%M UTC")
+        except Exception:
+            updated = clean_text(str(updated_raw))
+    change_text = f" 24h change: {format_live_number(change)} percent." if change is not None else ""
+    snippet = (
+        f"Checked today {current_search_date_label()}. "
+        f"CoinGecko reports 1 {label} = {' / '.join(price_bits)}."
+        f"{change_text} Last updated: {updated or 'not listed'}."
+    )
+    return realtime_source(
+        f"{label} live crypto price",
+        f"https://www.coingecko.com/en/coins/{coin_id}",
+        snippet,
+        "realtime_api:coingecko",
+        score=126,
+    )
+
+
+def parse_github_repo(query: str) -> Optional[Tuple[str, str]]:
+    text = clean_text(query)
+    match = re.search(r"github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)", text, re.IGNORECASE)
+    if not match and re.search(r"\b(github|repo|repository)\b", text, re.IGNORECASE):
+        match = re.search(r"\b([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\b", text)
+    if not match:
+        return None
+    owner = match.group(1).strip(". ")
+    repo = re.sub(r"\.git$", "", match.group(2).strip(". "))
+    if not owner or not repo:
+        return None
+    return owner, repo
+
+
+def fetch_github_repo_source(query: str) -> Optional[Dict[str, Any]]:
+    repo_ref = parse_github_repo(query)
+    if not repo_ref:
+        return None
+    owner, repo = repo_ref
+    api_url = f"https://api.github.com/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Nexora"})
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return None
+    full_name = clean_text(str(data.get("full_name", f"{owner}/{repo}")))
+    description = clean_text(str(data.get("description", "")))
+    updated_at = clean_text(str(data.get("updated_at", "unknown")))
+    try:
+        updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00")).strftime("%Y-%m-%d %Hh%M UTC")
+    except Exception:
+        pass
+    snippet = (
+        f"Checked today {current_search_date_label()}. "
+        f"{full_name} has {data.get('stargazers_count', 0)} stars, {data.get('forks_count', 0)} forks, "
+        f"{data.get('open_issues_count', 0)} open issues, default branch {data.get('default_branch', 'unknown')}, "
+        f"and was updated at {updated_at}. "
+        f"{description}"
+    )
+    return realtime_source(
+        f"GitHub repository {full_name}",
+        str(data.get("html_url", f"https://github.com/{owner}/{repo}")),
+        snippet,
+        "realtime_api:github_repo",
+        score=125,
+    )
+
+
+def parse_package_request(query: str) -> Optional[Tuple[str, str]]:
+    text = clean_text(query)
+    lower = text.lower()
+    ecosystem = ""
+    if re.search(r"\b(npm|node package|javascript package|js package)\b", lower):
+        ecosystem = "npm"
+    elif re.search(r"\b(pypi|pip|python package)\b", lower):
+        ecosystem = "pypi"
+    elif "package version" in lower or "latest version of" in lower:
+        ecosystem = "npm" if re.search(r"\b(react|vue|angular|next|express|vite|typescript)\b", lower) else "pypi"
+    else:
+        return None
+    patterns = [
+        r"\b(?:pypi|pip|python package|npm package|node package|npm|package)\s+(@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?)",
+        r"\blatest version of\s+(@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?)",
+        r"\bversion of\s+(@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, lower)
+        if match:
+            package = match.group(1).strip(" .,:;\"'")
+            if package not in {"package", "version", "latest", "npm", "pypi", "pip"}:
+                return ecosystem, package
+    return None
+
+
+def fetch_package_version_source(query: str) -> Optional[Dict[str, Any]]:
+    request = parse_package_request(query)
+    if not request:
+        return None
+    ecosystem, package = request
+    if ecosystem == "pypi":
+        api_url = f"https://pypi.org/pypi/{quote(package, safe='')}/json"
+        try:
+            response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Nexora"})
+            response.raise_for_status()
+            data = response.json()
+        except Exception:
+            return None
+        info = data.get("info", {})
+        version = clean_text(str(info.get("version", "")))
+        summary = clean_text(str(info.get("summary", "")))
+        files = data.get("releases", {}).get(version, [])
+        uploaded = clean_text(str((files[0] if files else {}).get("upload_time_iso_8601", "")))
+        try:
+            uploaded = datetime.fromisoformat(uploaded.replace("Z", "+00:00")).strftime("%Y-%m-%d %Hh%M UTC")
+        except Exception:
+            pass
+        snippet = (
+            f"Checked today {current_search_date_label()}. "
+            f"PyPI lists {package} latest version as {version or 'unknown'}. "
+            f"Release upload time: {uploaded or 'not listed'}. {summary}"
+        )
+        return realtime_source(
+            f"PyPI package {package}",
+            f"https://pypi.org/project/{package}/",
+            snippet,
+            "realtime_api:pypi_package",
+            score=124,
+        )
+    api_url = f"https://registry.npmjs.org/{quote(package, safe='@')}"
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Nexora"})
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return None
+    latest = clean_text(str(data.get("dist-tags", {}).get("latest", "")))
+    description = clean_text(str(data.get("description", "")))
+    uploaded = clean_text(str(data.get("time", {}).get(latest, "")))
+    try:
+        uploaded = datetime.fromisoformat(uploaded.replace("Z", "+00:00")).strftime("%Y-%m-%d %Hh%M UTC")
+    except Exception:
+        pass
+    snippet = (
+        f"Checked today {current_search_date_label()}. "
+        f"npm lists {package} latest version as {latest or 'unknown'}. "
+        f"Release time: {uploaded or 'not listed'}. {description}"
+    )
+    return realtime_source(
+        f"npm package {package}",
+        f"https://www.npmjs.com/package/{package}",
+        snippet,
+        "realtime_api:npm_package",
+        score=124,
+    )
+
+
+def fetch_earthquake_source(query: str) -> Optional[Dict[str, Any]]:
+    api_url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Nexora"})
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return None
+    features = data.get("features", [])[:5]
+    if not features:
+        snippet = f"USGS earthquake feed checked today {current_search_date_label()}; no earthquakes are listed in the all-day feed."
+    else:
+        points = []
+        for feature in features[:3]:
+            props = feature.get("properties", {})
+            mag = props.get("mag", "?")
+            place = clean_text(str(props.get("place", "unknown location")))
+            when = ""
+            try:
+                when = datetime.fromtimestamp(float(props.get("time", 0)) / 1000, timezone.utc).strftime("%Y-%m-%d %Hh%M UTC")
+            except Exception:
+                when = "time not listed"
+            points.append(f"M{format_live_number(mag)} near {place} at {when}")
+        snippet = f"USGS earthquake feed checked today {current_search_date_label()}. " + "; ".join(points) + "."
+    return realtime_source(
+        "USGS latest earthquakes",
+        "https://earthquake.usgs.gov/earthquakes/map/",
+        snippet,
+        "realtime_api:usgs_earthquake",
+        score=122,
+    )
+
+
+def fetch_space_launch_source(query: str) -> Optional[Dict[str, Any]]:
+    api_url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=1"
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Nexora"})
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return None
+    results = data.get("results") or []
+    if not results:
+        return None
+    launch = results[0]
+    name = clean_text(str(launch.get("name", "Upcoming launch")))
+    net = clean_text(str(launch.get("net", "time not listed")))
+    try:
+        net = datetime.fromisoformat(net.replace("Z", "+00:00")).strftime("%Y-%m-%d %Hh%M UTC")
+    except Exception:
+        pass
+    status = clean_text(str(launch.get("status", {}).get("name", "")))
+    provider = clean_text(str(launch.get("launch_service_provider", {}).get("name", "")))
+    pad = clean_text(str(launch.get("pad", {}).get("name", "")))
+    url = clean_text(str(launch.get("url", ""))) or "https://thespacedevs.com/llapi"
+    snippet = (
+        f"Checked today {current_search_date_label()}. "
+        f"Next listed launch: {name}. Scheduled NET: {net}. "
+        f"Status: {status or 'not listed'}. Provider: {provider or 'not listed'}. Pad: {pad or 'not listed'}."
+    )
+    return realtime_source(
+        "Upcoming space launch",
+        url,
+        snippet,
+        "realtime_api:space_devs",
+        score=121,
+    )
+
+
+def fetch_nba_scoreboard_source(query: str) -> Optional[Dict[str, Any]]:
+    if "nba" not in clean_text(query).lower():
+        return None
+    api_url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+    try:
+        response = HTTP.get(api_url, timeout=min(SEARCH_TIMEOUT, 6))
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return None
+    events = data.get("events") or []
+    if not events:
+        snippet = f"ESPN NBA scoreboard checked today {current_search_date_label()}; the live feed returned no NBA events for the current scoreboard window."
+    else:
+        summaries = []
+        for event in events[:4]:
+            name = clean_text(str(event.get("name", "")))
+            status = clean_text(str(event.get("status", {}).get("type", {}).get("description", "")))
+            competition = (event.get("competitions") or [{}])[0]
+            teams = []
+            for competitor in competition.get("competitors", [])[:2]:
+                team = clean_text(str(competitor.get("team", {}).get("displayName", "")))
+                score = clean_text(str(competitor.get("score", "")))
+                if team:
+                    teams.append(f"{team} {score}".strip())
+            summaries.append(clean_text(f"{name}: {' vs '.join(teams) or 'score listed'} ({status})."))
+        snippet = f"ESPN NBA scoreboard checked today {current_search_date_label()}. " + " ".join(summaries)
+    return realtime_source(
+        "ESPN NBA live scoreboard",
+        "https://www.espn.com/nba/scoreboard",
+        snippet,
+        "realtime_api:espn_scoreboard",
+        score=123,
+    )
+
+
+def fetch_official_release_source(query: str) -> Optional[Dict[str, Any]]:
+    lower = clean_text(query).lower()
+    candidates: List[Tuple[str, str]] = []
+    if "iphone" in lower:
+        candidates.append(("Official Apple iPhone page", "https://www.apple.com/iphone/"))
+    if "ios" in lower:
+        candidates.append(("Official Apple iOS page", "https://www.apple.com/ios/"))
+    if "windows" in lower:
+        candidates.append(("Official Microsoft Windows page", "https://www.microsoft.com/windows/"))
+    if "android" in lower:
+        candidates.append(("Official Android page", "https://www.android.com/"))
+    for fallback_title, url in candidates:
+        try:
+            response = HTTP.get(url, timeout=min(SEARCH_TIMEOUT, 6), headers={"User-Agent": "Mozilla/5.0"})
+            response.raise_for_status()
+            html = response.text[:150000]
+        except Exception:
+            continue
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", html)
+        desc_match = re.search(
+            r"(?is)<meta[^>]+(?:name|property)=['\"](?:description|og:description)['\"][^>]+content=['\"]([^'\"]+)['\"]",
+            html,
+        )
+        title = clean_html_fragment(title_match.group(1)) if title_match else fallback_title
+        desc = clean_html_fragment(desc_match.group(1)) if desc_match else ""
+        snippet = (
+            f"Official source checked today {current_search_date_label()}. "
+            f"{title}. {desc or 'Use this official page to verify the latest model, release, specs, and availability.'}"
+        )
+        return realtime_source(title or fallback_title, url, snippet, "realtime_official_page", score=118)
+    return None
+
+
+def specialized_realtime_sources(query: str, route: str) -> List[Dict[str, Any]]:
+    sources: List[Dict[str, Any]] = []
+    if route == "realtime_weather":
+        source = fetch_wttr_weather_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_crypto_price":
+        source = fetch_crypto_price_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_github_repo":
+        source = fetch_github_repo_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_package_version":
+        source = fetch_package_version_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_earthquake":
+        source = fetch_earthquake_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_space_launch":
+        source = fetch_space_launch_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_exchange_rate":
+        source = fetch_exchange_rate_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_sports":
+        source = fetch_nba_scoreboard_source(query)
+        if source:
+            sources.append(source)
+    elif route == "realtime_version_release":
+        source = fetch_official_release_source(query)
+        if source:
+            sources.append(source)
+    return sources
+
+
+def realtime_search_loop(query: str, max_rounds: int = 1) -> Dict[str, Any]:
+    route, query_variants = build_realtime_query_variants(query)
+    combined_sources: List[Dict[str, Any]] = []
+    seen_urls = set()
+    errors: List[str] = []
+    for source in specialized_realtime_sources(query, route):
+        url = str(source.get("url", ""))
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        source["query_variant"] = "specialized_realtime"
+        combined_sources.append(source)
+    for index, variant in enumerate(query_variants):
+        try:
+            sources = cached_search_results("duckduckgo", variant, max_results=MAX_SEARCH_RESULTS)
+            if not sources:
+                sources = cached_search_results("duckduckgo_lite", variant, max_results=MAX_SEARCH_RESULTS)
+        except Exception as error:
+            errors.append(f"{variant}: {error}")
+            continue
+        for source in sources:
+            url = str(source.get("url", ""))
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            adjusted = dict(source)
+            adjusted["score"] = int(adjusted.get("score", 0) or 0) + max(0, 8 - index * 3)
+            adjusted["query_variant"] = variant
+            combined_sources.append(adjusted)
+            if len(combined_sources) >= MAX_SEARCH_RESULTS:
+                break
+        if len(combined_sources) >= MAX_SEARCH_RESULTS:
+            break
+    if combined_sources:
+        return {
+            "ok": True,
+            "sources": combined_sources[:MAX_SEARCH_RESULTS],
+            "confidence": "medium",
+            "rounds": max_rounds,
+            "provider": f"duckduckgo_realtime:{route}",
+            "route": route,
+            "queries": query_variants,
+        }
+    try:
+        sources = cached_search_results("duckduckgo_lite", query, max_results=MAX_SEARCH_RESULTS)
         return {
             "ok": bool(sources),
             "sources": sources,
             "confidence": "medium" if sources else "none",
             "rounds": max_rounds,
-            "provider": "duckduckgo_html",
+            "provider": f"duckduckgo_lite:{route}",
+            "route": route,
+            "queries": query_variants,
         }
     except Exception as error:
+        errors.append(str(error))
         return {
             "ok": False,
             "sources": [],
             "confidence": "none",
             "rounds": 0,
-            "provider": "duckduckgo_html",
-            "error": str(error),
+            "provider": f"duckduckgo_realtime:{route}",
+            "route": route,
+            "queries": query_variants,
+            "error": "; ".join(errors),
         }
 
 
@@ -6630,7 +9770,12 @@ def prefer_fast_realtime_search(query: str) -> bool:
     lower = clean_text(query).lower()
     return bool(re.search(
         r"\b(latest|current|today|recent|news|live|right now|price|score|weather|winner|"
-        r"stock|share|market|ceo|president|prime minister|election|filing|released|updated)\b",
+        r"stock|share|market|ceo|president|prime minister|election|filing|released|updated|"
+        r"forecast|standings|fixture|flight|train|traffic|near me|open now|events?|hiring|"
+        r"exchange rate|release date|schedule|showtimes?|outage|downtime|in stock|admit card|"
+        r"exam result|bank holiday|government scheme|latest law|policy update|crypto|bitcoin|"
+        r"github repo|github repository|package version|npm package|pypi|cve|security advisory|"
+        r"earthquake|air quality|space launch|fuel price|tax deadline|admission list)\b",
         lower,
     ))
 
@@ -6670,6 +9815,62 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
         return True
     if re.search(r"\b(search|searcch|look up|lookup|google|find online|on the internet|real[- ]?time|realtime)\b", text):
         return True
+    if re.search(r"github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", text):
+        return True
+    local_language_task = bool(re.search(
+        r"\b(fix grammar|correct grammar|grammar check|correct this|rewrite|rephrase|polish|make this clearer|improve this sentence|improve this text|translate|translation|"
+        r"detect language|transliterate|romanize|romanization|pronounce|pronunciation|grammar rule|meaning of|word meaning|dictionary|definition|"
+        r"synonym|antonym|idiom|proverb|vocabulary|spelling|punctuation|parts of speech|tense|conjugate|phrasal verb|collocation|"
+        r"make it formal|make it informal|change tone|bilingual|phrasebook|conversation practice|reading comprehension|cloze test|"
+        r"language exam|language learning|language level|cefr|flashcard|minimal pair|syllable stress|word usage|sentence correction|"
+        r"translation review|natural translation|literal translation|back translation|cultural context|honorific|politeness register|"
+        r"compare languages|essay correction|email rewrite|learn hindi|learn english|learn tamil|learn french|learn spanish|learn german|"
+        r"learn japanese|learn korean|learn arabic|learn chinese|learn portuguese|learn russian|learn italian|learn dutch|learn greek|"
+        r"learn bengali|learn marathi|learn telugu|learn kannada|learn malayalam|learn urdu|learn swahili|learn thai|learn vietnamese)\b",
+        text,
+    ))
+    inline_summary_task = bool(
+        re.search(r"\b(summarize|summarise|summary|shorten|key points|main points|takeaways)\b", text)
+        and not re.search(r"\b(file|pdf|document|upload|uploaded)\b|\bthis\s+(?:file|pdf|document|upload)\b", text)
+    )
+    if local_language_task or inline_summary_task:
+        return False
+    local_document_task = bool(
+        re.search(r"\b(explain|summarize|summarise|read|simplify|review)\b", text)
+        and re.search(r"\b(contract|agreement|terms|document|text)\b", text)
+        and not re.search(r"\b(search|latest|current|today|recent|news|verify|sources?|citations?|online|internet)\b", text)
+    )
+    if local_document_task:
+        return False
+    local_study_schedule_task = bool(
+        re.search(r"\b(study timetable|study plan|revision timetable|revision plan|schedule for study|plan my study|study schedule)\b", text)
+        and not re.search(r"\b(latest|current|official|released|result date|exam date|board exam|date sheet)\b", text)
+    )
+    if local_study_schedule_task:
+        return False
+    local_technical_model_task = bool(
+        re.search(r"\b(machine learning|ml model|data science|regression model|classification model|model plan|predictive model)\b", text)
+        and not re.search(r"\b(latest|current|today|live|news|stock price|market price|crypto price|actual price right now)\b", text)
+    )
+    if local_technical_model_task:
+        return False
+    realtime_domains = bool(re.search(
+        r"\b(weather|forecast|temperature|score|scores|match|fixture|standings|points table|"
+        r"flights?|trains?|buses|bus|metro|subway|traffic|delay|cancelled|canceled|near me|nearby|"
+        r"open now|restaurant|cafe|hotel|hospital|pharmacy|movie times|showtimes?|store hours|"
+        r"events?|concert|tickets?|job openings?|hiring|vacancy|exam result|admit card|hall ticket|"
+        r"scholarship|application deadline|last date|exchange rate|currency rate|release date|"
+        r"availability|available now|in stock|out of stock|schedule|timetable|exam date|result date|"
+        r"bank holiday|public holiday|platform status|server status|service status|outage|downtime|"
+        r"power cut|government scheme|govt scheme|yojana|new law|latest law|new rule|policy update|"
+        r"github repo|github repository|github stars|latest commit|package version|npm package|pypi|pip package|"
+        r"cve|security advisory|zero[- ]day|vulnerability|crypto price|bitcoin price|ethereum price|"
+        r"earthquake|air quality|aqi|space launch|rocket launch|fuel price|tax deadline|"
+        r"university admission|college admission|admission list|dataset download|public record|case status)\b",
+        text,
+    ))
+    if realtime_domains:
+        return True
     keywords = [
         "latest", "today", "current", "recent", "news", "live", "right now", "2026", "2025",
         "now", "this week", "this month", "this year", "as of", "currently",
@@ -6682,8 +9883,14 @@ def should_use_research(message: str, mode: Optional[str], explicit: Optional[bo
         "war today", "war news", "current conflict", "latest conflict", "ongoing conflict",
         "conflict today", "conflict news", "russia ukraine", "ukraine war",
         "israel hamas", "gaza war", "iran israel", "middle east conflict",
+        "github stars", "github issues", "latest commit", "npm package", "pypi",
+        "package version", "cve", "security advisory", "earthquake", "space launch",
     ]
-    if re.search(r"\b(latest|current|new|newest|updated)\s+(version|model|specs?|release)\b", text):
+    if re.search(
+        r"\b(latest|current|new|newest|updated|released)\b.{0,55}\b(version|model|specs?|release|download|phone|iphone|android|ios|windows|app)\b"
+        r"|\b(version|model|specs?|release|download|phone|iphone|android|ios|windows|app)\b.{0,55}\b(latest|current|newest|updated|released)\b",
+        text,
+    ):
         return True
     recommendation_context = bool(re.search(
         r"\b(best|top|recommend|recommendation|which should i buy|buy|purchase|worth it|review)\b",
@@ -6735,6 +9942,8 @@ def source_has_real_evidence(source: SourceItem, user_question: str) -> bool:
     question = user_question.lower()
     if not source.title and not source.snippet:
         return False
+    if source.provider.startswith(("realtime_api", "realtime_official")):
+        return bool(source.url and (source.title or source.snippet))
     if source.provider.startswith("web_search"):
         return bool(source.url and source.title)
     if source.provider.startswith("wikipedia_current_role"):
@@ -6759,6 +9968,54 @@ def source_relevance_score(source: SourceItem, user_question: str) -> int:
     if re.search(r"\b(current|latest|today|price|weather|score|election|prime minister|president|ceo)\b", question):
         if re.search(r"\b(today|latest|current|official|live|updated|2026|2025)\b", hay):
             score += 12
+    if re.search(r"\b(weather|forecast|temperature)\b", question):
+        if domain in {"weather.com", "accuweather.com", "timeanddate.com"} or "weather" in domain:
+            score += 18
+    if re.search(r"\b(stock|share|market|crypto|price|exchange rate|currency)\b", question):
+        if domain in {"finance.yahoo.com", "marketwatch.com", "investing.com", "xe.com", "coinmarketcap.com"}:
+            score += 18
+    if re.search(r"\b(crypto|bitcoin|ethereum|solana|dogecoin|btc|eth)\b", question):
+        if "coingecko.com" in domain or "coinmarketcap.com" in domain:
+            score += 20
+    if re.search(r"\b(github repo|github repository|github stars|latest commit)\b", question):
+        if domain in {"github.com", "api.github.com"} or "github" in domain:
+            score += 22
+    if re.search(r"\b(package version|npm package|pypi|pip package|python package)\b", question):
+        if domain in {"pypi.org", "npmjs.com", "registry.npmjs.org"}:
+            score += 22
+    if re.search(r"\b(earthquake|tremor|seismic)\b", question):
+        if "usgs.gov" in domain:
+            score += 22
+    if re.search(r"\b(space launch|rocket launch|upcoming launch)\b", question):
+        if re.search(r"\b(space|launch|scheduled|upcoming|net)\b", hay):
+            score += 18
+    if re.search(r"\b(cve|security advisory|vulnerability|zero[- ]day)\b", question):
+        if domain.endswith(".gov") or domain in {"nvd.nist.gov", "github.com"} or re.search(r"\b(cve|advisory|vulnerability|patched)\b", hay):
+            score += 20
+    if re.search(r"\b(score|fixture|standings|ipl|nba|nfl|cricket|football|soccer|tennis)\b", question):
+        if domain in {"espn.com", "cricbuzz.com", "icc-cricket.com", "nba.com", "nfl.com"}:
+            score += 18
+    if re.search(r"\b(flight|train|traffic|delay|cancelled)\b", question):
+        if re.search(r"\b(official|status|tracker|live)\b", hay):
+            score += 12
+    if re.search(r"\b(release date|latest version|updated version|download|specs)\b", question):
+        if re.search(r"\b(official|release notes|changelog|documentation|docs)\b", hay):
+            score += 16
+    if re.search(r"\b(new law|latest law|current law|policy update|government scheme|govt scheme|yojana|subsidy)\b", question):
+        if domain.endswith(".gov") or ".gov." in domain or re.search(r"\b(official|ministry|government|gazette|notification)\b", hay):
+            score += 20
+    if re.search(r"\b(exam result|admit card|hall ticket|answer key|cutoff|scholarship|deadline|last date)\b", question):
+        if re.search(r"\b(official|result|admit card|notification|deadline|last date|portal)\b", hay):
+            score += 18
+    if re.search(r"\b(showtime|movie times|cinema)\b", question):
+        if re.search(r"\b(showtime|tickets|theater|cinema|bookmyshow|fandango)\b", hay):
+            score += 14
+    if re.search(r"\b(platform status|server status|is .{1,35} down|outage|downtime)\b", question):
+        if re.search(r"\b(status|outage|incident|downtime|resolved|monitoring)\b", hay):
+            score += 16
+    if re.search(r"\b(in stock|out of stock|availability|where to buy|store availability)\b", question):
+        if re.search(r"\b(in stock|out of stock|available|price|official store|retailer)\b", hay):
+            score += 14
     if re.search(r"\b(prime minister|president|chief minister|ceo|actor|winner|price)\b", question):
         for keyword in ["prime minister", "president", "chief minister", "ceo", "winner", "price"]:
             if keyword in question and keyword in hay:
@@ -7449,6 +10706,56 @@ def clean_reply(text: str) -> str:
     return text
 
 
+def polish_final_answer_style(
+    text: str,
+    question: str,
+    response_lane: str = "human_chat",
+    presentation_style: str = "balanced",
+) -> str:
+    if user_requested_machine_readable_output(question):
+        return text.strip()
+
+    styled = text.strip()
+    styled = re.sub(r"(?m)^\s*#{1,6}\s+", "", styled)
+    styled = re.sub(r"(?im)^\s*(?:final answer|final response|polished answer)\s*:?\s*", "", styled)
+    styled = re.sub(r"\.\.\s*(\[\d+\])", r". \1", styled)
+    styled = re.sub(r"(?<!\.)\.\.(?!\.)", ".", styled)
+    styled = re.sub(r"([!?])\1+(\s|$)", r"\1\2", styled)
+    styled = re.sub(r"(?m)(\[\d+\])\.(\s*)$", r"\1\2", styled)
+    styled = re.sub(r"(?m)([A-Za-z0-9])\s+([,.;:!?])", r"\1\2", styled)
+    styled = re.sub(r"(?m)\b(\d{1,2})\s*:\s*(\d{2})\b", r"\1:\2", styled)
+    styled = re.sub(r"(?m)\b(\d{4})-(\d{2})-(\d{2})\s+(\d{2})\s*h\s*(\d{2})\b", r"\1-\2-\3 \4h\5", styled)
+    styled = re.sub(r"(?m)\b(\d+),\s+(\d{3})(\b)", r"\1,\2\3", styled)
+    styled = re.sub(r"(?m)^([A-Z][A-Za-z ]{2,40}):\s*$\n{2,}", r"\1:\n", styled)
+    styled = re.sub(r"(?m)^([A-Z][A-Za-z ]{2,40}:)\n([^\n-])", r"\1\n\2", styled)
+
+    lines = styled.splitlines()
+    compacted: List[str] = []
+    blank_pending = False
+    for line in lines:
+        stripped = line.rstrip()
+        if not stripped:
+            blank_pending = True
+            continue
+        if blank_pending and compacted and not compacted[-1].endswith(":"):
+            compacted.append("")
+        elif blank_pending and compacted and compacted[-1].endswith(":"):
+            pass
+        compacted.append(stripped)
+        blank_pending = False
+    styled = "\n".join(compacted).strip()
+
+    lower_question = clean_text(question).lower()
+    shortish = len(clean_text(styled).split()) <= 80
+    if shortish and presentation_style in {"short", "balanced"} and response_lane == "human_chat":
+        styled = re.sub(r"(?is)^(?:quick answer|short answer)\s*:\s*", "", styled).strip()
+    if not re.search(r"\b(markdown|heading|headings|section)\b", lower_question):
+        styled = re.sub(r"(?m)^\s*(?:Quick answer|Short answer):\s*\n\s*$", "", styled)
+
+    styled = re.sub(r"\n{3,}", "\n\n", styled)
+    return styled.strip()
+
+
 def user_requested_machine_readable_output(question: str) -> bool:
     lower = clean_text(question).lower()
     return bool(re.search(
@@ -7721,6 +11028,7 @@ def finalize_user_facing_answer(
     text = normalize_unrequested_latex(text, question)
     text = break_dense_paragraphs(text)
     text = clean_reply(text)
+    text = polish_final_answer_style(text, question, response_lane, presentation_style)
 
     if not user_requested_machine_readable_output(question) and looks_like_raw_answer_artifact(text):
         fallback = local_structured_fallback(question, response_lane, presentation_style)
@@ -7778,12 +11086,64 @@ def answer_route_quality_flags(question: str, reply: str, task_intent: str = "")
         flags.append("route_mismatch_business_plan")
     if intent == "workflow_plan" and lacks(r"\b(trigger|step|checklist|workflow|automation|review|output)\b"):
         flags.append("route_mismatch_workflow_plan")
+    if intent == "text_summary" and lacks(r"\b(summary|key points|main point|takeaway|in short)\b"):
+        flags.append("route_mismatch_text_summary")
+    if intent == "key_points" and lacks(r"\b(key points|main points|takeaways)\b|[-*]\s+|\b1\."):
+        flags.append("route_mismatch_key_points")
+    if intent in {"grammar_fix", "rewrite_polish"} and re.search(r"\b(i can help|send the text|what text|topic becomes|understand life)\b", lower[:260]):
+        flags.append("route_mismatch_text_transform")
+    if intent == "translation" and re.search(r"\b(i can help|send the text|what text|main idea|topic becomes|understand life)\b", lower[:260]):
+        flags.append("route_mismatch_translation")
+    if intent == "table_format" and "|" not in reply:
+        flags.append("route_mismatch_table_format")
+    if intent == "brainstorm_ideas" and lacks(r"\b(ideas?|brainstorm|1\.|2\.|options?)\b"):
+        flags.append("route_mismatch_brainstorm")
+    if intent == "decision_advice" and lacks(r"\b(decision|choose|option|risk|effort|recommend|bottom line)\b"):
+        flags.append("route_mismatch_decision")
+    if intent == "recipe_or_cooking" and lacks(r"\b(ingredients|steps|cook|heat|serve|recipe)\b"):
+        flags.append("route_mismatch_recipe")
+    if intent == "travel_itinerary" and lacks(r"\b(day|itinerary|travel|visit|arrival|checklist|budget)\b"):
+        flags.append("route_mismatch_travel")
+    if intent == "recommendation" and lacks(r"\b(recommend|suggest|try|best|option|why)\b"):
+        flags.append("route_mismatch_recommendation")
+    if intent == "code_or_debug" and re.search(
+        r"\b(understand life, choices|good understanding of this subject|topic becomes truly useful|memorized idea)\b",
+        lower,
+    ):
+        flags.append("route_mismatch_code_debug")
+    if intent == "health_info" and lacks(r"\b(general information|diagnosis|doctor|medical|symptom|urgent|safe)\b"):
+        flags.append("route_mismatch_health")
+    if intent == "legal_info" and lacks(r"\b(general legal|lawyer|jurisdiction|contract|facts|legal)\b"):
+        flags.append("route_mismatch_legal")
+    if intent == "finance_info" and lacks(r"\b(risk|budget|saving|debt|investment|cash flow|financial)\b"):
+        flags.append("route_mismatch_finance")
+    if intent in {"career_resume", "interview_prep"} and lacks(r"\b(resume|cv|interview|job|role|skill|example)\b"):
+        flags.append("route_mismatch_career")
+    if intent == "presentation_outline" and lacks(r"\b(slide|presentation|outline|title|takeaway)\b"):
+        flags.append("route_mismatch_presentation")
+    if intent == "meeting_notes" and lacks(r"\b(summary|action items|meeting|decisions|notes)\b"):
+        flags.append("route_mismatch_meeting_notes")
+    if intent == "social_caption" and lacks(r"\b(caption|post|ideas?|short)\b"):
+        flags.append("route_mismatch_social_caption")
+    if intent in {"creative_story", "poem_or_original_song", "joke_fun"} and lacks(r"\b(story|poem|joke|title|plot|original)\b"):
+        flags.append("route_mismatch_creative")
+    if intent in {"emotional_support", "relationship_advice"} and lacks(r"\b(feel|relationship|step|talk|safe|bottom line|control)\b"):
+        flags.append("route_mismatch_support")
+    if intent in {"flashcards", "quiz_generation"} and lacks(r"\b(q:|quiz|question|answer|flashcards?|practice)\b"):
+        flags.append("route_mismatch_practice")
+    if intent == "timeline" and lacks(r"\b(timeline|1939|1945|start|development|result|event)\b"):
+        flags.append("route_mismatch_timeline")
+    if intent in {"homework_help", "exam_answer", "concept_tutoring"} and re.search(
+        r"\b(understand life, choices|good understanding of this subject|memorized idea)\b",
+        lower,
+    ):
+        flags.append("route_mismatch_tutoring")
     if intent == "learning_topic" and re.search(
         r"\b(understand life, choices|world around them more clearly|good understanding of this subject|memorized idea|useful for students, families, and society)\b",
         lower,
     ):
         flags.append("route_mismatch_learning_topic")
-    if intent == "realtime_search" and re.search(r"\b(latest|current|today|recent|verify|fact[- ]?check)\b", clean_text(question).lower()) and not re.search(r"\[\d+\]|\b(source|verified|cannot verify|can't verify|uncertain)\b", lower):
+    if intent.startswith("realtime_") and re.search(r"\b(latest|current|today|recent|verify|fact[- ]?check|weather|score|price|news|live|near me|open now)\b", clean_text(question).lower()) and not re.search(r"\[\d+\]|\b(source|verified|cannot verify|can't verify|uncertain|latest evidence)\b", lower):
         flags.append("route_mismatch_realtime_search")
     return flags
 
@@ -7807,6 +11167,8 @@ def answer_quality_flags(
     if cleaned and not re.search(r"[A-Za-z0-9]", cleaned):
         flags.append("empty")
     if re.search(r"\b(free text engine|backend|pollinations|ollama|api key|rate-limit|rate limit)\b", lower):
+        flags.append("backend_talk")
+    if re.search(r"\b(we need to browse|need to browse|browse the web|use search|use the search tool)\b", lower):
         flags.append("backend_talk")
     if re.search(r"(?m)^\s*data:\s*[{[]", raw):
         flags.append("stream_artifact")
@@ -8002,6 +11364,9 @@ SECTION_HEADING_LABELS = {
     "evidence",
     "important details",
     "what i found",
+    "what i can do",
+    "what i can provide",
+    "what i will check",
     "what it means",
     "why it matters",
     "why",
@@ -8013,12 +11378,37 @@ SECTION_HEADING_LABELS = {
     "context",
     "examples",
     "example",
+    "use",
+    "tone",
+    "related words",
+    "answer structure",
+    "use this structure",
     "goal",
     "steps",
     "check",
     "comparison",
     "pros",
     "cons",
+    "synonyms",
+    "antonyms",
+    "meaning",
+    "literal meaning",
+    "real meaning",
+    "similar meaning",
+    "similar phrase",
+    "breakdown",
+    "best use",
+    "best route",
+    "best way to ask",
+    "best format",
+    "best structure",
+    "needed for exact output",
+    "daily practice",
+    "daily method",
+    "practice",
+    "practice method",
+    "useful starter phrases",
+    "weakest skill",
     "recommendation",
     "summary",
     "quick summary",
@@ -8078,7 +11468,16 @@ def merge_label_only_bullets(text: str) -> str:
         if current_match and next_match:
             label = clean_text(current_match.group(2)).strip(" .")
             word_count = len(label.split())
-            is_probable_label = "**" in stripped or word_count <= 5
+            label_words = {
+                "title", "date", "subject", "to", "from", "owner", "deadline", "status",
+                "priority", "metric", "source", "cost",
+            }
+            is_probable_label = (
+                "**" in stripped
+                or stripped.rstrip().endswith(":")
+                or label.lower() in label_words
+                or (word_count <= 3 and re.search(r"\b(label|field|value|owner|deadline|status)\b", label.lower()))
+            )
             if is_probable_label:
                 citation = current_match.group(3) or ""
                 detail = next_match.group(1).strip()
@@ -8096,9 +11495,13 @@ def merge_label_only_bullets(text: str) -> str:
 def structure_answer_text(text: str) -> str:
     section_names = (
         r"Short answer|Quick answer|Direct answer|Answer|Main idea|Key points?|Key details?|"
-        r"Key evidence|Evidence|Important details|What I found|What it means|Why it matters|"
+        r"Key evidence|Evidence|Important details|What I found|What I can do|What I can provide|What I will check|"
+        r"What it means|Why it matters|"
         r"How it works|How to think about it|Impact|Details|Context|Examples?|Goal|Steps|"
-        r"Check|Comparison|Pros|Cons|Recommendation|Summary|Quick summary|Result|Bottom line|"
+        r"Check|Comparison|Pros|Cons|Synonyms|Antonyms|Meaning|Literal meaning|Real meaning|Similar meaning|Similar phrase|"
+        r"Use|Tone|Related words|Answer structure|Use this structure|Breakdown|Best use|Best route|Best way to ask|"
+        r"Best format|Best structure|Needed for exact output|Daily practice|Daily method|Practice|Practice method|"
+        r"Useful starter phrases|Weakest skill|Recommendation|Summary|Quick summary|Result|Bottom line|"
         r"Takeaway|Next steps?"
     )
     text = re.sub(
@@ -8262,6 +11665,8 @@ def polish_plain_text_block(text: str) -> str:
                 index += 1
 
             continuation = bool(output and output[-1].rstrip().endswith(":"))
+            if continuation and output[-1].strip().rstrip(":").lower() in SECTION_HEADING_LABELS:
+                continuation = False
             continuation = continuation and any(
                 body.strip() and (body.strip()[0].islower() or body.strip().lower().startswith("and "))
                 for _, _, body in bullet_group
@@ -8392,6 +11797,161 @@ def synthesize_direct_current_answer(question: str, sources: List[SourceItem]) -
     evidence = " ".join(f"{source.title} {source.snippet}" for source in sources)
     evidence_lower = evidence.lower()
 
+    crypto_source = next((source for source in sources if source.provider == "realtime_api:coingecko"), None)
+    if crypto_source:
+        cite = f"[{crypto_source.id}]"
+        match = re.search(r"CoinGecko reports 1\s+([A-Z0-9]+)\s*=\s*([^.]*)\.", crypto_source.snippet)
+        if match:
+            symbol, price = match.groups()
+            change = re.search(r"24h change:\s*([0-9.+-]+)\s*percent", crypto_source.snippet)
+            details = [f"- Price: {price.strip()}. {cite}"]
+            if change:
+                details.append(f"- 24h change: {change.group(1).strip()} percent. {cite}")
+            return "\n".join([
+                f"Current {symbol} price: {price.strip()}. {cite}",
+                "",
+                "Details:",
+                *details,
+                "",
+                "Bottom line:",
+                "Crypto prices move quickly, so refresh the source before making any financial decision.",
+            ])
+
+    github_source = next((source for source in sources if source.provider == "realtime_api:github_repo"), None)
+    if github_source:
+        cite = f"[{github_source.id}]"
+        repo_text = re.sub(r"(?i)^Checked today [^.]+\.\s*", "", clean_text(github_source.snippet)).strip()
+        if len(repo_text) > 420:
+            repo_text = repo_text[:417].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+        return "\n".join([
+            f"{github_source.title}: {repo_text or compact_evidence_sentence(github_source.snippet, 360)} {cite}",
+            "",
+            "Bottom line:",
+            "Use the GitHub source for the newest repository activity, issues, and code changes.",
+        ])
+
+    package_source = next((source for source in sources if source.provider in {"realtime_api:pypi_package", "realtime_api:npm_package"}), None)
+    if package_source:
+        cite = f"[{package_source.id}]"
+        version = re.search(r"latest version as\s+([A-Za-z0-9_!+-]+(?:\.[A-Za-z0-9_!+-]+)*)", package_source.snippet)
+        package_name = re.sub(r"(?i)^(PyPI|npm)\s+package\s+", "", package_source.title).strip()
+        package_text = re.sub(r"(?i)^Checked today [^.]+\.\s*", "", clean_text(package_source.snippet)).strip()
+        if version:
+            return "\n".join([
+                f"Latest {package_name} version: {version.group(1)}. {cite}",
+                "",
+                "Details:",
+                f"- {package_text or compact_evidence_sentence(package_source.snippet, 300)} {cite}",
+                "",
+                "Bottom line:",
+                "Package versions can change, so verify from the registry before installing or upgrading.",
+            ])
+
+    earthquake_source = next((source for source in sources if source.provider == "realtime_api:usgs_earthquake"), None)
+    if earthquake_source:
+        cite = f"[{earthquake_source.id}]"
+        quake_text = re.sub(r"(?i)^USGS earthquake feed checked today [^.]+\.\s*", "", clean_text(earthquake_source.snippet)).strip()
+        return "\n".join([
+            f"Latest earthquake feed: {quake_text or compact_evidence_sentence(earthquake_source.snippet, 360)} {cite}",
+            "",
+            "Bottom line:",
+            "Earthquake feeds update frequently; use the source for the newest map and regional details.",
+        ])
+
+    launch_source = next((source for source in sources if source.provider == "realtime_api:space_devs"), None)
+    if launch_source:
+        cite = f"[{launch_source.id}]"
+        launch_text = re.sub(r"(?i)^Checked today [^.]+\.\s*", "", clean_text(launch_source.snippet)).strip()
+        launch_text = re.sub(r"(?i)^Next listed launch:\s*", "", launch_text).strip()
+        if len(launch_text) > 420:
+            launch_text = launch_text[:417].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+        return "\n".join([
+            f"Next listed space launch: {launch_text or compact_evidence_sentence(launch_source.snippet, 360)} {cite}",
+            "",
+            "Bottom line:",
+            "Launch times often slip, so refresh the source close to launch time.",
+        ])
+
+    weather_source = next((source for source in sources if source.provider == "realtime_api:wttr_in"), None)
+    if weather_source:
+        cite = f"[{weather_source.id}]"
+        snippet = weather_source.snippet
+        location = re.sub(r"(?i)^live weather for\s+", "", weather_source.title).strip() or "that location"
+        condition = re.search(r"Condition:\s*([^.;]+)", snippet)
+        temp = re.search(r"Temperature:\s*([^.;]+)", snippet)
+        range_match = re.search(r"Forecast range today:\s*([^.;]+)", snippet)
+        humidity = re.search(r"Humidity:\s*([^.;]+)", snippet)
+        wind = re.search(r"Wind:\s*([^.;]+)", snippet)
+        lead_bits = []
+        if condition:
+            lead_bits.append(condition.group(1).strip().lower())
+        if temp:
+            lead_bits.append(temp.group(1).strip())
+        lead = f"Current weather in {location}: " + (", ".join(lead_bits) if lead_bits else "live weather data is available") + f". {cite}"
+        details = []
+        if range_match:
+            details.append(f"- Today's forecast range: {range_match.group(1).strip()}. {cite}")
+        if humidity:
+            details.append(f"- Humidity: {humidity.group(1).strip()}. {cite}")
+        if wind:
+            details.append(f"- Wind: {wind.group(1).strip()}. {cite}")
+        return "\n".join([
+            lead,
+            "",
+            "Details:",
+            *(details or [f"- {compact_evidence_sentence(snippet, 260)} {cite}".strip()]),
+            "",
+            "Bottom line:",
+            "Weather changes quickly, so refresh the source if you need minute-by-minute accuracy.",
+        ])
+
+    exchange_source = next((source for source in sources if source.provider == "realtime_api:open_er_api"), None)
+    if exchange_source:
+        cite = f"[{exchange_source.id}]"
+        match = re.search(r"1\s+([A-Z]{3})\s*=\s*([0-9.]+)\s+([A-Z]{3})", exchange_source.snippet)
+        if match:
+            base, rate, target = match.groups()
+            return "\n".join([
+                f"Current exchange rate: 1 {base} = {rate} {target}. {cite}",
+                "",
+                "Details:",
+                f"- {compact_evidence_sentence(exchange_source.snippet, 260)} {cite}",
+                "- Exchange rates move constantly, so treat this as a live reference, not a fixed value.",
+                "",
+                "Bottom line:",
+                f"Use {rate} {target} per 1 {base} for a quick current estimate.",
+            ])
+
+    sports_source = next((source for source in sources if source.provider == "realtime_api:espn_scoreboard"), None)
+    if sports_source:
+        cite = f"[{sports_source.id}]"
+        score_text = clean_text(sports_source.snippet)
+        score_text = re.sub(r"(?i)^ESPN NBA scoreboard checked today [^.]+\.\s*", "", score_text).strip()
+        if len(score_text) > 420:
+            score_text = score_text[:417].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+        return "\n".join([
+            f"Latest NBA scoreboard: {score_text or compact_evidence_sentence(sports_source.snippet, 360)} {cite}",
+            "",
+            "Bottom line:",
+            "Scores can change during live games, so refresh the source for the newest state.",
+        ])
+
+    release_source = next((source for source in sources if source.provider == "realtime_official_page"), None)
+    if release_source:
+        cite = f"[{release_source.id}]"
+        snippet = clean_text(release_source.snippet)
+        product_line = re.search(r"Discover\s+(.+?)(?:\.|$)", snippet)
+        if product_line:
+            return "\n".join([
+                f"Apple's official iPhone page currently highlights {product_line.group(1).strip()}. {cite}",
+                "",
+                "For specs:",
+                "- Open the Apple source for the full current spec sheets and availability by region.",
+                "",
+                "Bottom line:",
+                "For latest model/spec questions, the official product page is the safest source to verify against.",
+            ])
+
     if re.search(r"\b(prime minister|pm)\b", lower) and re.search(r"\b(india|bharat)\b", lower):
         if re.search(r"\bnarendra(?:\s+damodardas)?\s+modi\b", evidence_lower):
             ids = source_ids_matching(sources, r"\bNarendra(?:\s+Damodardas)?\s+Modi\b|Prime Minister of India")
@@ -8462,7 +12022,7 @@ def search_evidence_fallback_reply(question: str, sources: List[SourceItem]) -> 
     lower = clean_text(question).lower()
     if re.search(r"\b(best|top|recommend|recommendation|which should i buy|buy|purchase|worth it|review)\b", lower):
         lead = "Short answer:\nUse the source-backed options below as a current shortlist instead of trusting a generic guess. Prioritize the model that matches your budget, RAM/storage needs, and warranty in your area."
-    elif re.search(r"\b(price|stock|share|market|weather|score)\b", lower):
+    elif re.search(r"\b(price|stock|share|market|weather|score|exchange rate|currency rate)\b", lower):
         lead = "Short answer:\nThe exact value can change by location and time, so use the latest source-backed points below instead of a stale guess."
     elif re.search(r"\b(current|latest|today|right now|recent|news)\b", lower):
         lead = "Short answer:\nUse the latest source-backed evidence below; I will not guess current facts without support."
@@ -8498,7 +12058,7 @@ def should_fast_return_research_answer(message: str, presentation_style: str) ->
         return False
     return bool(re.search(
         r"\b(current|latest|today|right now|price|score|weather|winner|ceo|president|"
-        r"prime minister|stock|share|market)\b",
+        r"prime minister|stock|share|market|exchange rate|currency rate|usd to|inr to|eur to|gbp to)\b",
         lower,
     ))
 
@@ -8646,10 +12206,11 @@ def execute_agent_action_from_chat(
         f"routing_gate_level:{ROUTING_GATE_LEVEL_TEXT}",
         f"quality_gate_level:{QUALITY_GATE_LEVEL_TEXT}",
         f"gate_stack:{GATE_STACK_MODE}",
+        f"routing_matrix:{ROUTING_MATRIX_VERSION}",
         f"performance:{system_profile()['level']}",
     ] + gate_tools_used()
 
-    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|key points from|notes from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded|this)\b", lower):
+    if re.search(r"\b(summarize|summarise|summary|read|analyze|analyse|extract|key points from|notes from)\b", lower) and re.search(r"\b(file|pdf|document|upload|uploaded)\b|\bthis\s+(?:file|pdf|document|upload)\b", lower):
         reply = local_file_summary_reply(text, session_id) or "Upload a PDF or text file first, then ask me to summarize it."
         return action_result_response(reply, session_id, user_id, "nexora_action_file_summary", base_tools + ["files:summarize"], behavior_signals, "files")
 
@@ -8824,6 +12385,7 @@ def health() -> Dict[str, Any]:
         "quality_gate": QUALITY_GATE_MODE,
         "gate_stack_mode": GATE_STACK_MODE,
         "gate_levels": gate_levels_payload(),
+        "routing_matrix": routing_matrix_payload(),
         "intent_quality_level": INTENT_QUALITY_LEVEL_TEXT,
         "routing_gate_level": ROUTING_GATE_LEVEL_TEXT,
         "quality_gate_level": QUALITY_GATE_LEVEL_TEXT,
@@ -8910,6 +12472,7 @@ def models() -> Dict[str, Any]:
         "quality_gate": QUALITY_GATE_MODE,
         "gate_stack_mode": GATE_STACK_MODE,
         "gate_levels": gate_levels_payload(),
+        "routing_matrix": routing_matrix_payload(),
         "intent_quality_level": INTENT_QUALITY_LEVEL_TEXT,
         "routing_gate_level": ROUTING_GATE_LEVEL_TEXT,
         "quality_gate_level": QUALITY_GATE_LEVEL_TEXT,
@@ -8949,12 +12512,30 @@ def update_free_ai_settings(req: FreeAISettingsRequest) -> Dict[str, Any]:
 @app.get("/search")
 def search(q: str, max_results: int = MAX_SEARCH_RESULTS) -> Dict[str, Any]:
     clipped_max = max(1, min(int(max_results or MAX_SEARCH_RESULTS), 10))
-    results = duckduckgo_search(q, max_results=clipped_max)
+    results = cached_search_results("duckduckgo", q, max_results=clipped_max)
     return {
         "ok": bool(results),
         "query": q,
         "provider": "duckduckgo_html",
         "results": results,
+        "created_at": now_iso(),
+    }
+
+
+@app.get("/search/realtime")
+def realtime_search(q: str, max_results: int = MAX_SEARCH_RESULTS) -> Dict[str, Any]:
+    clipped_max = max(1, min(int(max_results or MAX_SEARCH_RESULTS), 10))
+    route, variants = build_realtime_query_variants(q)
+    result = realtime_search_loop(q, max_rounds=1)
+    sources = result.get("sources", [])[:clipped_max]
+    return {
+        "ok": bool(result.get("ok")),
+        "query": q,
+        "route": route,
+        "query_variants": variants,
+        "provider": result.get("provider", "duckduckgo_realtime"),
+        "results": sources,
+        "error": result.get("error", ""),
         "created_at": now_iso(),
     }
 
@@ -9137,6 +12718,7 @@ def capabilities() -> Dict[str, Any]:
         "quality_gate": QUALITY_GATE_MODE,
         "gate_stack_mode": GATE_STACK_MODE,
         "gate_levels": gate_levels_payload(),
+        "routing_matrix": routing_matrix_payload(),
         "intent_quality_level": INTENT_QUALITY_LEVEL_TEXT,
         "routing_gate_level": ROUTING_GATE_LEVEL_TEXT,
         "quality_gate_level": QUALITY_GATE_LEVEL_TEXT,
@@ -9152,6 +12734,7 @@ def capabilities() -> Dict[str, Any]:
         "answer_structure_mode": ANSWER_STRUCTURE_MODE,
         "stages": {
             "gate_stack": [
+                "expanded 300+ field-aware and language-aware intent routing matrix",
                 "intent detection 10.00/10.00",
                 "context resolution 10.00/10.00",
                 "route selection 10.00/10.00",
@@ -9746,6 +13329,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"routing_gate_level:{ROUTING_GATE_LEVEL_TEXT}")
     tools_used.append(f"quality_gate_level:{QUALITY_GATE_LEVEL_TEXT}")
     tools_used.append(f"gate_stack:{GATE_STACK_MODE}")
+    tools_used.append(f"routing_matrix:{ROUTING_MATRIX_VERSION}")
     tools_used.extend(gate_tools_used())
     tools_used.append("behavior_learning")
     tools_used.append("intent_understanding")
@@ -9769,6 +13353,10 @@ def chat(req: ChatRequest) -> ChatResponse:
         verified_sources = verified_sources_only(sources, understanding_message)
         provider = str(research.get("provider", "research_engine"))
         tools_used.append(f"{provider}:{confidence}:rounds_{rounds}")
+        if research.get("route"):
+            tools_used.append(f"realtime_route:{research.get('route')}")
+        if research.get("queries"):
+            tools_used.append(f"realtime_query_variants:{len(research.get('queries') or [])}")
         if not research.get("ok") or not verified_sources:
             trusted_sources = trusted_current_role_sources(understanding_message)
             if trusted_sources:
@@ -9858,7 +13446,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     if routed_local:
         tools_used.append("intent_route:local_candidate")
     local_context_reply = None
-    if not use_research:
+    if not use_research and not routed_local:
         focus_for_local = recent_session_focus(get_session(session_id), original_user_message)
         local_context_reply = (
             local_continuation_reply(understanding_message, focus_for_local)
@@ -9890,7 +13478,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             route_intent=task_intent,
             created_at=now_iso(),
         )
-    local_first_stable = response_lane == "writing" or is_high_confidence_local_reply(understanding_message, presentation_style) or (
+    local_first_stable = response_lane == "writing" or task_intent in LANGUAGE_ROUTE_NAMES or is_high_confidence_local_reply(understanding_message, presentation_style) or (
         presentation_style == "table" and "anime" in clean_text(original_user_message).lower()
     )
     force_local_structured = bool(
@@ -9898,6 +13486,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         and local_first_stable
         and (
             is_high_confidence_local_reply(understanding_message, presentation_style)
+            or task_intent in LANGUAGE_ROUTE_NAMES
             or str(writing_request.get("kind", "")).lower() in {"letter", "application", "notice"}
             or is_world_war_two_topic(understanding_message)
         )
