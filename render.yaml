@@ -14,17 +14,17 @@ services:
       - key: NEXORA_FORCE_OLLAMA_CHAT
         value: "true"
       - key: NEXORA_FAST_MODEL
-        value: qwen3:14b
+        value: qwen2.5:3b
       - key: NEXORA_THINKING_MODEL
         value: qwen3:14b
       - key: OLLAMA_URL
         value: http://52.237.82.140:8000/ollama/64a40f47d13cdedb022b72a961b8c5d5ce7793ac78c68f2d
       - key: NEXORA_OLLAMA_CONTEXT_TOKENS
-        value: "1024"
+        value: "512"
       - key: NEXORA_OLLAMA_INSTANT_MAX_TOKENS
-        value: "80"
-      - key: NEXORA_OLLAMA_THINKING_MAX_TOKENS
         value: "160"
+      - key: NEXORA_OLLAMA_THINKING_MAX_TOKENS
+        value: "120"
       - key: NEXORA_AUTONOMOUS_RESEARCH
         value: "true"
       - key: NEXORA_IMAGE_PROVIDER

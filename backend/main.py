@@ -521,7 +521,7 @@ OLLAMA_URL = (os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434").strip().rstri
 OLLAMA_PROXY_TOKEN = os.getenv("NEXORA_OLLAMA_PROXY_TOKEN", "").strip()
 OLLAMA_PROXY_TARGET = (os.getenv("NEXORA_OLLAMA_PROXY_TARGET") or "http://127.0.0.1:11434").strip().rstrip("/")
 OLLAMA_PROXY_MAX_BYTES = int(os.getenv("NEXORA_OLLAMA_PROXY_MAX_BYTES", "200000"))
-FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "qwen3:14b")
+FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "qwen2.5:3b")
 THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "qwen3:14b")
 DEFAULT_MODEL = FAST_MODEL
 OLLAMA_MODE = os.getenv("NEXORA_OLLAMA_MODE", "primary").strip().lower()
@@ -8287,12 +8287,11 @@ def ollama_status() -> Dict[str, Any]:
 
 def ollama_chat(messages: List[Dict[str, str]], model: str, response_mode: str = "instant") -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
-    num_ctx = current_performance_limits().get("ollama_context_tokens", 2048)
+    num_ctx = min(current_performance_limits().get("ollama_context_tokens", 2048), OLLAMA_CONTEXT_TOKENS)
+    token_cap = OLLAMA_THINKING_MAX_TOKENS if response_mode == "thinking" else OLLAMA_INSTANT_MAX_TOKENS
+    max_tokens = min(max_tokens, token_cap)
     if model_size_score(model) >= 10:
         timeout = max(timeout, 420 if response_mode == "thinking" else 180)
-        num_ctx = min(num_ctx, OLLAMA_CONTEXT_TOKENS)
-        token_cap = OLLAMA_THINKING_MAX_TOKENS if response_mode == "thinking" else OLLAMA_INSTANT_MAX_TOKENS
-        max_tokens = min(max_tokens, token_cap)
     payload = {
         "model": model,
         "messages": compact_provider_messages("ollama", messages, response_mode),
@@ -8311,6 +8310,40 @@ def ollama_chat(messages: List[Dict[str, str]], model: str, response_mode: str =
     response.raise_for_status()
     data = response.json()
     return data.get("message", {}).get("content", "").strip()
+
+
+def forced_ollama_response_mode(requested_mode: Optional[str], requested_model: Optional[str]) -> str:
+    requested = f"{requested_mode or ''} {requested_model or ''}".lower()
+    if any(marker in requested for marker in ("thinking", "reason", "deep")):
+        return "thinking"
+    return "instant"
+
+
+def build_forced_ollama_messages(
+    user_message: str,
+    history: List[ChatMessage],
+    file_context: str = "",
+) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = [
+        {
+            "role": "system",
+            "content": (
+                "You are Nexora, powered by the local Ollama Qwen model. "
+                "Answer the user's actual request directly and naturally. "
+                "If the request is vague, ask one short clarifying question instead of using a canned template. "
+                "Start with the final answer, not your plan. Do not reveal analysis or hidden thoughts. "
+                "For list requests, give the requested number of short points, one sentence each. "
+                "Keep the answer useful and compact enough to finish quickly on a CPU server."
+            ),
+        }
+    ]
+    if file_context:
+        messages.append({"role": "system", "content": truncate_for_model(file_context, 900)})
+    for item in history[-2:]:
+        if item.role in {"user", "assistant"} and item.content.strip():
+            messages.append({"role": item.role, "content": item.content.strip()[:700]})
+    messages.append({"role": "user", "content": user_message.strip()})
+    return messages
 
 
 FREE_PROVIDER_KEY_ENV = {
@@ -13255,6 +13288,57 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
     force_ollama_chat = force_ollama_chat_enabled()
+    if force_ollama_chat:
+        history_limit = 2
+        history_from_session = [
+            ChatMessage(role=item.get("role", "user"), content=item.get("content", ""))
+            for item in session.get("messages", [])[-history_limit:]
+            if item.get("role") in {"user", "assistant"}
+        ]
+        history = req.chat_history[-history_limit:] if req.chat_history is not None else history_from_session
+        file_context = build_file_context(session_id)
+        image_context = build_image_context(session_id, req.image_ids)
+        if image_context:
+            file_context = "\n\n".join(part for part in [file_context, image_context] if part)
+        response_mode = forced_ollama_response_mode(req.mode, req.model)
+        model = select_ollama_model(req.model)
+        tools_used = [
+            "ollama_forced_direct",
+            f"ollama_mode:{OLLAMA_MODE}",
+            f"performance:{system_profile()['level']}",
+        ]
+        if file_context:
+            tools_used.append("file_context")
+        try:
+            reply = ollama_chat(
+                build_forced_ollama_messages(original_user_message, history, file_context),
+                model,
+                response_mode,
+            )
+            model_used = f"ollama:{model}:{response_mode}:direct"
+            if not clean_text(reply):
+                raise RuntimeError("empty ollama response")
+            final_reply = clean_reply(reply)
+        except Exception as error:
+            model_used = f"ollama:{model}:{response_mode}:failed"
+            final_reply = (
+                "Qwen is selected, but it did not finish this answer fast enough on the SSH server. "
+                "Try a shorter question, or switch to a smaller Qwen model for faster chat."
+            )
+            tools_used.append(f"ollama_required_failed:{error}")
+        append_session_message(session_id, "user", original_user_message)
+        append_session_message(session_id, "assistant", final_reply)
+        return ChatResponse(
+            reply=final_reply,
+            session_id=session_id,
+            mode=req.mode or "agent",
+            model_used=model_used,
+            sources=[],
+            tools_used=tools_used,
+            route_intent="ollama_direct",
+            created_at=now_iso(),
+        )
+
     quick_reply = local_fast_reply(original_user_message)
     if quick_reply and not force_ollama_chat:
         quick_intent = detect_task_intent(original_user_message, False)
