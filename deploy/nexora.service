@@ -9,9 +9,13 @@ User=azureuser
 WorkingDirectory=/home/azureuser/nexora-ai/backend
 Environment=NEXORA_PROVIDER=ollama
 Environment=NEXORA_OLLAMA_MODE=primary
+Environment=NEXORA_FORCE_OLLAMA_CHAT=true
 Environment=NEXORA_FAST_MODEL=qwen3:14b
 Environment=NEXORA_THINKING_MODEL=qwen3:14b
 Environment=OLLAMA_URL=http://127.0.0.1:11434
+Environment=NEXORA_OLLAMA_CONTEXT_TOKENS=1024
+Environment=NEXORA_OLLAMA_INSTANT_MAX_TOKENS=80
+Environment=NEXORA_OLLAMA_THINKING_MAX_TOKENS=160
 Environment=NEXORA_IMAGE_PROVIDER=pollinations
 Environment=NEXORA_HEALTH_DEEP=false
 Environment=NEXORA_CACHE_FRONTEND_HTML=true

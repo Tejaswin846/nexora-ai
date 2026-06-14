@@ -8320,6 +8320,8 @@ def keyed_free_providers() -> List[str]:
 
 
 def configured_free_providers() -> List[str]:
+    if FREE_API_PROVIDER == "ollama":
+        return []
     no_key_providers = ["pollinations"]
     keyed_providers = keyed_free_providers()
     if FREE_API_PROVIDER == "auto":
@@ -8871,6 +8873,13 @@ def requested_prefers_ollama(requested: Optional[str]) -> bool:
     ))
 
 
+def force_ollama_chat_enabled() -> bool:
+    force_setting = os.getenv("NEXORA_FORCE_OLLAMA_CHAT", "true").strip().lower()
+    if force_setting in {"0", "false", "off", "no"}:
+        return False
+    return FREE_API_PROVIDER == "ollama" or OLLAMA_MODE in {"primary", "local", "always"}
+
+
 def should_prefer_ollama(
     requested: Optional[str],
     response_mode: str,
@@ -8924,6 +8933,7 @@ def generate_with_engine_club(
     available_ollama = ollama_available_models()
     ollama_ready = ollama_is_ready(available_ollama)
     ollama_enabled = OLLAMA_MODE not in {"off", "false", "0", "disabled", "none"}
+    force_ollama = force_ollama_chat_enabled()
     prefer_ollama = should_prefer_ollama(
         requested_model,
         response_mode,
@@ -8943,12 +8953,17 @@ def generate_with_engine_club(
             raise RuntimeError("empty ollama response")
         return reply, f"ollama:{model}:{response_mode}", [f"{label}:{response_mode}"]
 
-    if ollama_enabled and prefer_ollama and ollama_ready:
+    if force_ollama and not ollama_ready:
+        raise RuntimeError(f"Ollama is required but not ready at {OLLAMA_URL}. Available models: {available_ollama}")
+
+    if ollama_enabled and (force_ollama or prefer_ollama) and ollama_ready:
         try:
-            return try_ollama("ollama_primary")
+            return try_ollama("ollama_forced" if force_ollama else "ollama_primary")
         except Exception as error:
             errors.append(f"ollama: {error}")
-            tools.append("ollama_primary_failed")
+            tools.append("ollama_forced_failed" if force_ollama else "ollama_primary_failed")
+            if force_ollama:
+                raise RuntimeError("; ".join(errors))
 
     if free_providers:
         try:
@@ -13183,8 +13198,9 @@ def chat(req: ChatRequest) -> ChatResponse:
             route_intent="safety_filter",
             created_at=now_iso(),
         )
+    force_ollama_chat = force_ollama_chat_enabled()
     quick_reply = local_fast_reply(original_user_message)
-    if quick_reply:
+    if quick_reply and not force_ollama_chat:
         quick_intent = detect_task_intent(original_user_message, False)
         quick_reply = finalize_user_facing_answer(original_user_message, quick_reply, "human_chat", "short")
         append_session_message(session_id, "user", original_user_message)
@@ -13202,7 +13218,7 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     behavior_profile, behavior_signals = learn_behavior_from_message(original_user_message)
     persona_profile, persona_changes = learn_persona_from_message(original_user_message)
-    if persona_changes:
+    if persona_changes and not force_ollama_chat:
         reply = persona_update_reply(persona_changes, persona_profile)
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", reply)
@@ -13227,7 +13243,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
     pending_reply = resolve_pending_task_reply(session_id, original_user_message)
-    if pending_reply:
+    if pending_reply and not force_ollama_chat:
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", pending_reply)
         maybe_store_memory(original_user_message, user_id)
@@ -13251,7 +13267,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
     image_reply = local_image_attachment_reply(original_user_message, session_id, req.image_ids)
-    if image_reply:
+    if image_reply and not force_ollama_chat:
         append_session_message(session_id, "user", original_user_message)
         append_session_message(session_id, "assistant", image_reply)
         maybe_store_memory(original_user_message, user_id)
@@ -13275,7 +13291,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             created_at=now_iso(),
         )
     agent_action = execute_agent_action_from_chat(original_user_message, session_id, user_id, behavior_signals)
-    if agent_action:
+    if agent_action and not force_ollama_chat:
         return agent_action
     response_mode = choose_response_mode(original_user_message, req.mode, req.model)
 
@@ -13318,7 +13334,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         f"{APP_VERSION}:{req.model or 'auto'}:{response_mode}:{FREE_CLUB_MODE}:{use_research}:{research_route}:{task_intent}:{response_lane}:{presentation_style}:{understanding_state.get('vague_followup')}:{persona_signature(persona_profile)}:{behavior_signature(behavior_profile)}:{memory_sig}",
     )
     skip_response_cache = bool(writing_request.get("is_writing") and writing_request.get("missing_topic"))
-    cached = None if skip_response_cache else get_cached_response(response_cache_key)
+    cached = None if skip_response_cache or force_ollama_chat else get_cached_response(response_cache_key)
     if cached:
         cached_reply = str(cached["reply"])
         append_session_message(session_id, "user", original_user_message)
@@ -13464,19 +13480,19 @@ def chat(req: ChatRequest) -> ChatResponse:
     tools_used.append(f"response_lane:{response_lane}")
     tools_used.append(f"presentation:{presentation_style}")
 
-    routed_local = local_reply_for_intent(understanding_message, task_intent, session_id=session_id) if not use_research else None
+    routed_local = local_reply_for_intent(understanding_message, task_intent, session_id=session_id) if not use_research and not force_ollama_chat else None
     local_structured = (
         routed_local
         or (
             local_structured_fallback(understanding_message, response_lane, presentation_style, session_id=session_id)
-            if not use_research
+            if not use_research and not force_ollama_chat
             else None
         )
     )
     if routed_local:
         tools_used.append("intent_route:local_candidate")
     local_context_reply = None
-    if not use_research and not routed_local:
+    if not use_research and not routed_local and not force_ollama_chat:
         focus_for_local = recent_session_focus(get_session(session_id), original_user_message)
         local_context_reply = (
             local_continuation_reply(understanding_message, focus_for_local)
@@ -13521,7 +13537,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             or is_world_war_two_topic(understanding_message)
         )
     )
-    if local_structured and local_first_stable and (LOCAL_WRITING_FAST or force_local_structured):
+    if local_structured and local_first_stable and (LOCAL_WRITING_FAST or force_local_structured) and not force_ollama_chat:
         final_reply = finalize_user_facing_answer(original_user_message, local_structured, response_lane, presentation_style)
         final_repaired, final_quality_flags, repaired_intent = quality_gate_local_repair(
             original_user_message,
@@ -13590,7 +13606,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         part for part in [research_context, free_club_context] if part
     )
 
-    if verified_sources and should_fast_return_research_answer(understanding_message, presentation_style):
+    if verified_sources and should_fast_return_research_answer(understanding_message, presentation_style) and not force_ollama_chat:
         final_reply = finalize_user_facing_answer(
             original_user_message,
             search_evidence_fallback_reply(original_user_message, verified_sources),
@@ -13627,6 +13643,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         free_club_sources
         and free_club_sources[0].provider == "wikipedia"
         and presentation_style in {"short", "teaching_structure", "balanced"}
+        and not force_ollama_chat
     ):
         final_reply = finalize_user_facing_answer(
             original_user_message,
@@ -13701,7 +13718,15 @@ def chat(req: ChatRequest) -> ChatResponse:
         tools_used.extend(engine_tools)
     except Exception as error:
         tools_used.append("engine_club_failed")
-        if verified_sources:
+        if force_ollama_chat:
+            model_failed = True
+            model_used = f"ollama:{select_ollama_model(req.model)}:{response_mode}:failed"
+            reply = (
+                "Ollama/Qwen is selected, but it did not return a usable response. "
+                f"Check that Ollama is running at {OLLAMA_URL} with the qwen3:14b model loaded."
+            )
+            tools_used.append(f"ollama_required_failed:{error}")
+        elif verified_sources:
             model_used = "realtime_search_fallback"
             reply = search_evidence_fallback_reply(original_user_message, verified_sources)
             tools_used.append("search_evidence_fallback")
@@ -13732,6 +13757,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     if quality_flags:
         tools_used.append("quality_guard:" + ",".join(quality_flags[:4]))
         if (
+            not force_ollama_chat
+            and
             local_structured
             and not use_research
             and (
@@ -13756,7 +13783,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             model_used = "nexora_local_structured"
             reply = local_structured
             tools_used.append("quality_guard:local_structured")
-        elif free_club_mode_enabled() and not is_bad_generated_reply(reply):
+        elif not force_ollama_chat and free_club_mode_enabled() and not is_bad_generated_reply(reply):
             reviewed_reply = free_club_review_reply(
                 original_user_message,
                 reply,
@@ -13777,6 +13804,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     cleaned_preview = clean_reply(reply) if not is_bad_generated_reply(reply) else ""
     if (
         use_free_club
+        and not force_ollama_chat
         and not model_failed
         and model_used != "realtime_search_fallback"
         and not is_bad_generated_reply(reply)
@@ -13813,7 +13841,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     ):
         final_reply = ensure_inline_citations(final_reply, free_club_sources)
     response_sources = verified_sources if verified_sources else free_club_sources
-    if is_bad_generated_reply(final_reply) and not model_failed:
+    if is_bad_generated_reply(final_reply) and not model_failed and not force_ollama_chat:
         if local_structured:
             model_used = "nexora_local_structured"
             final_reply = finalize_user_facing_answer(original_user_message, local_structured, response_lane, presentation_style)
@@ -13833,13 +13861,17 @@ def chat(req: ChatRequest) -> ChatResponse:
                 presentation_style,
             )
             tools_used.append("empty_reply_local_resilient")
-    final_repaired, final_quality_flags, repaired_intent = quality_gate_local_repair(
-        original_user_message,
-        final_reply,
-        response_lane,
-        presentation_style,
-        session_id=session_id,
-        use_research=use_research,
+    final_repaired, final_quality_flags, repaired_intent = (
+        (final_reply, [], "")
+        if force_ollama_chat
+        else quality_gate_local_repair(
+            original_user_message,
+            final_reply,
+            response_lane,
+            presentation_style,
+            session_id=session_id,
+            use_research=use_research,
+        )
     )
     if final_quality_flags:
         tools_used.append("quality_gate:final:" + ",".join(final_quality_flags[:4]))
