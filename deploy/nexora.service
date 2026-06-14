@@ -7,16 +7,15 @@ Wants=network-online.target
 Type=simple
 User=azureuser
 WorkingDirectory=/home/azureuser/nexora-ai/backend
-Environment=NEXORA_PROVIDER=pollinations
-Environment=NEXORA_OLLAMA_MODE=off
+Environment=NEXORA_PROVIDER=ollama
+Environment=NEXORA_OLLAMA_MODE=primary
+Environment=NEXORA_FAST_MODEL=qwen3:14b
+Environment=NEXORA_THINKING_MODEL=qwen3:14b
+Environment=OLLAMA_URL=http://127.0.0.1:11434
 Environment=NEXORA_IMAGE_PROVIDER=pollinations
 Environment=NEXORA_HEALTH_DEEP=false
 Environment=NEXORA_CACHE_FRONTEND_HTML=true
 Environment=NEXORA_PERFORMANCE_LEVEL=balanced
-Environment=POLLINATIONS_TIMEOUT=10
-Environment=POLLINATIONS_PRIMARY_TIMEOUT=8
-Environment=POLLINATIONS_BACKUP_TIMEOUT=5
-Environment=POLLINATIONS_ATTEMPTS=1
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/home/azureuser/nexora-ai/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always

@@ -8,23 +8,21 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NEXORA_PROVIDER
-        value: pollinations
+        value: ollama
       - key: NEXORA_OLLAMA_MODE
-        value: off
+        value: primary
+      - key: NEXORA_FAST_MODEL
+        value: qwen3:14b
+      - key: NEXORA_THINKING_MODEL
+        value: qwen3:14b
+      - key: OLLAMA_URL
+        value: http://127.0.0.1:11434
       - key: NEXORA_AUTONOMOUS_RESEARCH
         value: "true"
       - key: NEXORA_IMAGE_PROVIDER
         value: pollinations
       - key: NEXORA_FREE_CLUB_MODE
         value: auto
-      - key: POLLINATIONS_TIMEOUT
-        value: "10"
-      - key: POLLINATIONS_PRIMARY_TIMEOUT
-        value: "8"
-      - key: POLLINATIONS_BACKUP_TIMEOUT
-        value: "5"
-      - key: POLLINATIONS_ATTEMPTS
-        value: "1"
       - key: NEXORA_MAX_MEMORY_ITEMS
         value: "600"
       - key: NEXORA_MAX_MEMORY_CONTEXT_ITEMS
