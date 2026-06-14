@@ -517,21 +517,36 @@ def load_local_env(path: Path) -> None:
 
 load_local_env(BASE_DIR / ".env")
 
-OLLAMA_URL = (os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434").strip().rstrip("/")
+QWEN_LOCK_ENABLED = os.getenv("NEXORA_LOCK_QWEN", "true").strip().lower() not in {"0", "false", "off", "no"}
+REMOTE_OLLAMA_URL = (
+    os.getenv(
+        "NEXORA_REMOTE_OLLAMA_URL",
+        "http://52.237.82.140:8000/ollama/64a40f47d13cdedb022b72a961b8c5d5ce7793ac78c68f2d",
+    )
+    .strip()
+    .rstrip("/")
+)
 OLLAMA_PROXY_TOKEN = os.getenv("NEXORA_OLLAMA_PROXY_TOKEN", "").strip()
 OLLAMA_PROXY_TARGET = (os.getenv("NEXORA_OLLAMA_PROXY_TARGET") or "http://127.0.0.1:11434").strip().rstrip("/")
 OLLAMA_PROXY_MAX_BYTES = int(os.getenv("NEXORA_OLLAMA_PROXY_MAX_BYTES", "200000"))
-FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "qwen2.5:3b")
-THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "qwen3:14b")
+raw_ollama_url = (os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434").strip().rstrip("/")
+raw_ollama_host = (urlparse(raw_ollama_url).hostname or "").lower()
+OLLAMA_URL = (
+    REMOTE_OLLAMA_URL
+    if QWEN_LOCK_ENABLED and not OLLAMA_PROXY_TOKEN and raw_ollama_host in {"127.0.0.1", "localhost", "0.0.0.0"}
+    else raw_ollama_url
+)
+FAST_MODEL = "qwen2.5:3b" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_FAST_MODEL", "qwen2.5:3b")
+THINKING_MODEL = "qwen3:14b" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_THINKING_MODEL", "qwen3:14b")
 DEFAULT_MODEL = FAST_MODEL
-OLLAMA_MODE = os.getenv("NEXORA_OLLAMA_MODE", "primary").strip().lower()
+OLLAMA_MODE = "primary" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_OLLAMA_MODE", "primary").strip().lower()
 OLLAMA_KEEP_ALIVE = os.getenv("NEXORA_OLLAMA_KEEP_ALIVE", "30m").strip()
 OLLAMA_THINK = os.getenv("NEXORA_OLLAMA_THINK", "false").strip().lower() in {"1", "true", "yes", "on"}
-OLLAMA_CONTEXT_TOKENS = int(os.getenv("NEXORA_OLLAMA_CONTEXT_TOKENS", "2048"))
-OLLAMA_INSTANT_MAX_TOKENS = int(os.getenv("NEXORA_OLLAMA_INSTANT_MAX_TOKENS", "160"))
-OLLAMA_THINKING_MAX_TOKENS = int(os.getenv("NEXORA_OLLAMA_THINKING_MAX_TOKENS", "320"))
+OLLAMA_CONTEXT_TOKENS = 512 if QWEN_LOCK_ENABLED else int(os.getenv("NEXORA_OLLAMA_CONTEXT_TOKENS", "2048"))
+OLLAMA_INSTANT_MAX_TOKENS = 160 if QWEN_LOCK_ENABLED else int(os.getenv("NEXORA_OLLAMA_INSTANT_MAX_TOKENS", "160"))
+OLLAMA_THINKING_MAX_TOKENS = 120 if QWEN_LOCK_ENABLED else int(os.getenv("NEXORA_OLLAMA_THINKING_MAX_TOKENS", "320"))
 
-FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "ollama").strip().lower()
+FREE_API_PROVIDER = "ollama" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_PROVIDER", "ollama").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
