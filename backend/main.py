@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import html as html_lib
 import json
 import logging
@@ -516,7 +517,10 @@ def load_local_env(path: Path) -> None:
 
 load_local_env(BASE_DIR / ".env")
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+OLLAMA_URL = (os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434").strip().rstrip("/")
+OLLAMA_PROXY_TOKEN = os.getenv("NEXORA_OLLAMA_PROXY_TOKEN", "").strip()
+OLLAMA_PROXY_TARGET = (os.getenv("NEXORA_OLLAMA_PROXY_TARGET") or "http://127.0.0.1:11434").strip().rstrip("/")
+OLLAMA_PROXY_MAX_BYTES = int(os.getenv("NEXORA_OLLAMA_PROXY_MAX_BYTES", "200000"))
 FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "qwen3:14b")
 THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "qwen3:14b")
 DEFAULT_MODEL = FAST_MODEL
@@ -8188,6 +8192,36 @@ def ollama_available_models() -> List[str]:
         return []
 
 
+def safe_ollama_url() -> str:
+    if "/ollama/" not in OLLAMA_URL:
+        return OLLAMA_URL
+    base, _separator, _token_path = OLLAMA_URL.partition("/ollama/")
+    return f"{base}/ollama/[redacted]"
+
+
+def validate_ollama_proxy_token(token: str) -> None:
+    if not OLLAMA_PROXY_TOKEN:
+        raise HTTPException(status_code=404, detail="Ollama proxy is not enabled.")
+    if not hmac.compare_digest(token, OLLAMA_PROXY_TOKEN):
+        raise HTTPException(status_code=403, detail="Invalid Ollama proxy token.")
+
+
+def proxy_ollama_json(method: str, path: str, payload: Optional[Dict[str, Any]] = None, timeout: int = 30) -> JSONResponse:
+    target = f"{OLLAMA_PROXY_TARGET}{path}"
+    try:
+        if method == "GET":
+            response = HTTP.get(target, timeout=timeout)
+        else:
+            response = HTTP.post(target, json=payload or {}, timeout=timeout)
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Local Ollama request failed: {exc}") from exc
+    try:
+        content = response.json()
+    except ValueError:
+        content = {"error": response.text[:2000]}
+    return JSONResponse(status_code=response.status_code, content=content)
+
+
 def ollama_is_ready(available: Optional[List[str]] = None) -> bool:
     models = available if available is not None else ollama_available_models()
     return bool(models)
@@ -8242,7 +8276,7 @@ def ollama_status() -> Dict[str, Any]:
         "mode": OLLAMA_MODE,
         "ok": is_ollama_ok(),
         "ready": ready,
-        "url": OLLAMA_URL,
+        "url": safe_ollama_url(),
         "available_models": available,
         "selected_model": select_ollama_model(None) if ready else FAST_MODEL,
         "fast_model": FAST_MODEL,
@@ -12419,6 +12453,28 @@ def code_page_slash() -> HTMLResponse:
     return code_page()
 
 
+@app.get("/ollama/{token}/api/tags")
+def ollama_proxy_tags(token: str) -> JSONResponse:
+    validate_ollama_proxy_token(token)
+    return proxy_ollama_json("GET", "/api/tags", timeout=10)
+
+
+@app.post("/ollama/{token}/api/chat")
+async def ollama_proxy_chat(token: str, request: Request) -> JSONResponse:
+    validate_ollama_proxy_token(token)
+    raw_body = await request.body()
+    if len(raw_body) > OLLAMA_PROXY_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Ollama proxy request body is too large.")
+    try:
+        payload = json.loads(raw_body.decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Expected a JSON request body.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Expected a JSON object request body.")
+    timeout = max(600, int(THINKING_TIMEOUT) + 60)
+    return proxy_ollama_json("POST", "/api/chat", payload=payload, timeout=timeout)
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     payload = {
@@ -12450,7 +12506,7 @@ def health() -> Dict[str, Any]:
         persona = load_persona_profile()
         behavior = load_behavior_profile()
         payload.update({
-            "ollama_url": OLLAMA_URL,
+            "ollama_url": safe_ollama_url(),
             "default_model": DEFAULT_MODEL,
             "fast_model": FAST_MODEL,
             "thinking_model": THINKING_MODEL,

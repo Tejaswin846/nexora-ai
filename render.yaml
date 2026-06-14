@@ -18,7 +18,7 @@ services:
       - key: NEXORA_THINKING_MODEL
         value: qwen3:14b
       - key: OLLAMA_URL
-        value: http://127.0.0.1:11434
+        value: http://52.237.82.140:8000/ollama/64a40f47d13cdedb022b72a961b8c5d5ce7793ac78c68f2d
       - key: NEXORA_OLLAMA_CONTEXT_TOKENS
         value: "1024"
       - key: NEXORA_OLLAMA_INSTANT_MAX_TOKENS
