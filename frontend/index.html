@@ -2348,7 +2348,12 @@ body.chat-mode .top-right {
   </div>
 
   <script>
-    const API_BASE = "http://127.0.0.1:8000";
+    const API_BASE = window.API_BASE || (
+      window.location.protocol === "file:"
+        ? "http://127.0.0.1:8000"
+        : window.location.origin
+    );
+    window.API_BASE = API_BASE;
 
     const sendBtn = document.getElementById("sendBtn");
     const input = document.getElementById("userInput");
@@ -4214,7 +4219,10 @@ body.chat-mode .top-right {
       closeHandSocket();
       setHandStatus("connecting...");
       try {
-        handSocket = new WebSocket("ws://127.0.0.1:8000/ws/hand");
+        const handSocketBase = window.location.protocol === "file:"
+          ? "ws://127.0.0.1:8000"
+          : (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host;
+        handSocket = new WebSocket(handSocketBase + "/ws/hand");
       } catch (e) {
         setHandStatus("bridge unavailable");
         return;
@@ -10370,7 +10378,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     }catch(err){
       const typingEl = el(typingId);
       if(typingEl) typingEl.remove();
-      renderAssistant("⚠️ Error connecting to backend. Make sure the FastAPI server is running at `http://127.0.0.1:8000`.", []);
+      renderAssistant("Error connecting to backend. Make sure the Nexora backend is running at `" + API_BASE_V2 + "`.", []);
       console.error(err);
     }finally{
       clearPendingQuestion(input);

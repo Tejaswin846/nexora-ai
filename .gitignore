@@ -1,4 +1,7 @@
 backend/.env
+venv/
+__pycache__/
+*.pyc
 backend/venv/
 backend/__pycache__/
 backend/**/*.pyc
@@ -7,4 +10,3 @@ backend/uvicorn-*.log
 *.log
 .DS_Store
 Thumbs.db
-

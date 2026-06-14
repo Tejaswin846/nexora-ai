@@ -517,13 +517,17 @@ def load_local_env(path: Path) -> None:
 load_local_env(BASE_DIR / ".env")
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
-FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "llama3.2:latest")
-THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "llama3.2:latest")
+FAST_MODEL = os.getenv("NEXORA_FAST_MODEL", "qwen3:14b")
+THINKING_MODEL = os.getenv("NEXORA_THINKING_MODEL", "qwen3:14b")
 DEFAULT_MODEL = FAST_MODEL
-OLLAMA_MODE = os.getenv("NEXORA_OLLAMA_MODE", "fallback").strip().lower()
-OLLAMA_KEEP_ALIVE = os.getenv("NEXORA_OLLAMA_KEEP_ALIVE", "10m").strip()
+OLLAMA_MODE = os.getenv("NEXORA_OLLAMA_MODE", "primary").strip().lower()
+OLLAMA_KEEP_ALIVE = os.getenv("NEXORA_OLLAMA_KEEP_ALIVE", "30m").strip()
+OLLAMA_THINK = os.getenv("NEXORA_OLLAMA_THINK", "false").strip().lower() in {"1", "true", "yes", "on"}
+OLLAMA_CONTEXT_TOKENS = int(os.getenv("NEXORA_OLLAMA_CONTEXT_TOKENS", "2048"))
+OLLAMA_INSTANT_MAX_TOKENS = int(os.getenv("NEXORA_OLLAMA_INSTANT_MAX_TOKENS", "160"))
+OLLAMA_THINKING_MAX_TOKENS = int(os.getenv("NEXORA_OLLAMA_THINKING_MAX_TOKENS", "320"))
 
-FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "auto").strip().lower()
+FREE_API_PROVIDER = os.getenv("NEXORA_PROVIDER", "ollama").strip().lower()
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
@@ -543,8 +547,8 @@ HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 REQUEST_TIMEOUT = int(os.getenv("NEXORA_REQUEST_TIMEOUT", "35"))
 SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "6"))
 MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "2600"))
-INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "18"))
-THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "34"))
+INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "180"))
+THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "420"))
 FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "4200"))
@@ -954,9 +958,16 @@ def local_fast_reply(message: str) -> Optional[str]:
     text = clean_text(message).lower()
     if not text:
         return None
+    math_text = re.sub(r"\b(answer only|only answer|reply only|respond only|the number|number only|just the number)\b", "", text)
+    math_text = re.sub(r"\b(what is|what's|calculate|solve|please|can you|could you)\b", "", math_text)
+    math_text = re.sub(r"\bplus\b", "+", math_text)
+    math_text = re.sub(r"\bminus\b", "-", math_text)
+    math_text = re.sub(r"\b(times|multiplied by|multiply by)\b", "*", math_text)
+    math_text = re.sub(r"\b(divided by|divide by|over)\b", "/", math_text)
+    math_text = clean_text(math_text).strip(" ?.!:")
     math_match = re.fullmatch(
         r"(?:what is|calculate|solve)?\s*(-?\d+(?:\.\d+)?)\s*([+\-*/x])\s*(-?\d+(?:\.\d+)?)\??",
-        text,
+        math_text,
     )
     if math_match:
         left = float(math_match.group(1))
@@ -973,6 +984,8 @@ def local_fast_reply(message: str) -> Optional[str]:
         else:
             result = left - right
         pretty = int(result) if result.is_integer() else round(result, 8)
+        if re.search(r"\b(answer only|only answer|reply only|respond only|the number|number only|just the number)\b", text):
+            return str(pretty)
         return f"Result: {pretty}"
     if re.fullmatch(r"(hi+|hello+|hey+|yo|hlo|hii+|namaste|namaskar)[!. ]*", text):
         return "Hey, I am here. What are we building or solving today?"
@@ -8240,15 +8253,22 @@ def ollama_status() -> Dict[str, Any]:
 
 def ollama_chat(messages: List[Dict[str, str]], model: str, response_mode: str = "instant") -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
+    num_ctx = current_performance_limits().get("ollama_context_tokens", 2048)
+    if model_size_score(model) >= 10:
+        timeout = max(timeout, 420 if response_mode == "thinking" else 180)
+        num_ctx = min(num_ctx, OLLAMA_CONTEXT_TOKENS)
+        token_cap = OLLAMA_THINKING_MAX_TOKENS if response_mode == "thinking" else OLLAMA_INSTANT_MAX_TOKENS
+        max_tokens = min(max_tokens, token_cap)
     payload = {
         "model": model,
-        "messages": messages,
+        "messages": compact_provider_messages("ollama", messages, response_mode),
         "stream": False,
+        "think": bool(OLLAMA_THINK and response_mode == "thinking"),
         "keep_alive": OLLAMA_KEEP_ALIVE or "10m",
         "options": {
             "temperature": temperature,
             "top_p": 0.85,
-            "num_ctx": current_performance_limits().get("ollama_context_tokens", 2048),
+            "num_ctx": num_ctx,
             "num_predict": max_tokens,
             "repeat_penalty": 1.08,
         },
@@ -8568,7 +8588,7 @@ def compact_provider_messages(
     messages: List[Dict[str, str]],
     response_mode: str,
 ) -> List[Dict[str, str]]:
-    if provider != "pollinations":
+    if provider not in {"pollinations", "ollama"}:
         return messages
 
     compact_system = (
@@ -8585,9 +8605,14 @@ def compact_provider_messages(
         compact_system += "Use deeper reasoning and a clean structure, but keep the final answer compact and useful."
     else:
         compact_system += "Keep the final answer concise unless the user asks for detail."
+    if provider == "ollama":
+        compact_system += " You are running locally through Ollama, so avoid long preambles and answer promptly."
 
     compact: List[Dict[str, str]] = [{"role": "system", "content": compact_system}]
-    system_budget = 5200 if response_mode == "thinking" else 3600
+    system_budget = (2600 if response_mode == "thinking" else 1600) if provider == "ollama" else (5200 if response_mode == "thinking" else 3600)
+    system_clip = 700 if provider == "ollama" else 1000
+    message_clip = 900 if provider == "ollama" else 1400
+    history_count = 4 if provider == "ollama" else 8
     system_used = 0
     conversation: List[Dict[str, str]] = []
 
@@ -8602,13 +8627,13 @@ def compact_provider_messages(
             remaining = system_budget - system_used
             if remaining <= 200:
                 continue
-            clipped = truncate_for_model(content, min(1000, remaining))
+            clipped = truncate_for_model(content, min(system_clip, remaining))
             system_used += len(clipped)
             compact.append({"role": "system", "content": clipped})
         elif role in {"user", "assistant"}:
-            conversation.append({"role": role, "content": truncate_for_model(content, 1400)})
+            conversation.append({"role": role, "content": truncate_for_model(content, message_clip)})
 
-    compact.extend(conversation[-8:])
+    compact.extend(conversation[-history_count:])
     return compact
 
 
@@ -8898,6 +8923,7 @@ def generate_with_engine_club(
     free_providers = configured_free_providers()
     available_ollama = ollama_available_models()
     ollama_ready = ollama_is_ready(available_ollama)
+    ollama_enabled = OLLAMA_MODE not in {"off", "false", "0", "disabled", "none"}
     prefer_ollama = should_prefer_ollama(
         requested_model,
         response_mode,
@@ -8917,7 +8943,7 @@ def generate_with_engine_club(
             raise RuntimeError("empty ollama response")
         return reply, f"ollama:{model}:{response_mode}", [f"{label}:{response_mode}"]
 
-    if prefer_ollama and ollama_ready:
+    if ollama_enabled and prefer_ollama and ollama_ready:
         try:
             return try_ollama("ollama_primary")
         except Exception as error:
@@ -8932,7 +8958,7 @@ def generate_with_engine_club(
             errors.append(f"free_api: {error}")
             tools.append("free_api_failed")
 
-    if ollama_ready and not prefer_ollama:
+    if ollama_enabled and ollama_ready and not prefer_ollama:
         try:
             return try_ollama("ollama_fallback")
         except Exception as error:
@@ -11161,6 +11187,10 @@ def answer_quality_flags(
     cleaned = clean_text(raw)
     lower = cleaned.lower()
     question_lower = clean_text(question).lower()
+    short_answer_requested = bool(re.search(
+        r"\b(short|brief|concise|one sentence|single sentence|one-line|one line|in \d+ words|exactly \d+ words|do not explain|don't explain|no explanation)\b",
+        question_lower,
+    ))
     flags: List[str] = []
     if is_bad_generated_reply(raw):
         flags.append("empty")
@@ -11199,7 +11229,7 @@ def answer_quality_flags(
         flags.append("colon_line")
     if any(marker in raw for marker in ("\u00e2", "\u00c2", "\ufffd")):
         flags.append("encoding_noise")
-    if len(cleaned.split()) < 18 and response_lane not in {"human_chat"} and not re.search(r"\b(hi|hello|thanks|ok|okay)\b", question_lower):
+    if len(cleaned.split()) < 18 and response_lane not in {"human_chat"} and not short_answer_requested and not re.search(r"\b(hi|hello|thanks|ok|okay)\b", question_lower):
         flags.append("too_short")
     if re.search(r"\b(ask the question again|send the topic directly|i am still here|try again once)\b", lower):
         flags.append("weak_fallback")
