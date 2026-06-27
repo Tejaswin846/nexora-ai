@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Software Reliability Dashboard</title>
+    <link rel="stylesheet" href="/dashboard.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Software Project</p>
+        <h1>Reliability Dashboard</h1>
+      </div>
+      <div class="status-pill" id="dashboard-status">Loading reliability data...</div>
+    </header>
+
+    <main class="shell">
+      <section class="panel">
+        <div class="section-header">
+          <h2>Overview</h2>
+          <span id="last-updated" class="muted">--</span>
+        </div>
+        <div class="metric-grid">
+          <article class="metric">
+            <span>Total Benchmark Runs</span>
+            <strong id="total-runs">--</strong>
+          </article>
+          <article class="metric">
+            <span>Total Workflows</span>
+            <strong id="total-workflows">--</strong>
+          </article>
+          <article class="metric">
+            <span>Success Rate</span>
+            <strong id="success-rate">--</strong>
+          </article>
+          <article class="metric">
+            <span>Failure Rate</span>
+            <strong id="failure-rate">--</strong>
+          </article>
+          <article class="metric score">
+            <span>Reliability Score</span>
+            <strong id="reliability-score">--</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel wide">
+        <div class="section-header">
+          <h2>Model Leaderboard</h2>
+          <span class="muted">Ranked by Reliability Score V2</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Model</th>
+                <th>Reliability</th>
+                <th>Success</th>
+                <th>Avg Latency</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="model-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel wide">
+        <div class="section-header">
+          <h2>Tool Reliability</h2>
+          <span class="muted">External tool benchmark</span>
+        </div>
+        <div class="tool-grid" id="tool-grid"></div>
+      </section>
+
+      <section class="panel wide">
+        <div class="section-header">
+          <h2>Workflow Analytics</h2>
+          <span id="workflow-summary" class="muted">--</span>
+        </div>
+        <div class="split">
+          <div>
+            <h3>Stage Failure Breakdown</h3>
+            <div id="stage-failures" class="bar-list"></div>
+          </div>
+          <div>
+            <h3>Stage Latency Breakdown</h3>
+            <div id="stage-latency" class="bar-list"></div>
+          </div>
+        </div>
+        <h3>Confidence Drop Analysis</h3>
+        <div id="confidence-drops" class="drop-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Prediction Analytics</h2>
+          <span class="muted">Failure prediction quality</span>
+        </div>
+        <div class="metric-grid tight">
+          <article class="metric">
+            <span>Accuracy</span>
+            <strong id="prediction-accuracy">--</strong>
+          </article>
+          <article class="metric">
+            <span>Precision</span>
+            <strong id="prediction-precision">--</strong>
+          </article>
+          <article class="metric">
+            <span>Recall</span>
+            <strong id="prediction-recall">--</strong>
+          </article>
+          <article class="metric">
+            <span>False Positives</span>
+            <strong id="prediction-fp">--</strong>
+          </article>
+          <article class="metric">
+            <span>False Negatives</span>
+            <strong id="prediction-fn">--</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Guardrail Analytics</h2>
+          <span class="muted">Preventive reliability layer</span>
+        </div>
+        <div class="metric-grid tight">
+          <article class="metric">
+            <span>Interventions</span>
+            <strong id="guardrail-interventions">--</strong>
+          </article>
+          <article class="metric">
+            <span>Prevented Failures</span>
+            <strong id="guardrail-prevented">--</strong>
+          </article>
+          <article class="metric">
+            <span>Recovery Success</span>
+            <strong id="guardrail-recovery">--</strong>
+          </article>
+          <article class="metric">
+            <span>Recovery Latency</span>
+            <strong id="guardrail-latency">--</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel wide">
+        <div class="section-header">
+          <h2>Historical Trends</h2>
+          <span class="muted">Reliability, success, and failure over time</span>
+        </div>
+        <div id="trend-list" class="trend-list"></div>
+      </section>
+
+      <section class="panel wide">
+        <div class="section-header">
+          <h2>SDK Workflows</h2>
+          <span class="muted">External agent telemetry submitted through Software SDK</span>
+        </div>
+        <div class="metric-grid tight">
+          <article class="metric">
+            <span>SDK Workflows</span>
+            <strong id="sdk-total">--</strong>
+          </article>
+          <article class="metric">
+            <span>SDK Success Rate</span>
+            <strong id="sdk-success">--</strong>
+          </article>
+          <article class="metric">
+            <span>SDK Avg Latency</span>
+            <strong id="sdk-latency">--</strong>
+          </article>
+        </div>
+        <div class="table-wrap sdk-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Workflow</th>
+                <th>Status</th>
+                <th>Success</th>
+                <th>Risk</th>
+                <th>Guardrail</th>
+                <th>Latency</th>
+              </tr>
+            </thead>
+            <tbody id="sdk-workflow-table"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/dashboard.js"></script>
+  </body>
+</html>
