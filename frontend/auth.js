@@ -1,23 +1,13 @@
 (function () {
   const TOKEN_KEY = "nexoraAuthToken";
-  const REFRESH_KEY = "nexoraRefreshToken";
   const USER_KEY = "nexoraAuthUser";
   const USER_ID_KEY = "nexoraUserId";
 
-  let supabaseClient = null;
   let authConfig = null;
+  let clerk = null;
 
   function $(id) {
     return document.getElementById(id);
-  }
-
-  function escapeHtml(value) {
-    return String(value || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
   }
 
   function setStatus(message, kind) {
@@ -39,27 +29,34 @@
     return localStorage.getItem(TOKEN_KEY) || "";
   }
 
-  function setSession(session, user) {
-    const activeUser = user || (session && session.user) || null;
-    if (session && session.access_token) {
-      localStorage.setItem(TOKEN_KEY, session.access_token);
-    }
-    if (session && session.refresh_token) {
-      localStorage.setItem(REFRESH_KEY, session.refresh_token);
-    }
-    if (activeUser) {
-      const name = activeUser.user_metadata?.name || activeUser.user_metadata?.full_name || activeUser.email || "Nexora user";
-      localStorage.setItem(USER_KEY, JSON.stringify(activeUser));
-      localStorage.setItem(USER_ID_KEY, activeUser.id || "");
-      localStorage.setItem("nexoraUser", name);
-      window.nexoraUserId = activeUser.id || "";
+  function publicUserFromClerk(user) {
+    if (!user) return null;
+    const email = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || "";
+    return {
+      id: user.id,
+      email,
+      name: user.fullName || user.username || email || "Nexora user",
+      auth_provider: "clerk",
+    };
+  }
+
+  async function refreshClerkSession() {
+    if (!clerk || !clerk.session) return "";
+    const token = await clerk.session.getToken();
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    const user = publicUserFromClerk(clerk.user);
+    if (user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      localStorage.setItem(USER_ID_KEY, user.id || "");
+      localStorage.setItem("nexoraUser", user.name || user.email || "Nexora user");
+      window.nexoraUserId = user.id || "";
     }
     refreshAuthUi();
+    return token || "";
   }
 
   function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(USER_ID_KEY);
     window.nexoraUserId = "";
@@ -70,8 +67,11 @@
     if (window.__nexoraAuthFetchInstalled) return;
     window.__nexoraAuthFetchInstalled = true;
     const originalFetch = window.fetch.bind(window);
-    window.fetch = function (input, init) {
-      const token = authToken();
+    window.fetch = async function (input, init) {
+      let token = authToken();
+      if (clerk && clerk.session) {
+        token = await refreshClerkSession();
+      }
       if (!token) return originalFetch(input, init);
 
       const url = typeof input === "string" ? input : input && input.url;
@@ -91,17 +91,17 @@
     };
   }
 
-  function loadSupabaseSdk() {
+  function loadClerkSdk() {
     return new Promise((resolve, reject) => {
-      if (window.supabase && window.supabase.createClient) {
+      if (window.Clerk) {
         resolve();
         return;
       }
       const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
       script.async = true;
       script.onload = resolve;
-      script.onerror = () => reject(new Error("Could not load Supabase authentication SDK."));
+      script.onerror = () => reject(new Error("Could not load Clerk authentication SDK."));
       document.head.appendChild(script);
     });
   }
@@ -110,8 +110,8 @@
     const response = await fetch("/auth/config", { headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error("Auth configuration is unavailable.");
     authConfig = await response.json();
-    if (!authConfig.configured) {
-      throw new Error("Supabase Auth is not configured on this deployment.");
+    if (!authConfig.configured || !authConfig.clerk_publishable_key) {
+      throw new Error("Clerk is not configured on this deployment.");
     }
     return authConfig;
   }
@@ -123,18 +123,12 @@
       <div class="login-box nx-auth-box">
         <div class="login-close" id="nxAuthClose">x</div>
         <div class="login-title">Nexora Account</div>
-        <div class="nx-auth-tabs">
-          <button type="button" data-auth-tab="signin" class="active">Sign in</button>
-          <button type="button" data-auth-tab="signup">Sign up</button>
-          <button type="button" data-auth-tab="forgot">Reset</button>
-        </div>
-        <input class="login-input" id="nxAuthName" placeholder="Name" autocomplete="name" />
-        <input class="login-input" id="nxAuthEmail" placeholder="Email" autocomplete="email" />
-        <input class="login-input" id="nxAuthPassword" type="password" placeholder="Password" autocomplete="current-password" />
-        <button class="login-btn" id="nxAuthSubmit" type="button">Sign in</button>
+        <button class="login-btn" id="nxClerkSignIn" type="button">Sign in</button>
+        <button class="login-btn nx-auth-secondary" id="nxClerkSignUp" type="button">Create account</button>
+        <button class="login-btn nx-auth-secondary" id="nxClerkReset" type="button">Reset password</button>
         <button class="login-btn nx-auth-secondary" id="nxAuthLogout" type="button">Log out</button>
         <div class="nx-auth-status" id="nxAuthStatus"></div>
-        <div class="nx-auth-note">SDK install is public. Sign in is needed only for protected cloud API calls and private workspace data.</div>
+        <div class="nx-auth-note">Google, GitHub, email verification, and password reset are handled by Clerk. SDK install stays public; sign in only for protected cloud features and private workspace data.</div>
       </div>
     `;
     injectStyles();
@@ -147,89 +141,30 @@
     style.id = "nxAuthStyles";
     style.textContent = `
       .nx-auth-box{width:min(380px,calc(100vw - 36px));border-radius:8px!important}
-      .nx-auth-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
-      .nx-auth-tabs button{border:1px solid rgba(255,255,255,.12);background:#171a21;color:#d7ddea;border-radius:8px;padding:9px 8px;cursor:pointer}
-      .nx-auth-tabs button.active{background:#2563eb;color:#fff}
       .nx-auth-secondary{margin-top:8px;background:#262a33!important}
       .nx-auth-status{min-height:20px;margin-top:10px;font-size:13px;color:#cbd5e1}
       .nx-auth-status[data-kind="error"]{color:#fca5a5}
       .nx-auth-status[data-kind="ok"]{color:#86efac}
       .nx-auth-note{margin-top:12px;color:#94a3b8;font-size:12px;line-height:1.45}
-      #nxAuthName[data-hidden="true"],#nxAuthPassword[data-hidden="true"]{display:none}
     `;
     document.head.appendChild(style);
   }
 
-  function activeTab() {
-    const active = document.querySelector("[data-auth-tab].active");
-    return active ? active.getAttribute("data-auth-tab") : "signin";
-  }
-
-  function setTab(tab) {
-    document.querySelectorAll("[data-auth-tab]").forEach((button) => {
-      button.classList.toggle("active", button.getAttribute("data-auth-tab") === tab);
-    });
-    const name = $("nxAuthName");
-    const password = $("nxAuthPassword");
-    const submit = $("nxAuthSubmit");
-    if (name) name.dataset.hidden = tab === "signup" ? "false" : "true";
-    if (password) password.dataset.hidden = tab === "forgot" ? "true" : "false";
-    if (submit) submit.textContent = tab === "signup" ? "Create account" : tab === "forgot" ? "Send reset email" : "Sign in";
-    setStatus("", "info");
-  }
-
   function bindAuthUi() {
-    document.querySelectorAll("[data-auth-tab]").forEach((button) => {
-      button.addEventListener("click", () => setTab(button.getAttribute("data-auth-tab")));
+    $("nxClerkSignIn")?.addEventListener("click", () => {
+      clerk?.openSignIn?.({ redirectUrl: window.location.href });
     });
-    $("nxAuthSubmit")?.addEventListener("click", submitAuth);
+    $("nxClerkSignUp")?.addEventListener("click", () => {
+      clerk?.openSignUp?.({ redirectUrl: window.location.href });
+    });
+    $("nxClerkReset")?.addEventListener("click", () => {
+      clerk?.openSignIn?.({ initialValues: {}, redirectUrl: window.location.href });
+      setStatus("Choose forgot password in the Clerk sign-in flow.", "info");
+    });
     $("nxAuthLogout")?.addEventListener("click", logout);
     $("nxAuthClose")?.addEventListener("click", () => {
       $("login").style.display = currentUser() ? "none" : "flex";
     });
-    setTab("signin");
-  }
-
-  async function submitAuth() {
-    const tab = activeTab();
-    const email = ($("nxAuthEmail")?.value || "").trim();
-    const password = $("nxAuthPassword")?.value || "";
-    const name = ($("nxAuthName")?.value || "").trim();
-    try {
-      setStatus("Working...", "info");
-      if (!email) throw new Error("Enter your email address.");
-      if (tab === "forgot") {
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: authConfig.reset_redirect_url,
-        });
-        if (error) throw error;
-        setStatus("Password reset email sent by Supabase. Check your inbox and spam folder.", "ok");
-        return;
-      }
-      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-      if (tab === "signup") {
-        const { data, error } = await supabaseClient.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name },
-            emailRedirectTo: authConfig.email_redirect_url,
-          },
-        });
-        if (error) throw error;
-        setSession(data.session, data.user);
-        setStatus(data.session ? "Account created and signed in." : "Account created. Check your email to verify before signing in.", "ok");
-        return;
-      }
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      setSession(data.session, data.user);
-      await syncBackendProfile();
-      setStatus("Signed in.", "ok");
-      $("login").style.display = "none";
-    } catch (error) {
-      setStatus(error.message || "Authentication failed.", "error");
-    }
   }
 
   async function syncBackendProfile() {
@@ -248,7 +183,7 @@
 
   async function logout() {
     try {
-      await supabaseClient?.auth?.signOut();
+      await clerk?.signOut?.();
       await fetch("/auth/logout", { method: "POST" });
     } catch (_error) {
       // Local cleanup still matters if the network is gone.
@@ -273,27 +208,27 @@
     };
     try {
       await loadConfig();
-      await loadSupabaseSdk();
-      supabaseClient = window.supabase.createClient(authConfig.supabase_url, authConfig.supabase_anon_key, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-        },
-      });
-      const { data } = await supabaseClient.auth.getSession();
-      if (data && data.session) {
-        setSession(data.session, data.session.user);
+      await loadClerkSdk();
+      clerk = new window.Clerk(authConfig.clerk_publishable_key);
+      await clerk.load();
+      if (clerk.session) {
+        await refreshClerkSession();
         await syncBackendProfile();
         $("login").style.display = "none";
       } else if (!localStorage.getItem("nexoraUser")) {
         $("login").style.display = "flex";
       }
-      supabaseClient.auth.onAuthStateChange((_event, session) => {
-        if (session) setSession(session, session.user);
+      clerk.addListener?.(async ({ user, session }) => {
+        if (session || user) {
+          await refreshClerkSession();
+          await syncBackendProfile();
+          $("login").style.display = "none";
+        } else {
+          clearSession();
+        }
       });
     } catch (error) {
-      setStatus(error.message || "Auth setup failed.", "error");
+      setStatus(error.message || "Clerk setup failed.", "error");
     }
     refreshAuthUi();
   }

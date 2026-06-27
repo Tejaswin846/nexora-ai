@@ -9,10 +9,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
+
+from backend.clerk_auth import ClerkAuthError, ClerkJWTVerifier, ClerkUserContext, bearer_token_from_header
+from backend.supabase_client import SupabaseStorageClient, SupabaseStorageError
 
 try:
     from .reliability_scoring import build_metrics_from_summary
@@ -85,6 +88,8 @@ SDK_PUBLIC_DOCS: Dict[str, Any] = {
     },
     "optional_cloud_login": ["software login", "SOFTWARE_API_KEY=..."],
 }
+clerk_verifier = ClerkJWTVerifier()
+supabase_storage_client = SupabaseStorageClient()
 
 EXTERNAL_AI_TESTER_PROMPT = (
     "You are testing this AI workflow software. Use the provided URL. "
@@ -833,19 +838,65 @@ def make_run_id(model: str) -> str:
     return f"run_{clean_model}_{uuid.uuid4().hex[:10]}"
 
 
+def sync_software_clerk_profile(clerk_user: ClerkUserContext) -> None:
+    if not supabase_storage_client.configured:
+        return
+    try:
+        supabase_storage_client.upsert_user_profile({
+            "id": clerk_user.user_id,
+            "email": clerk_user.email,
+            "name": clerk_user.name,
+            "auth_provider": "clerk",
+            "clerk_session_id": clerk_user.session_id,
+            "updated_at": now_iso(),
+        })
+    except SupabaseStorageError:
+        return
+
+
+def verify_clerk_authorization(authorization: Optional[str]) -> Optional[ClerkUserContext]:
+    token = bearer_token_from_header(authorization or "")
+    if not token:
+        return None
+    clerk_user = clerk_verifier.verify_token(token)
+    sync_software_clerk_profile(clerk_user)
+    return clerk_user
+
+
 def require_sdk_api_key(
+    request: Request,
     x_software_api_key: Optional[str] = Header(None),
     authorization: Optional[str] = Header(None),
 ) -> str:
-    supplied = x_software_api_key
-    if not supplied and authorization:
-        prefix = "Bearer "
-        supplied = authorization[len(prefix):].strip() if authorization.startswith(prefix) else authorization.strip()
+    if x_software_api_key:
+        if x_software_api_key not in SDK_API_KEYS:
+            raise HTTPException(status_code=403, detail="Invalid SDK API key.")
+        return "api_key"
+
+    clerk_user = getattr(request.state, "clerk_user", None)
+    if isinstance(clerk_user, ClerkUserContext):
+        return f"clerk:{clerk_user.user_id}"
+
+    bearer = bearer_token_from_header(authorization or "")
+    if bearer:
+        try:
+            verified = verify_clerk_authorization(authorization)
+        except ClerkAuthError as exc:
+            if bearer in SDK_API_KEYS:
+                return "api_key"
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        if verified:
+            request.state.clerk_user = verified
+            return f"clerk:{verified.user_id}"
+        if bearer in SDK_API_KEYS:
+            return "api_key"
+
+    supplied = (authorization or "").strip() if authorization and not bearer else ""
     if not supplied:
         raise HTTPException(status_code=401, detail=SDK_AUTH_REQUIRED_MESSAGE)
     if supplied not in SDK_API_KEYS:
         raise HTTPException(status_code=403, detail="Invalid SDK API key.")
-    return supplied
+    return "api_key"
 
 
 def json_dumps(payload: Any) -> str:
@@ -1003,7 +1054,7 @@ def external_test_adapter_status() -> Dict[str, Dict[str, Any]]:
             "sandbox": "metadata_only",
         },
         "supabase_audit_storage": {
-            "configured": env_configured("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY"),
+            "configured": env_configured("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"),
             "mode": "supabase_audit" if env_configured("SUPABASE_URL") else "sqlite_audit_fallback",
             "sandbox": "append_only",
         },
@@ -1893,6 +1944,33 @@ if ALLOWED_ORIGINS:
         allow_headers=["*"],
     )
 
+SOFTWARE_PROTECTED_PREFIXES = (
+    "/dashboard",
+    "/api/dashboard",
+)
+
+
+def software_route_requires_auth(path: str) -> bool:
+    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in SOFTWARE_PROTECTED_PREFIXES)
+
+
+@app.middleware("http")
+async def clerk_software_auth_middleware(request: Request, call_next):
+    path = request.url.path
+    requires_auth = software_route_requires_auth(path)
+    authorization = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    if authorization:
+        try:
+            clerk_user = verify_clerk_authorization(authorization)
+            if clerk_user:
+                request.state.clerk_user = clerk_user
+        except ClerkAuthError as exc:
+            if requires_auth:
+                return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+    if requires_auth and not isinstance(getattr(request.state, "clerk_user", None), ClerkUserContext):
+        return JSONResponse(status_code=401, content={"detail": "Authentication required."})
+    return await call_next(request)
+
 
 @app.on_event("startup")
 def startup() -> None:
@@ -1977,6 +2055,30 @@ def metrics() -> Dict[str, Any]:
             "sdk_failure_rate": sdk["failure_rate"],
         },
     }
+
+
+@app.get("/", include_in_schema=False)
+def software_home() -> HTMLResponse:
+    return HTMLResponse(
+        "<!doctype html><meta charset=\"utf-8\"><title>Software</title>"
+        "<main style=\"font-family:system-ui;margin:40px;max-width:760px\">"
+        "<h1>Software Reliability Engine</h1>"
+        "<p>Public docs and SDK installation are available without signing in.</p>"
+        "<p><a href=\"/sdk\">SDK install</a> · <a href=\"/pricing\">Pricing</a> · <a href=\"/ai-tester\">External AI Tester</a></p>"
+        "</main>"
+    )
+
+
+@app.get("/pricing", include_in_schema=False)
+def pricing_page() -> HTMLResponse:
+    return HTMLResponse(
+        "<!doctype html><meta charset=\"utf-8\"><title>Software Pricing</title>"
+        "<main style=\"font-family:system-ui;margin:40px;max-width:760px\">"
+        "<h1>Pricing</h1>"
+        "<p>SDK installation and local mode are public. Cloud execution, saved workspace data, integrations, audit logs, and team features require login or an API key.</p>"
+        "<p><a href=\"/sdk\">Install the SDK</a></p>"
+        "</main>"
+    )
 
 
 @app.get("/dashboard", include_in_schema=False)
@@ -2135,11 +2237,12 @@ def api_dashboard_sdk_workflows() -> Dict[str, Any]:
 @app.post("/api/sdk/workflows/start")
 def sdk_start_workflow(
     payload: SDKWorkflowStart,
-    _: str = Depends(require_sdk_api_key),
+    auth_principal: str = Depends(require_sdk_api_key),
 ) -> Dict[str, Any]:
     init_db()
     workflow_id = payload.workflow_id or f"wf_{uuid.uuid4().hex}"
     started_at = now_iso()
+    metadata = {**payload.metadata, "auth_principal": auth_principal}
     with connect() as db:
         db.execute(
             """
@@ -2155,7 +2258,7 @@ def sdk_start_workflow(
                 payload.project_name,
                 payload.workflow_name,
                 started_at,
-                json_dumps(payload.metadata),
+                json_dumps(metadata),
             ),
         )
         sdk_insert_event(
@@ -2163,7 +2266,7 @@ def sdk_start_workflow(
             workflow_id,
             "workflow_start",
             name=payload.workflow_name,
-            payload={"project_name": payload.project_name, "metadata": payload.metadata},
+            payload={"project_name": payload.project_name, "metadata": metadata},
         )
     return {"ok": True, "workflow_id": workflow_id, "started_at": started_at}
 

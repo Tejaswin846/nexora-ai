@@ -18,6 +18,31 @@ AUTH_REQUIRED_MESSAGE = (
 )
 
 
+class FakeSupabaseStorageClient:
+    configured = True
+
+    def upsert_user_profile(self, profile):
+        return {"ok": True, "profile": profile}
+
+
+class FakeClerkVerifier:
+    configured = True
+
+    def __init__(self, app_module):
+        self.app_module = app_module
+
+    def verify_token(self, token: str):
+        if token != "clerk-token":
+            raise self.app_module.ClerkAuthError("Invalid or expired Clerk session token.", status_code=401)
+        return self.app_module.ClerkUserContext(
+            user_id="user_clerk",
+            email="clerk@example.com",
+            name="Clerk User",
+            session_id="sess_clerk",
+            claims={"sub": "user_clerk", "email": "clerk@example.com"},
+        )
+
+
 class SDKOptionalAuthTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -26,6 +51,10 @@ class SDKOptionalAuthTests(unittest.TestCase):
         os.environ["SOFTWARE_API_DB_PATH"] = str(temp_path / "software_reliability.db")
         os.environ["RELIABILITY_DB_PATH"] = str(temp_path / "reliability.db")
         cls.app_module = importlib.import_module("Software.app")
+        cls.app_module.DATA_DIR = temp_path
+        cls.app_module.DB_PATH = temp_path / "software_reliability.db"
+        cls.app_module.clerk_verifier = FakeClerkVerifier(cls.app_module)
+        cls.app_module.supabase_storage_client = FakeSupabaseStorageClient()
         cls.client = TestClient(cls.app_module.app)
 
     @classmethod
@@ -80,10 +109,29 @@ class SDKOptionalAuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["detail"], AUTH_REQUIRED_MESSAGE)
 
+    def test_dashboard_is_protected_but_sdk_page_is_public(self):
+        dashboard = self.client.get("/dashboard")
+        api_dashboard = self.client.get("/api/dashboard")
+        sdk_page = self.client.get("/sdk")
+
+        self.assertEqual(dashboard.status_code, 401)
+        self.assertEqual(api_dashboard.status_code, 401)
+        self.assertEqual(sdk_page.status_code, 200)
+
     def test_authenticated_api_key_works(self):
         response = self.client.post(
             "/api/sdk/workflows/start",
             headers={"X-Software-API-Key": "dev-key"},
+            json={"project_name": "sdk", "workflow_name": "protected cloud"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["workflow_id"])
+
+    def test_authenticated_clerk_jwt_works_for_cloud_api(self):
+        response = self.client.post(
+            "/api/sdk/workflows/start",
+            headers={"Authorization": "Bearer clerk-token"},
             json={"project_name": "sdk", "workflow_name": "protected cloud"},
         )
 

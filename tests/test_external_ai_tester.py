@@ -22,6 +22,8 @@ class ExternalAITesterModeTests(unittest.TestCase):
         os.environ["SOFTWARE_API_DB_PATH"] = str(temp_path / "software_reliability.db")
         os.environ["RELIABILITY_DB_PATH"] = str(temp_path / "reliability.db")
         cls.app_module = importlib.import_module("Software.app")
+        cls.app_module.DATA_DIR = temp_path
+        cls.app_module.DB_PATH = temp_path / "software_reliability.db"
         cls.client = TestClient(cls.app_module.app)
 
     @classmethod

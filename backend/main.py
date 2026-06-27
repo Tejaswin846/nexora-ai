@@ -24,7 +24,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from supabase_client import SupabaseAuthClient, SupabaseAuthError
+from clerk_auth import ClerkAuthError, ClerkJWTVerifier, ClerkUserContext
+from supabase_client import SupabaseStorageClient, SupabaseStorageError
 
 try:
     from researcher.loop import research_loop
@@ -522,8 +523,9 @@ def load_local_env(path: Path) -> None:
 load_local_env(BASE_DIR / ".env")
 
 PUBLIC_APP_URL = os.getenv("NEXORA_PUBLIC_APP_URL", "").strip().rstrip("/")
-SUPABASE_AUTH_REQUIRED = os.getenv("NEXORA_SUPABASE_AUTH_REQUIRED", "true").strip().lower() not in {"0", "false", "off", "no"}
-supabase_auth_client = SupabaseAuthClient()
+CLERK_AUTH_REQUIRED = os.getenv("NEXORA_CLERK_AUTH_REQUIRED", "true").strip().lower() not in {"0", "false", "off", "no"}
+clerk_verifier = ClerkJWTVerifier()
+supabase_storage_client = SupabaseStorageClient()
 
 QWEN_LOCK_ENABLED = os.getenv("NEXORA_LOCK_QWEN", "true").strip().lower() not in {"0", "false", "off", "no"}
 REMOTE_OLLAMA_URL = (
@@ -631,6 +633,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+PROTECTED_BACKEND_PREFIXES = (
+    "/projects",
+    "/workflows",
+    "/workflow/user",
+    "/memory",
+    "/artifacts",
+    "/reminders",
+    "/settings/free-ai",
+    "/sessions",
+    "/files",
+    "/study",
+    "/website",
+    "/email",
+    "/automation",
+    "/image",
+    "/upload",
+)
+
+
+def backend_route_requires_auth(path: str) -> bool:
+    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in PROTECTED_BACKEND_PREFIXES)
+
+
+@app.middleware("http")
+async def clerk_auth_context_middleware(request: Request, call_next):
+    path = request.url.path
+    requires_auth = CLERK_AUTH_REQUIRED and backend_route_requires_auth(path)
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    token = auth_header.split(" ", 1)[1].strip() if auth_header.lower().startswith("bearer ") else ""
+    if token:
+        try:
+            clerk_user = clerk_verifier.verify_token(token)
+            request.state.clerk_user = clerk_user
+            request.state.user = sync_clerk_user_profile(clerk_user)
+        except ClerkAuthError as exc:
+            if requires_auth:
+                return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+    if requires_auth and not isinstance(getattr(request.state, "user", None), dict):
+        return JSONResponse(status_code=401, content={"detail": "Login required."})
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -869,11 +912,15 @@ class AuthActionResponse(BaseModel):
 
 class AuthConfigResponse(BaseModel):
     ok: bool = True
+    provider: str = "clerk"
     configured: bool = False
-    supabase_url: str = ""
-    supabase_anon_key: str = ""
+    clerk_publishable_key: str = ""
+    clerk_jwt_issuer: str = ""
+    sign_in_url: str = ""
+    sign_up_url: str = ""
     reset_redirect_url: str = ""
     email_redirect_url: str = ""
+    oauth_providers: List[str] = ["google", "github"]
 
 
 class ImageResponse(BaseModel):
@@ -949,6 +996,7 @@ def public_user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
         "id": str(user.get("id", "")),
         "name": str(user.get("name", "")),
         "email": str(user.get("email", "")),
+        "auth_provider": str(user.get("auth_provider", "")),
         "email_verified": bool(user.get("email_verified", False)),
         "created_at": user.get("created_at", ""),
         "updated_at": user.get("updated_at", ""),
@@ -974,27 +1022,13 @@ def auth_redirect_url(request: Request, path: str) -> str:
     return f"{public_base_url(request)}/{path.lstrip('/')}"
 
 
-def supabase_user_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(payload, dict):
-        return {}
-    user = payload.get("user") if isinstance(payload.get("user"), dict) else payload
-    return user if isinstance(user, dict) else {}
-
-
-def supabase_session_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(payload, dict):
-        return {}
-    session = payload.get("session") if isinstance(payload.get("session"), dict) else payload
-    return session if isinstance(session, dict) else {}
-
-
-def sync_auth_user_profile(auth_user: Dict[str, Any], fallback_name: str = "") -> Dict[str, Any]:
-    user_id = clean_text(str(auth_user.get("id", "")))
-    email = normalize_email(str(auth_user.get("email", "")))
+def sync_clerk_user_profile(clerk_user: ClerkUserContext) -> Dict[str, Any]:
+    user_id = clean_text(str(clerk_user.user_id))
+    email = normalize_email(str(clerk_user.email or ""))
     if not user_id:
-        raise HTTPException(status_code=502, detail="Supabase Auth did not return a user id.")
-    metadata = auth_user.get("user_metadata") if isinstance(auth_user.get("user_metadata"), dict) else {}
-    name = clean_text(str(metadata.get("name") or metadata.get("full_name") or fallback_name or email.split("@")[0]))
+        raise HTTPException(status_code=502, detail="Clerk did not return a user id.")
+    claims = clerk_user.claims if isinstance(clerk_user.claims, dict) else {}
+    name = clean_text(str(clerk_user.name or email.split("@")[0] or user_id))
     users = load_users()
     existing = users.get(user_id) if isinstance(users.get(user_id), dict) else {}
     now = now_iso()
@@ -1003,10 +1037,12 @@ def sync_auth_user_profile(auth_user: Dict[str, Any], fallback_name: str = "") -
         "id": user_id,
         "name": name[:120],
         "email": email,
-        "auth_provider": "supabase",
-        "email_verified": bool(auth_user.get("email_confirmed_at") or auth_user.get("confirmed_at")),
-        "email_confirmed_at": auth_user.get("email_confirmed_at") or auth_user.get("confirmed_at") or "",
-        "created_at": existing.get("created_at") or auth_user.get("created_at") or now,
+        "auth_provider": "clerk",
+        "clerk_user_id": user_id,
+        "clerk_session_id": clerk_user.session_id,
+        "email_verified": bool(claims.get("email_verified") or claims.get("email_verified_at") or email),
+        "email_confirmed_at": claims.get("email_verified_at") or "",
+        "created_at": existing.get("created_at") or now,
         "updated_at": now,
         "sessions": existing.get("sessions", []) if isinstance(existing.get("sessions", []), list) else [],
         "preferences": existing.get("preferences", {}) if isinstance(existing.get("preferences", {}), dict) else {},
@@ -1020,35 +1056,53 @@ def sync_auth_user_profile(auth_user: Dict[str, Any], fallback_name: str = "") -
         email_index[email] = user_id
     users["__email_index__"] = email_index
     save_users(users)
+    if supabase_storage_client.configured:
+        try:
+            supabase_storage_client.upsert_user_profile({
+                "id": user_id,
+                "email": email,
+                "name": name[:120],
+                "auth_provider": "clerk",
+                "clerk_session_id": clerk_user.session_id,
+                "updated_at": now,
+            })
+        except SupabaseStorageError:
+            LOGGER.warning("supabase_profile_sync_failed", exc_info=True)
     return profile
 
 
 def get_user_by_token(token: str) -> Optional[Dict[str, Any]]:
-    if not token or not supabase_auth_client.configured:
+    if not token:
         return None
     try:
-        return sync_auth_user_profile(supabase_user_from_payload(supabase_auth_client.get_user(token)))
-    except SupabaseAuthError:
+        return sync_clerk_user_profile(clerk_verifier.verify_token(token))
+    except ClerkAuthError:
         return None
 
 
 def require_authenticated_user(request: Request) -> Dict[str, Any]:
+    state_user = getattr(request.state, "user", None)
+    if isinstance(state_user, dict):
+        return state_user
     token = bearer_token_from_request(request)
     if not token:
         raise HTTPException(status_code=401, detail="Login required.")
     user = get_user_by_token(token)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired session. Please sign in again.")
+        raise HTTPException(status_code=401, detail="Invalid or expired Clerk session. Please sign in again.")
     return user
 
 
 def optional_authenticated_user(request: Request) -> Optional[Dict[str, Any]]:
+    state_user = getattr(request.state, "user", None)
+    if isinstance(state_user, dict):
+        return state_user
     token = bearer_token_from_request(request)
     if not token:
         return None
     user = get_user_by_token(token)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired session. Please sign in again.")
+        raise HTTPException(status_code=401, detail="Invalid or expired Clerk session. Please sign in again.")
     return user
 
 
@@ -1056,7 +1110,7 @@ def resolve_user_id_for_request(request: Request, supplied_user_id: Optional[str
     user = optional_authenticated_user(request)
     if user:
         return str(user.get("id", ""))
-    if SUPABASE_AUTH_REQUIRED:
+    if CLERK_AUTH_REQUIRED:
         return register_user(None)
     return register_user(supplied_user_id)
 
@@ -1069,7 +1123,7 @@ def register_request_user(
     user = optional_authenticated_user(request)
     if user:
         user_id = str(user.get("id", ""))
-    elif SUPABASE_AUTH_REQUIRED:
+    elif CLERK_AUTH_REQUIRED:
         user_id = register_user(None, session_id)
     else:
         user_id = register_user(supplied_user_id, session_id)
@@ -1085,20 +1139,6 @@ def require_session_owner(session_id: str, user_id: str) -> Dict[str, Any]:
     if owner and owner != "default" and owner != normalize_user_id(user_id):
         raise HTTPException(status_code=403, detail="You cannot access another user's session.")
     return session
-
-
-def auth_response_from_supabase(payload: Dict[str, Any], fallback_name: str = "", message: str = "") -> AuthResponse:
-    auth_user = supabase_user_from_payload(payload)
-    session = supabase_session_from_payload(payload)
-    user = sync_auth_user_profile(auth_user, fallback_name=fallback_name) if auth_user else {}
-    return AuthResponse(
-        ok=True,
-        token=str(session.get("access_token", "")),
-        refresh_token=str(session.get("refresh_token", "")),
-        expires_at=session.get("expires_at"),
-        user=public_user_payload(user),
-        message=message,
-    )
 
 
 def register_user(user_id: Optional[str], session_id: Optional[str] = None) -> str:
@@ -12806,14 +12846,18 @@ def auth_controller() -> HTMLResponse:
 
 @app.get("/auth/config", response_model=AuthConfigResponse)
 def auth_config(request: Request) -> AuthConfigResponse:
-    public_config = supabase_auth_client.public_config()
+    public_config = clerk_verifier.public_config()
     return AuthConfigResponse(
         ok=True,
+        provider="clerk",
         configured=bool(public_config.get("configured")),
-        supabase_url=str(public_config.get("supabase_url", "")),
-        supabase_anon_key=str(public_config.get("supabase_anon_key", "")),
-        reset_redirect_url=auth_redirect_url(request, "/reset-password"),
+        clerk_publishable_key=str(public_config.get("clerk_publishable_key", "")),
+        clerk_jwt_issuer=str(public_config.get("clerk_jwt_issuer", "")),
+        sign_in_url=auth_redirect_url(request, "/"),
+        sign_up_url=auth_redirect_url(request, "/"),
+        reset_redirect_url=auth_redirect_url(request, "/"),
         email_redirect_url=auth_redirect_url(request, "/auth/callback"),
+        oauth_providers=["google", "github"],
     )
 
 
@@ -12828,68 +12872,41 @@ def auth_callback_page() -> HTMLResponse:
 
 @app.post("/auth/signup", response_model=AuthResponse)
 def auth_signup(req: AuthRequest, request: Request) -> AuthResponse:
-    if not supabase_auth_client.configured:
-        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
-    try:
-        payload = supabase_auth_client.sign_up(
-            normalize_email(req.email),
-            req.password,
-            clean_text(req.name),
-            redirect_to=auth_redirect_url(request, "/auth/callback"),
-        )
-    except SupabaseAuthError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    return auth_response_from_supabase(payload, fallback_name=req.name, message="Account created.")
+    return AuthResponse(
+        ok=True,
+        user={"email": normalize_email(req.email), "name": clean_text(req.name), "auth_provider": "clerk"},
+        message="Signup is handled by Clerk. Use the Clerk sign-up UI or hosted Clerk flow.",
+    )
 
 
 @app.post("/auth/login", response_model=AuthResponse)
 def auth_login(req: LoginRequest) -> AuthResponse:
-    if not supabase_auth_client.configured:
-        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
-    try:
-        payload = supabase_auth_client.sign_in_with_password(normalize_email(req.email), req.password)
-    except SupabaseAuthError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    return auth_response_from_supabase(payload, message="Signed in.")
+    return AuthResponse(
+        ok=True,
+        user={"email": normalize_email(req.email), "auth_provider": "clerk"},
+        message="Login is handled by Clerk. Use the Clerk sign-in UI, then send the Clerk session JWT as a bearer token.",
+    )
 
 
 @app.post("/auth/logout", response_model=AuthActionResponse)
 def auth_logout(request: Request) -> AuthActionResponse:
-    token = bearer_token_from_request(request)
-    if token and supabase_auth_client.configured:
-        try:
-            supabase_auth_client.logout(token)
-        except SupabaseAuthError:
-            pass
-    return AuthActionResponse(ok=True, message="Signed out.")
+    return AuthActionResponse(ok=True, message="Logout is handled by Clerk on the client with Clerk.signOut().")
 
 
 @app.post("/auth/forgot-password", response_model=AuthActionResponse)
 def auth_forgot_password(req: ForgotPasswordRequest, request: Request) -> AuthActionResponse:
-    if not supabase_auth_client.configured:
-        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
-    try:
-        supabase_auth_client.recover_password(
-            normalize_email(req.email),
-            redirect_to=auth_redirect_url(request, "/reset-password"),
-        )
-    except SupabaseAuthError as exc:
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail=f"Password reset email was not sent: {exc.message}",
-        ) from exc
-    return AuthActionResponse(ok=True, message="If the account exists, Supabase has sent a password reset email.")
+    return AuthActionResponse(
+        ok=True,
+        message="Password reset is handled by Clerk. Open the Clerk sign-in flow and choose forgot password.",
+    )
 
 
 @app.post("/auth/reset-password", response_model=AuthActionResponse)
 def auth_reset_password(req: ResetPasswordRequest) -> AuthActionResponse:
-    if not supabase_auth_client.configured:
-        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
-    try:
-        supabase_auth_client.update_password(req.access_token, req.new_password)
-    except SupabaseAuthError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    return AuthActionResponse(ok=True, message="Password updated. Please sign in with the new password.")
+    return AuthActionResponse(
+        ok=True,
+        message="Password reset tokens are verified by Clerk. Complete the reset in the Clerk hosted flow.",
+    )
 
 
 @app.get("/auth/me")

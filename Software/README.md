@@ -207,6 +207,14 @@ software login
 SOFTWARE_API_KEY=...
 ```
 
+## Authentication Provider
+
+Software uses Clerk for dashboard and cloud-workspace authentication. Clerk
+handles signup, login, logout, password reset, email verification, Google OAuth,
+GitHub OAuth, and JWT/session validation. Supabase remains a database/storage
+layer for mirrored user profiles and per-user records; stored records use the
+Clerk `user_id`.
+
 ## Scoring Formula
 
 All component metrics are normalized to 0-100.

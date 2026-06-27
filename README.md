@@ -70,20 +70,23 @@ See [`DOMAIN_SETUP.md`](DOMAIN_SETUP.md) for the `.com` checklist.
 
 ## Authentication
 
-Nexora uses Supabase Auth for signup, login, logout, email verification, and password recovery. Configure the backend with the base Supabase project URL only:
+Nexora uses Clerk for signup, login, logout, email verification, Google OAuth, GitHub OAuth, password reset, and JWT/session validation. Supabase is kept as the database/storage layer for profiles and user-owned records.
 
 ```text
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-public-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-backend-service-role-key
+CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+CLERK_JWT_ISSUER=https://your-clerk-issuer
+CLERK_WEBHOOK_SECRET=whsec_...
 NEXORA_PUBLIC_APP_URL=https://your-public-app-url
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-backend-service-role-key
 ```
 
-Do not include `/rest/v1/` in `SUPABASE_URL`. The anon key is safe for browser auth flows; the service role key is backend-only and must never be exposed to frontend code.
+Never expose `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`, or `SUPABASE_SERVICE_ROLE_KEY` to frontend code. `CLERK_PUBLISHABLE_KEY` is the only Clerk key sent to the browser.
 
-Password reset uses Supabase recovery email delivery. `/auth/forgot-password` sends the recovery email, the recovery link opens `/reset-password`, and the browser calls Supabase `updateUser` with the recovery session to set the new password. If Supabase or SMTP rejects the email request, the API returns an honest error instead of showing fake success.
+Do not include `/rest/v1/` in `SUPABASE_URL`. Supabase Auth is not used; Clerk owns password reset, email verification, OAuth, and sessions.
 
-User data is resolved from the bearer token when a user is signed in. Projects, workflows, memory, sessions, settings, and stored provider API keys are scoped to that authenticated user; caller-supplied `user_id` values cannot override the token identity. If app data is moved into Supabase tables, apply the example policies in `backend/supabase_rls.sql`.
+User data is resolved from the Clerk bearer token when a user is signed in. Projects, workflows, memory, sessions, settings, and stored provider API keys are scoped to the Clerk `user_id`; caller-supplied `user_id` values cannot override the token identity. Clerk profiles are mirrored to Supabase storage when configured. If app data is moved into Supabase tables, apply the example policies in `backend/supabase_rls.sql`.
 
 ## SDK Access
 
