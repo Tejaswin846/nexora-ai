@@ -24,6 +24,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from supabase_client import SupabaseAuthClient, SupabaseAuthError
+
 try:
     from researcher.loop import research_loop
 except Exception:
@@ -490,6 +492,8 @@ REMINDERS_FILE = DATA_DIR / "reminders.json"
 WORKFLOWS_FILE = DATA_DIR / "workflows.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
 CODE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "code.html"
+RESET_PASSWORD_INDEX = BASE_DIR.parent / "frontend" / "reset-password.html"
+AUTH_CONTROLLER_INDEX = BASE_DIR.parent / "frontend" / "auth.js"
 CACHE_FRONTEND_HTML = os.getenv("NEXORA_CACHE_FRONTEND_HTML", "true").strip().lower() not in {"0", "false", "off", "no"}
 HEALTH_DEEP = os.getenv("NEXORA_HEALTH_DEEP", "false").strip().lower() in {"1", "true", "yes", "on"}
 FRONTEND_HTML_CACHE: Dict[str, str] = {}
@@ -516,6 +520,10 @@ def load_local_env(path: Path) -> None:
 
 
 load_local_env(BASE_DIR / ".env")
+
+PUBLIC_APP_URL = os.getenv("NEXORA_PUBLIC_APP_URL", "").strip().rstrip("/")
+SUPABASE_AUTH_REQUIRED = os.getenv("NEXORA_SUPABASE_AUTH_REQUIRED", "true").strip().lower() not in {"0", "false", "off", "no"}
+supabase_auth_client = SupabaseAuthClient()
 
 QWEN_LOCK_ENABLED = os.getenv("NEXORA_LOCK_QWEN", "true").strip().lower() not in {"0", "false", "off", "no"}
 REMOTE_OLLAMA_URL = (
@@ -825,6 +833,49 @@ class FreeAISettingsRequest(BaseModel):
     clear_key: Optional[bool] = False
 
 
+class AuthRequest(BaseModel):
+    name: str = Field("", max_length=120)
+    email: str = Field(..., min_length=3, max_length=320)
+    password: str = Field(..., min_length=6, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=320)
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=320)
+
+
+class ResetPasswordRequest(BaseModel):
+    access_token: str = Field(..., min_length=8, max_length=4096)
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class AuthResponse(BaseModel):
+    ok: bool = True
+    token: str = ""
+    refresh_token: str = ""
+    expires_at: Optional[int] = None
+    user: Dict[str, Any] = {}
+    message: str = ""
+
+
+class AuthActionResponse(BaseModel):
+    ok: bool = True
+    message: str = ""
+
+
+class AuthConfigResponse(BaseModel):
+    ok: bool = True
+    configured: bool = False
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    reset_redirect_url: str = ""
+    email_redirect_url: str = ""
+
+
 class ImageResponse(BaseModel):
     ok: bool
     prompt: str
@@ -887,6 +938,167 @@ def load_users() -> Dict[str, Any]:
 
 def save_users(users: Dict[str, Any]) -> None:
     safe_write_json(USERS_FILE, users)
+
+
+def normalize_email(email: str) -> str:
+    return clean_text(email).lower()
+
+
+def public_user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
+    payload = {
+        "id": str(user.get("id", "")),
+        "name": str(user.get("name", "")),
+        "email": str(user.get("email", "")),
+        "email_verified": bool(user.get("email_verified", False)),
+        "created_at": user.get("created_at", ""),
+        "updated_at": user.get("updated_at", ""),
+        "preferences": user.get("preferences", {}) if isinstance(user.get("preferences", {}), dict) else {},
+    }
+    return payload
+
+
+def bearer_token_from_request(request: Request) -> str:
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    if not auth_header.lower().startswith("bearer "):
+        return ""
+    return auth_header.split(" ", 1)[1].strip()
+
+
+def public_base_url(request: Request) -> str:
+    if PUBLIC_APP_URL:
+        return PUBLIC_APP_URL
+    return str(request.base_url).rstrip("/")
+
+
+def auth_redirect_url(request: Request, path: str) -> str:
+    return f"{public_base_url(request)}/{path.lstrip('/')}"
+
+
+def supabase_user_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else payload
+    return user if isinstance(user, dict) else {}
+
+
+def supabase_session_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    session = payload.get("session") if isinstance(payload.get("session"), dict) else payload
+    return session if isinstance(session, dict) else {}
+
+
+def sync_auth_user_profile(auth_user: Dict[str, Any], fallback_name: str = "") -> Dict[str, Any]:
+    user_id = clean_text(str(auth_user.get("id", "")))
+    email = normalize_email(str(auth_user.get("email", "")))
+    if not user_id:
+        raise HTTPException(status_code=502, detail="Supabase Auth did not return a user id.")
+    metadata = auth_user.get("user_metadata") if isinstance(auth_user.get("user_metadata"), dict) else {}
+    name = clean_text(str(metadata.get("name") or metadata.get("full_name") or fallback_name or email.split("@")[0]))
+    users = load_users()
+    existing = users.get(user_id) if isinstance(users.get(user_id), dict) else {}
+    now = now_iso()
+    profile = {
+        **existing,
+        "id": user_id,
+        "name": name[:120],
+        "email": email,
+        "auth_provider": "supabase",
+        "email_verified": bool(auth_user.get("email_confirmed_at") or auth_user.get("confirmed_at")),
+        "email_confirmed_at": auth_user.get("email_confirmed_at") or auth_user.get("confirmed_at") or "",
+        "created_at": existing.get("created_at") or auth_user.get("created_at") or now,
+        "updated_at": now,
+        "sessions": existing.get("sessions", []) if isinstance(existing.get("sessions", []), list) else [],
+        "preferences": existing.get("preferences", {}) if isinstance(existing.get("preferences", {}), dict) else {},
+        "settings": existing.get("settings", {}) if isinstance(existing.get("settings", {}), dict) else {},
+        "api_keys": existing.get("api_keys", {}) if isinstance(existing.get("api_keys", {}), dict) else {},
+    }
+    profile.pop("password", None)
+    users[user_id] = profile
+    email_index = users.get("__email_index__") if isinstance(users.get("__email_index__"), dict) else {}
+    if email:
+        email_index[email] = user_id
+    users["__email_index__"] = email_index
+    save_users(users)
+    return profile
+
+
+def get_user_by_token(token: str) -> Optional[Dict[str, Any]]:
+    if not token or not supabase_auth_client.configured:
+        return None
+    try:
+        return sync_auth_user_profile(supabase_user_from_payload(supabase_auth_client.get_user(token)))
+    except SupabaseAuthError:
+        return None
+
+
+def require_authenticated_user(request: Request) -> Dict[str, Any]:
+    token = bearer_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Login required.")
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session. Please sign in again.")
+    return user
+
+
+def optional_authenticated_user(request: Request) -> Optional[Dict[str, Any]]:
+    token = bearer_token_from_request(request)
+    if not token:
+        return None
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session. Please sign in again.")
+    return user
+
+
+def resolve_user_id_for_request(request: Request, supplied_user_id: Optional[str] = None) -> str:
+    user = optional_authenticated_user(request)
+    if user:
+        return str(user.get("id", ""))
+    if SUPABASE_AUTH_REQUIRED:
+        return register_user(None)
+    return register_user(supplied_user_id)
+
+
+def register_request_user(
+    request: Request,
+    supplied_user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> str:
+    user = optional_authenticated_user(request)
+    if user:
+        user_id = str(user.get("id", ""))
+    elif SUPABASE_AUTH_REQUIRED:
+        user_id = register_user(None, session_id)
+    else:
+        user_id = register_user(supplied_user_id, session_id)
+    if session_id:
+        register_user(user_id, session_id)
+        bind_session_user(ensure_session(session_id), user_id)
+    return user_id
+
+
+def require_session_owner(session_id: str, user_id: str) -> Dict[str, Any]:
+    session = get_session(session_id)
+    owner = normalize_user_id(str(session.get("user_id", "")))
+    if owner and owner != "default" and owner != normalize_user_id(user_id):
+        raise HTTPException(status_code=403, detail="You cannot access another user's session.")
+    return session
+
+
+def auth_response_from_supabase(payload: Dict[str, Any], fallback_name: str = "", message: str = "") -> AuthResponse:
+    auth_user = supabase_user_from_payload(payload)
+    session = supabase_session_from_payload(payload)
+    user = sync_auth_user_profile(auth_user, fallback_name=fallback_name) if auth_user else {}
+    return AuthResponse(
+        ok=True,
+        token=str(session.get("access_token", "")),
+        refresh_token=str(session.get("refresh_token", "")),
+        expires_at=session.get("expires_at"),
+        user=public_user_payload(user),
+        message=message,
+    )
 
 
 def register_user(user_id: Optional[str], session_id: Optional[str] = None) -> str:
@@ -8608,6 +8820,73 @@ def save_free_ai_settings(req: FreeAISettingsRequest) -> Tuple[bool, str]:
     return True, f"Free AI provider set to {FREE_PROVIDER_LABELS.get(provider, provider)}."
 
 
+def free_ai_settings_for_user(user_id: str) -> Dict[str, Any]:
+    users = load_users()
+    user = users.get(user_id) if isinstance(users.get(user_id), dict) else {}
+    settings = user.get("settings") if isinstance(user.get("settings"), dict) else {}
+    free_ai = settings.get("free_ai") if isinstance(settings.get("free_ai"), dict) else {}
+    api_keys = user.get("api_keys") if isinstance(user.get("api_keys"), dict) else {}
+    free_ai_keys = api_keys.get("free_ai") if isinstance(api_keys.get("free_ai"), dict) else {}
+    provider = clean_text(str(free_ai.get("provider") or "auto")).lower()
+    return {
+        "provider": provider,
+        "label": FREE_PROVIDER_LABELS.get(provider, provider),
+        "model": clean_text(str(free_ai.get("model") or "")),
+        "has_api_key": bool(free_ai_keys.get(provider)),
+        "updated_at": free_ai.get("updated_at", ""),
+    }
+
+
+def save_user_free_ai_settings(user_id: str, req: FreeAISettingsRequest) -> Tuple[bool, str]:
+    provider = clean_text(req.provider or "auto").lower()
+    allowed = {"auto", "ollama", "pollinations", "groq", "gemini", "openrouter", "huggingface"}
+    if provider not in allowed:
+        return False, "Choose a supported provider."
+
+    api_key = req.api_key.strip() if req.api_key is not None and req.api_key.strip() else None
+    model = req.model.strip() if req.model is not None and req.model.strip() else ""
+    clear_key = bool(req.clear_key)
+
+    users = load_users()
+    user = users.get(user_id) if isinstance(users.get(user_id), dict) else {"id": user_id}
+    settings = user.setdefault("settings", {})
+    if not isinstance(settings, dict):
+        settings = {}
+        user["settings"] = settings
+    free_ai = settings.setdefault("free_ai", {})
+    if not isinstance(free_ai, dict):
+        free_ai = {}
+        settings["free_ai"] = free_ai
+
+    api_keys = user.setdefault("api_keys", {})
+    if not isinstance(api_keys, dict):
+        api_keys = {}
+        user["api_keys"] = api_keys
+    free_ai_keys = api_keys.setdefault("free_ai", {})
+    if not isinstance(free_ai_keys, dict):
+        free_ai_keys = {}
+        api_keys["free_ai"] = free_ai_keys
+
+    if provider in FREE_PROVIDER_KEY_ENV:
+        if clear_key:
+            free_ai_keys.pop(provider, None)
+        elif api_key:
+            free_ai_keys[provider] = api_key
+        elif not free_ai_keys.get(provider):
+            return False, f"{FREE_PROVIDER_LABELS[provider]} needs a free API key. Pollinations works without a key."
+
+    free_ai["provider"] = provider
+    if model:
+        free_ai["model"] = model
+    elif "model" not in free_ai:
+        free_ai["model"] = ""
+    free_ai["updated_at"] = now_iso()
+    user["updated_at"] = now_iso()
+    users[user_id] = user
+    save_users(users)
+    return True, f"Free AI provider saved for this user as {FREE_PROVIDER_LABELS.get(provider, provider)}."
+
+
 def extract_openai_chat_content(data: Any) -> str:
     if not isinstance(data, dict):
         return ""
@@ -12501,6 +12780,153 @@ def code_page_slash() -> HTMLResponse:
     return code_page()
 
 
+@app.get("/reset-password", response_class=HTMLResponse)
+def reset_password_page() -> HTMLResponse:
+    if not RESET_PASSWORD_INDEX.exists():
+        return HTMLResponse(
+            "<h1>Reset page not found</h1><p>Expected frontend/reset-password.html beside the main frontend file.</p>",
+            status_code=404,
+        )
+    return HTMLResponse(
+        read_frontend_html(RESET_PASSWORD_INDEX),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/auth.js")
+def auth_controller() -> HTMLResponse:
+    if not AUTH_CONTROLLER_INDEX.exists():
+        return HTMLResponse("console.error('Nexora auth controller not found.');", media_type="application/javascript", status_code=404)
+    return HTMLResponse(
+        read_frontend_html(AUTH_CONTROLLER_INDEX),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/auth/config", response_model=AuthConfigResponse)
+def auth_config(request: Request) -> AuthConfigResponse:
+    public_config = supabase_auth_client.public_config()
+    return AuthConfigResponse(
+        ok=True,
+        configured=bool(public_config.get("configured")),
+        supabase_url=str(public_config.get("supabase_url", "")),
+        supabase_anon_key=str(public_config.get("supabase_anon_key", "")),
+        reset_redirect_url=auth_redirect_url(request, "/reset-password"),
+        email_redirect_url=auth_redirect_url(request, "/auth/callback"),
+    )
+
+
+@app.get("/auth/callback", response_class=HTMLResponse)
+def auth_callback_page() -> HTMLResponse:
+    return HTMLResponse(
+        "<!doctype html><meta charset=\"utf-8\"><title>Nexora Auth</title>"
+        "<script>location.replace('/');</script><p>Returning to Nexora...</p>",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post("/auth/signup", response_model=AuthResponse)
+def auth_signup(req: AuthRequest, request: Request) -> AuthResponse:
+    if not supabase_auth_client.configured:
+        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
+    try:
+        payload = supabase_auth_client.sign_up(
+            normalize_email(req.email),
+            req.password,
+            clean_text(req.name),
+            redirect_to=auth_redirect_url(request, "/auth/callback"),
+        )
+    except SupabaseAuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return auth_response_from_supabase(payload, fallback_name=req.name, message="Account created.")
+
+
+@app.post("/auth/login", response_model=AuthResponse)
+def auth_login(req: LoginRequest) -> AuthResponse:
+    if not supabase_auth_client.configured:
+        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
+    try:
+        payload = supabase_auth_client.sign_in_with_password(normalize_email(req.email), req.password)
+    except SupabaseAuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return auth_response_from_supabase(payload, message="Signed in.")
+
+
+@app.post("/auth/logout", response_model=AuthActionResponse)
+def auth_logout(request: Request) -> AuthActionResponse:
+    token = bearer_token_from_request(request)
+    if token and supabase_auth_client.configured:
+        try:
+            supabase_auth_client.logout(token)
+        except SupabaseAuthError:
+            pass
+    return AuthActionResponse(ok=True, message="Signed out.")
+
+
+@app.post("/auth/forgot-password", response_model=AuthActionResponse)
+def auth_forgot_password(req: ForgotPasswordRequest, request: Request) -> AuthActionResponse:
+    if not supabase_auth_client.configured:
+        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
+    try:
+        supabase_auth_client.recover_password(
+            normalize_email(req.email),
+            redirect_to=auth_redirect_url(request, "/reset-password"),
+        )
+    except SupabaseAuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=f"Password reset email was not sent: {exc.message}",
+        ) from exc
+    return AuthActionResponse(ok=True, message="If the account exists, Supabase has sent a password reset email.")
+
+
+@app.post("/auth/reset-password", response_model=AuthActionResponse)
+def auth_reset_password(req: ResetPasswordRequest) -> AuthActionResponse:
+    if not supabase_auth_client.configured:
+        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
+    try:
+        supabase_auth_client.update_password(req.access_token, req.new_password)
+    except SupabaseAuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return AuthActionResponse(ok=True, message="Password updated. Please sign in with the new password.")
+
+
+@app.get("/auth/me")
+def auth_me(request: Request) -> Dict[str, Any]:
+    user = optional_authenticated_user(request)
+    return {"ok": True, "user": public_user_payload(user)} if user else {"ok": False, "user": None}
+
+
+def list_sessions_payload(user_id: str) -> Dict[str, Any]:
+    normalized = normalize_user_id(user_id)
+    sessions = load_sessions()
+    rows = []
+    for session_id, session in sessions.items():
+        if normalize_user_id(str(session.get("user_id", "default"))) != normalized:
+            continue
+        messages = session.get("messages", []) if isinstance(session, dict) else []
+        first_user = next(
+            (m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"),
+            "",
+        )
+        rows.append({
+            "id": session_id,
+            "title": clean_text(first_user)[:80] or "New chat",
+            "message_count": len(messages),
+            "created_at": session.get("created_at") if isinstance(session, dict) else "",
+            "updated_at": session.get("updated_at") if isinstance(session, dict) else "",
+        })
+    rows.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
+    return {"ok": True, "user_id": normalized, "sessions": rows[:100]}
+
+
+@app.get("/auth/sessions")
+def auth_sessions(request: Request) -> Dict[str, Any]:
+    user = require_authenticated_user(request)
+    return list_sessions_payload(str(user.get("id", "")))
+
+
 @app.get("/ollama/{token}/api/tags")
 def ollama_proxy_tags(token: str) -> JSONResponse:
     validate_ollama_proxy_token(token)
@@ -12641,20 +13067,26 @@ def models() -> Dict[str, Any]:
 
 
 @app.get("/settings/free-ai")
-def get_free_ai_settings() -> Dict[str, Any]:
-    return {
+def get_free_ai_settings(request: Request) -> Dict[str, Any]:
+    user = optional_authenticated_user(request)
+    payload: Dict[str, Any] = {
         "ok": True,
         "status": free_provider_status(),
     }
+    if user:
+        payload["user_settings"] = free_ai_settings_for_user(str(user.get("id", "")))
+    return payload
 
 
 @app.post("/settings/free-ai")
-def update_free_ai_settings(req: FreeAISettingsRequest) -> Dict[str, Any]:
-    ok, message = save_free_ai_settings(req)
+def update_free_ai_settings(req: FreeAISettingsRequest, request: Request) -> Dict[str, Any]:
+    user = require_authenticated_user(request)
+    ok, message = save_user_free_ai_settings(str(user.get("id", "")), req)
     return {
         "ok": ok,
         "message": message,
         "status": free_provider_status(),
+        "user_settings": free_ai_settings_for_user(str(user.get("id", ""))),
     }
 
 
@@ -12695,8 +13127,8 @@ def read_system_profile() -> Dict[str, Any]:
 
 
 @app.get("/workflow/user")
-def read_user_workflow(user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def read_user_workflow(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     users = load_users()
     image_memory = load_image_memory()
     memories = [
@@ -12718,7 +13150,7 @@ def read_user_workflow(user_id: Optional[str] = None) -> Dict[str, Any]:
     return {
         "ok": True,
         "user_id": normalized,
-        "user": users.get(normalized, {"id": normalized}),
+        "user": public_user_payload(users.get(normalized, {"id": normalized})),
         "memory_items": len(memories),
         "image_items": len(images),
         "reminder_items": len(reminders),
@@ -12737,53 +13169,31 @@ def read_user_workflow(user_id: Optional[str] = None) -> Dict[str, Any]:
 
 
 @app.get("/sessions")
-def list_sessions(user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
-    sessions = load_sessions()
-    rows = []
-    for session_id, session in sessions.items():
-        if user_id and normalize_user_id(str(session.get("user_id", "default"))) != normalized:
-            continue
-        messages = session.get("messages", []) if isinstance(session, dict) else []
-        first_user = next(
-            (m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"),
-            "",
-        )
-        rows.append({
-            "id": session_id,
-            "title": clean_text(first_user)[:80] or "New chat",
-            "message_count": len(messages),
-            "created_at": session.get("created_at") if isinstance(session, dict) else "",
-            "updated_at": session.get("updated_at") if isinstance(session, dict) else "",
-        })
-    rows.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
-    return {"ok": True, "user_id": normalized, "sessions": rows[:100]}
+def list_sessions(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    return list_sessions_payload(resolve_user_id_for_request(request, user_id))
 
 
 @app.get("/projects")
-def projects(user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def projects(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     rows = load_projects()
-    if user_id:
-        rows = [
-            project for project in rows
-            if normalize_user_id(str(project.get("user_id", "default"))) == normalized
-        ]
+    rows = [
+        project for project in rows
+        if normalize_user_id(str(project.get("user_id", "default"))) == normalized
+    ]
     return {"ok": True, "user_id": normalized, "projects": rows}
 
 
 @app.post("/projects/create")
-def create_project(req: ProjectRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
-    if req.session_id:
-        bind_session_user(ensure_session(req.session_id), user_id)
+def create_project(req: ProjectRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     project = upsert_project(req.name, req.session_id, user_id)
     return {"ok": True, "project": project, "name": project["name"]}
 
 
 @app.delete("/projects/{project_key}")
-def delete_project(project_key: str, user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def delete_project(project_key: str, request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     key = clean_text(project_key).lower()
     deleted: List[Dict[str, Any]] = []
     kept = []
@@ -12791,7 +13201,7 @@ def delete_project(project_key: str, user_id: Optional[str] = None) -> Dict[str,
         project_name = clean_text(str(project.get("name", ""))).lower()
         project_id = clean_text(str(project.get("id", ""))).lower()
         same_project = key in {project_name, project_id}
-        same_user = not user_id or normalize_user_id(str(project.get("user_id", "default"))) == normalized
+        same_user = normalize_user_id(str(project.get("user_id", "default"))) == normalized
         if same_project and same_user:
             deleted.append(project)
             continue
@@ -12807,20 +13217,19 @@ def delete_project(project_key: str, user_id: Optional[str] = None) -> Dict[str,
 
 
 @app.get("/artifacts")
-def artifacts(user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def artifacts(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     items = load_artifacts()
-    if user_id:
-        items = [
-            item for item in items
-            if normalize_user_id(str(item.get("user_id", "default"))) == normalized
-        ]
+    items = [
+        item for item in items
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ]
     return {"ok": True, "user_id": normalized, "artifacts": items}
 
 
 @app.post("/artifacts/save")
-def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def save_artifact(req: ArtifactRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     artifact = create_artifact(
         title=req.title,
         artifact_type=req.type,
@@ -12834,15 +13243,15 @@ def save_artifact(req: ArtifactRequest) -> Dict[str, Any]:
 
 
 @app.delete("/artifacts/{artifact_id}")
-def delete_artifact(artifact_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def delete_artifact(artifact_id: str, request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     key = clean_text(artifact_id)
     deleted: List[Dict[str, Any]] = []
     kept = []
     for artifact in load_artifacts():
         artifact_id_value = clean_text(str(artifact.get("id", "")))
         same_artifact = artifact_id_value == key
-        same_user = not user_id or normalize_user_id(str(artifact.get("user_id", "default"))) == normalized
+        same_user = normalize_user_id(str(artifact.get("user_id", "default"))) == normalized
         if same_artifact and same_user:
             deleted.append(artifact)
             continue
@@ -12955,8 +13364,10 @@ def capabilities() -> Dict[str, Any]:
 
 
 @app.post("/files/summarize")
-def summarize_file(req: FileSummaryRequest) -> Dict[str, Any]:
+def summarize_file(req: FileSummaryRequest, request: Request) -> Dict[str, Any]:
     session = get_session(req.session_id)
+    user_id = register_request_user(request, req.user_id, req.session_id)
+    require_session_owner(req.session_id, user_id)
     files = session.get("files", [])
     selected = None
     if req.filename:
@@ -12982,15 +13393,15 @@ def summarize_file(req: FileSummaryRequest) -> Dict[str, Any]:
         title=f"Summary - {selected.get('filename', 'file')}",
         artifact_type="File Summary",
         content=content,
-        user_id=req.user_id or str(session.get("user_id", "default")),
+        user_id=user_id,
         session_id=req.session_id,
     )
     return {"ok": True, "file": selected, "summary": result, "artifact": artifact}
 
 
 @app.post("/study/plan")
-def create_study_plan(req: StudyPlanRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def create_study_plan(req: StudyPlanRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     plan = make_study_plan(req.topic, req.days, req.daily_minutes, req.goal)
     artifact = create_artifact(
         title=f"Study plan - {title_case_topic(req.topic)}",
@@ -13005,8 +13416,8 @@ def create_study_plan(req: StudyPlanRequest) -> Dict[str, Any]:
 
 
 @app.post("/website/generate")
-def generate_website(req: WebsiteRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def generate_website(req: WebsiteRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     html = generate_website_html(req.prompt, req.title)
     title = clean_text(req.title or "") or title_case_topic(req.prompt[:60])
     artifact = create_artifact(
@@ -13021,19 +13432,18 @@ def generate_website(req: WebsiteRequest) -> Dict[str, Any]:
 
 
 @app.get("/reminders")
-def list_reminders(user_id: Optional[str] = None, include_done: bool = False) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def list_reminders(request: Request, user_id: Optional[str] = None, include_done: bool = False) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     items = load_reminders()
-    if user_id:
-        items = [item for item in items if normalize_user_id(str(item.get("user_id", "default"))) == normalized]
+    items = [item for item in items if normalize_user_id(str(item.get("user_id", "default"))) == normalized]
     if not include_done:
         items = [item for item in items if not item.get("done")]
     return {"ok": True, "user_id": normalized, "reminders": items[:100]}
 
 
 @app.post("/reminders/create")
-def create_reminder(req: ReminderRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def create_reminder(req: ReminderRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     reminder = {
         "id": f"reminder_{uuid.uuid4().hex[:12]}",
         "title": clean_text(req.title),
@@ -13052,10 +13462,11 @@ def create_reminder(req: ReminderRequest) -> Dict[str, Any]:
 
 
 @app.post("/reminders/{reminder_id}/done")
-def complete_reminder(reminder_id: str) -> Dict[str, Any]:
+def complete_reminder(reminder_id: str, request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     items = load_reminders()
     for item in items:
-        if item.get("id") == reminder_id:
+        if item.get("id") == reminder_id and normalize_user_id(str(item.get("user_id", "default"))) == normalized:
             item["done"] = True
             item["updated_at"] = now_iso()
             save_reminders(items)
@@ -13064,17 +13475,16 @@ def complete_reminder(reminder_id: str) -> Dict[str, Any]:
 
 
 @app.get("/workflows")
-def list_workflows(user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def list_workflows(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     items = load_workflows()
-    if user_id:
-        items = [item for item in items if normalize_user_id(str(item.get("user_id", "default"))) == normalized]
+    items = [item for item in items if normalize_user_id(str(item.get("user_id", "default"))) == normalized]
     return {"ok": True, "user_id": normalized, "workflows": items[:100]}
 
 
 @app.post("/workflows/create")
-def create_workflow(req: WorkflowRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def create_workflow(req: WorkflowRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     steps = [clean_text(step) for step in req.steps if clean_text(step)]
     if not steps:
         steps = [
@@ -13101,8 +13511,12 @@ def create_workflow(req: WorkflowRequest) -> Dict[str, Any]:
 
 
 @app.post("/workflows/{workflow_id}/run")
-def run_workflow(workflow_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
-    workflow = next((item for item in load_workflows() if item.get("id") == workflow_id), None)
+def run_workflow(workflow_id: str, request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
+    workflow = next((
+        item for item in load_workflows()
+        if item.get("id") == workflow_id and normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ), None)
     if not workflow:
         return {"ok": False, "message": "Workflow not found."}
     content = (
@@ -13114,15 +13528,15 @@ def run_workflow(workflow_id: str, user_id: Optional[str] = None) -> Dict[str, A
         title=f"Workflow run - {workflow.get('name')}",
         artifact_type="Workflow",
         content=content,
-        user_id=user_id or str(workflow.get("user_id", "default")),
+        user_id=normalized,
         session_id=str(workflow.get("session_id") or ""),
     )
     return {"ok": True, "workflow": workflow, "run": content, "artifact": artifact}
 
 
 @app.post("/email/draft")
-def draft_email(req: EmailDraftRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def draft_email(req: EmailDraftRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     draft = draft_email_text(req.purpose, req.recipient, req.tone, req.details)
     artifact = create_artifact(
         title="Email draft",
@@ -13136,8 +13550,8 @@ def draft_email(req: EmailDraftRequest) -> Dict[str, Any]:
 
 
 @app.post("/automation/plan")
-def plan_automation(req: AutomationRequest) -> Dict[str, Any]:
-    user_id = register_user(req.user_id, req.session_id)
+def plan_automation(req: AutomationRequest, request: Request) -> Dict[str, Any]:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     plan = make_automation_plan(req.goal, req.context)
     artifact = create_artifact(
         title=f"Automation plan - {title_case_topic(req.goal[:60])}",
@@ -13152,13 +13566,13 @@ def plan_automation(req: AutomationRequest) -> Dict[str, Any]:
 
 @app.post("/image/upload", response_model=ImageUploadResponse)
 async def upload_image(
+    request: Request,
     file: UploadFile = File(...),
     session_id: Optional[str] = Form(None),
     user_id: Optional[str] = Form(None),
 ) -> ImageUploadResponse:
     session_id = ensure_session(session_id)
-    user_id = register_user(user_id, session_id)
-    bind_session_user(session_id, user_id)
+    user_id = register_request_user(request, user_id, session_id)
     original_name = file.filename or "pasted_image.png"
     suffix = Path(original_name).suffix.lower()
     content_type = clean_text(file.content_type or "")
@@ -13200,10 +13614,8 @@ async def upload_image(
 
 
 @app.post("/image/generate", response_model=ImageResponse)
-def generate_image(req: ImageRequest) -> ImageResponse:
-    user_id = register_user(req.user_id, req.session_id)
-    if req.session_id:
-        bind_session_user(ensure_session(req.session_id), user_id)
+def generate_image(req: ImageRequest, request: Request) -> ImageResponse:
+    user_id = register_request_user(request, req.user_id, req.session_id)
     original_prompt = strip_image_command(req.prompt)
     style = infer_image_style(req.prompt, req.style, user_id)
     enhanced_prompt = enhance_image_prompt(original_prompt, style, req.enhance)
@@ -13281,12 +13693,11 @@ def generate_image(req: ImageRequest) -> ImageResponse:
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest) -> ChatResponse:
+def chat(req: ChatRequest, request: Request) -> ChatResponse:
     user_message = req.message.strip()
     original_user_message = (req.original_message or user_message).strip()
     session_id = ensure_session(req.session_id)
-    user_id = register_user(req.user_id, session_id)
-    bind_session_user(session_id, user_id)
+    user_id = register_request_user(request, req.user_id, session_id)
     session = get_session(session_id)
     safety_reply = safety_filter_reply(original_user_message)
     if safety_reply:
@@ -14062,13 +14473,13 @@ def chat(req: ChatRequest) -> ChatResponse:
 
 
 @app.post("/chat/stream")
-def chat_stream(req: ChatRequest) -> StreamingResponse:
+def chat_stream(req: ChatRequest, request: Request) -> StreamingResponse:
     def event(data: Dict[str, Any]) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
     async def generator():
         try:
-            response = chat(req)
+            response = chat(req, request)
             yield event({
                 "type": "meta",
                 "session_id": response.session_id,
@@ -14096,8 +14507,14 @@ def chat_stream(req: ChatRequest) -> StreamingResponse:
 
 
 @app.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = Form(None)) -> UploadResponse:
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    session_id: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+) -> UploadResponse:
     session_id = ensure_session(session_id)
+    resolved_user_id = register_request_user(request, user_id, session_id)
     original_name = file.filename or "uploaded_file"
     safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", original_name)[:120]
     saved_name = f"{session_id}_{int(time.time())}_{safe_name}"
@@ -14117,6 +14534,7 @@ async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = 
         "saved_as": saved_name,
         "path": str(saved_path),
         "uploaded_at": now_iso(),
+        "user_id": resolved_user_id,
         "text": extracted[:file_limit],
         "summary": summary,
     }
@@ -14141,12 +14559,28 @@ async def upload_file(file: UploadFile = File(...), session_id: Optional[str] = 
 
 
 @app.get("/sessions/{session_id}")
-def read_session(session_id: str) -> Dict[str, Any]:
-    return get_session(session_id)
+def read_session(session_id: str, request: Request) -> Dict[str, Any]:
+    user = optional_authenticated_user(request)
+    if user:
+        return require_session_owner(session_id, str(user.get("id", "")))
+    session = get_session(session_id)
+    owner = normalize_user_id(str(session.get("user_id", "")))
+    if owner and owner != "default":
+        raise HTTPException(status_code=401, detail="Login required.")
+    return session
 
 
 @app.delete("/sessions/{session_id}")
-def delete_session(session_id: str) -> Dict[str, Any]:
+def delete_session(session_id: str, request: Request) -> Dict[str, Any]:
+    user = optional_authenticated_user(request)
+    if user:
+        require_session_owner(session_id, str(user.get("id", "")))
+    else:
+        session = get_session(session_id)
+        owner = normalize_user_id(str(session.get("user_id", "")))
+        if owner and owner != "default":
+            raise HTTPException(status_code=401, detail="Login required.")
+
     def mutate(sessions: Dict[str, Any]) -> Tuple[None, bool]:
         if session_id in sessions:
             del sessions[session_id]
@@ -14158,28 +14592,24 @@ def delete_session(session_id: str) -> Dict[str, Any]:
 
 
 @app.get("/memory")
-def read_memory(user_id: Optional[str] = None) -> Dict[str, Any]:
-    normalized = normalize_user_id(user_id)
+def read_memory(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
     items = load_memory()
-    if user_id:
-        items = [
-            item for item in items
-            if normalize_user_id(str(item.get("user_id", "default"))) == normalized
-        ]
+    items = [
+        item for item in items
+        if normalize_user_id(str(item.get("user_id", "default"))) == normalized
+    ]
     return {"user_id": normalized, "items": items}
 
 
 @app.post("/memory/clear")
-def clear_memory(user_id: Optional[str] = None) -> Dict[str, Any]:
-    if user_id:
-        normalized = normalize_user_id(user_id)
-        save_memory([
-            item for item in load_memory()
-            if normalize_user_id(str(item.get("user_id", "default"))) != normalized
-        ])
-        return {"ok": True, "user_id": normalized, "message": "Nexora memory cleared for this user."}
-    save_memory([])
-    return {"ok": True, "user_id": "all", "message": "Nexora memory cleared."}
+def clear_memory(request: Request, user_id: Optional[str] = None) -> Dict[str, Any]:
+    normalized = normalize_user_id(resolve_user_id_for_request(request, user_id))
+    save_memory([
+        item for item in load_memory()
+        if normalize_user_id(str(item.get("user_id", "default"))) != normalized
+    ])
+    return {"ok": True, "user_id": normalized, "message": "Nexora memory cleared for this user."}
 
 
 @app.get("/persona")
