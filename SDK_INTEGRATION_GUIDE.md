@@ -13,19 +13,66 @@ The SDK lets developers send workflow telemetry into the Software dashboard:
 - failure prediction requests
 - guardrail recommendations
 
-## Install Locally
+## Install Without Login
 
-From the project root:
+```bash
+pip install software-sdk
+npm install software-sdk
+```
+
+SDK docs, examples, downloads, and installation commands are public. Do not
+sign in before installing.
+
+For local repository development, Python contributors can still run:
 
 ```bash
 pip install -e .
 ```
 
-The SDK uses only Python standard libraries.
-
 Installing the SDK is public and does not require signing in to Nexora. A user
 account is only required when a deployment protects cloud dashboard or account
 data. SDK telemetry calls to protected endpoints still need an API key.
+
+## Public Local Mode
+
+Local mode does not require login or an API key. It can:
+
+- run local validation
+- create local plans
+- use dry-run examples
+- test sandbox workflows
+
+```python
+from software_sdk import ReliabilityMonitor
+
+sdk = ReliabilityMonitor(project_name="my-agent")
+plan = sdk.create_local_plan("Validate my workflow")
+validation = sdk.validate_local_workflow(plan)
+dry_run = sdk.dry_run_workflow("sandbox workflow", plan["steps"])
+```
+
+## Authenticated Cloud Mode
+
+Cloud mode is optional. Use it only when you need protected cloud features:
+
+- cloud workflow execution
+- saved projects
+- user memory
+- audit logs
+- external app integrations
+- team/workspace features
+
+Optional login:
+
+```bash
+software login
+```
+
+Or provide an API key through the environment:
+
+```bash
+SOFTWARE_API_KEY=...
+```
 
 ## API Key
 
@@ -65,6 +112,7 @@ monitor = ReliabilityMonitor(
     project_name="my-agent",
     api_url="https://YOUR_PUBLIC_URL",
     api_key="dev-key",
+    mode="cloud",
 )
 
 with monitor.track_workflow("research-task") as workflow:
@@ -94,7 +142,7 @@ monitor.flush()
 
 ## Run The Example
 
-For local Software:
+For a local Software server using protected cloud-style telemetry endpoints:
 
 ```bash
 set SOFTWARE_API_URL=http://127.0.0.1:8300
@@ -120,7 +168,7 @@ The dashboard now includes an `SDK Workflows` section.
 
 ## Server API Endpoints
 
-The SDK sends data to:
+Cloud mode sends data to:
 
 - `POST /api/sdk/workflows/start`
 - `POST /api/sdk/workflows/stage`
@@ -144,6 +192,10 @@ monitor.log_tool_call(workflow_id, tool_name, success, latency_ms)
 monitor.log_error(workflow_id, error_message, error_type="error")
 monitor.predict_failure(workflow_id)
 monitor.apply_guardrail(workflow_id)
+monitor.create_local_plan(goal)
+monitor.validate_local_workflow(plan)
+monitor.dry_run_workflow(workflow_name, steps)
+monitor.test_sandbox_workflow()
 monitor.flush()
 ```
 

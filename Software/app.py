@@ -52,6 +52,39 @@ SDK_API_KEYS = {
     for key in os.getenv("SOFTWARE_SDK_API_KEYS", "dev-key").split(",")
     if key.strip()
 }
+SDK_AUTH_REQUIRED_MESSAGE = (
+    "Authentication required for this cloud feature. You can still install and use the SDK locally without signing in."
+)
+SDK_PUBLIC_DOCS: Dict[str, Any] = {
+    "install": {
+        "python": "pip install software-sdk",
+        "npm": "npm install software-sdk",
+        "requires_login": False,
+    },
+    "modes": {
+        "public_local": {
+            "requires_login": False,
+            "features": [
+                "local validation",
+                "local plan creation",
+                "dry-run examples",
+                "sandbox workflow tests",
+            ],
+        },
+        "authenticated_cloud": {
+            "requires_login_or_api_key": True,
+            "features": [
+                "cloud workflow execution",
+                "saved projects",
+                "user memory",
+                "audit logs",
+                "external app integrations",
+                "team/workspace features",
+            ],
+        },
+    },
+    "optional_cloud_login": ["software login", "SOFTWARE_API_KEY=..."],
+}
 
 EXTERNAL_AI_TESTER_PROMPT = (
     "You are testing this AI workflow software. Use the provided URL. "
@@ -809,7 +842,7 @@ def require_sdk_api_key(
         prefix = "Bearer "
         supplied = authorization[len(prefix):].strip() if authorization.startswith(prefix) else authorization.strip()
     if not supplied:
-        raise HTTPException(status_code=401, detail="Missing SDK API key.")
+        raise HTTPException(status_code=401, detail=SDK_AUTH_REQUIRED_MESSAGE)
     if supplied not in SDK_API_KEYS:
         raise HTTPException(status_code=403, detail="Invalid SDK API key.")
     return supplied
@@ -1807,6 +1840,7 @@ def dashboard_asset_check() -> Dict[str, Any]:
         "ai_tester.html": BASE_DIR / "ai_tester.html",
         "ai_tester.css": BASE_DIR / "ai_tester.css",
         "ai_tester.js": BASE_DIR / "ai_tester.js",
+        "sdk.html": BASE_DIR / "sdk.html",
     }
     asset_status = {
         name: {
@@ -1950,6 +1984,11 @@ def dashboard_page() -> FileResponse:
     return FileResponse(BASE_DIR / "dashboard.html")
 
 
+@app.get("/sdk", include_in_schema=False)
+def sdk_page() -> FileResponse:
+    return FileResponse(BASE_DIR / "sdk.html")
+
+
 @app.get("/dashboard.css", include_in_schema=False)
 def dashboard_styles() -> FileResponse:
     return FileResponse(BASE_DIR / "dashboard.css")
@@ -1978,6 +2017,17 @@ def ai_tester_script() -> FileResponse:
 @app.get("/api/dashboard")
 def api_dashboard() -> Dict[str, Any]:
     return {"ok": True, **dashboard_payload()}
+
+
+@app.get("/api/sdk/docs")
+def api_sdk_docs() -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "public": True,
+        "auth_required_for_install": False,
+        "auth_required_for_docs": False,
+        **SDK_PUBLIC_DOCS,
+    }
 
 
 @app.get("/api/external-test/scenarios")

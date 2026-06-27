@@ -1,0 +1,17 @@
+{
+  "name": "software-sdk",
+  "version": "0.1.0",
+  "description": "Public optional-auth SDK for Software AI workflow reliability testing.",
+  "main": "software_sdk_js/index.js",
+  "bin": {
+    "software": "software_sdk_js/cli.js"
+  },
+  "files": [
+    "software_sdk_js",
+    "SDK_INTEGRATION_GUIDE.md"
+  ],
+  "scripts": {
+    "test": "node -e \"require('./software_sdk_js'); console.log('software-sdk js ok')\""
+  },
+  "license": "UNLICENSED"
+}

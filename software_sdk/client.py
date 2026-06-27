@@ -11,29 +11,36 @@ class SoftwareClientError(RuntimeError):
 
 
 class SoftwareClient:
-    def __init__(self, api_url: str, api_key: str, timeout: float = 10.0) -> None:
+    def __init__(self, api_url: str, api_key: str = "", timeout: float = 10.0) -> None:
         self.api_url = api_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
 
     def post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         body = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if self.api_key:
+            headers["X-Software-API-Key"] = self.api_key
         request = urllib.request.Request(
             f"{self.api_url}{path}",
             data=body,
             method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "X-Software-API-Key": self.api_key,
-            },
+            headers=headers,
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 raw = response.read().decode("utf-8")
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")
-            raise SoftwareClientError(f"Software API returned {error.code}: {detail}") from error
+            try:
+                parsed = json.loads(detail)
+                message = parsed.get("detail") or parsed.get("message") or detail
+            except json.JSONDecodeError:
+                message = detail
+            raise SoftwareClientError(f"Software API returned {error.code}: {message}") from error
         except urllib.error.URLError as error:
             raise SoftwareClientError(f"Software API is unreachable: {error}") from error
 

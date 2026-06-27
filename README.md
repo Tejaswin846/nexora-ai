@@ -90,7 +90,18 @@ User data is resolved from the bearer token when a user is signed in. Projects, 
 Installing the SDK is public and does not require signing in:
 
 ```powershell
-pip install -e .
+pip install software-sdk
+npm install software-sdk
 ```
 
-SDK package installation and documentation are public. Protected cloud API calls still require an API key or an authenticated session when the endpoint is not public.
+SDK package installation, docs, examples, downloads, and install commands are public. Local mode can run validation, create plans, run dry-run examples, and test sandbox workflows without login.
+
+Cloud mode is optional and starts only when protected features are used:
+
+```powershell
+software login
+# or
+$env:SOFTWARE_API_KEY="..."
+```
+
+Protected cloud API calls still require an API key or authenticated session for workflow execution, saved projects, user memory, audit logs, external app integrations, and team/workspace features.

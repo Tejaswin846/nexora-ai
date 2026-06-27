@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Software SDK</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #18212f;
+        --muted: #5d6878;
+        --line: #d8dee8;
+        --panel: #ffffff;
+        --band: #f3f6fa;
+        --accent: #0f766e;
+        --accent-dark: #115e59;
+        --code: #111827;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--band);
+      }
+      header {
+        padding: 28px clamp(18px, 4vw, 52px);
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+      nav a {
+        color: var(--accent-dark);
+        font-weight: 700;
+        text-decoration: none;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: clamp(2rem, 4vw, 3.6rem);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+      .lead {
+        max-width: 820px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+      main {
+        width: min(1120px, calc(100vw - 32px));
+        margin: 28px auto 56px;
+      }
+      section {
+        margin: 0 0 24px;
+        padding: 24px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      h2 {
+        margin: 0 0 14px;
+        font-size: 1.25rem;
+        letter-spacing: 0;
+      }
+      .install-grid, .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+      }
+      .tile {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        background: #fbfcfe;
+      }
+      .tile strong {
+        display: block;
+        margin-bottom: 10px;
+      }
+      pre {
+        margin: 0;
+        padding: 14px;
+        overflow-x: auto;
+        border-radius: 8px;
+        color: #f8fafc;
+        background: var(--code);
+        font-size: .94rem;
+      }
+      ul {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+      .note {
+        margin-top: 14px;
+        color: var(--muted);
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (max-width: 640px) {
+        nav { align-items: flex-start; flex-direction: column; }
+        section { padding: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <strong>Software SDK</strong>
+        <a href="/dashboard">Dashboard</a>
+      </nav>
+      <h1>Install first. Sign in only when cloud features need it.</h1>
+      <p class="lead">
+        The Software SDK is public documentation and public package installation. Local validation,
+        planning, dry-runs, and sandbox workflow tests do not require a Nexora account.
+      </p>
+    </header>
+
+    <main>
+      <section>
+        <h2>Install Without Login</h2>
+        <div class="install-grid">
+          <div class="tile">
+            <strong>Python</strong>
+            <pre><code>pip install software-sdk</code></pre>
+          </div>
+          <div class="tile">
+            <strong>JavaScript</strong>
+            <pre><code>npm install software-sdk</code></pre>
+          </div>
+        </div>
+        <p class="note">Docs, examples, downloads, and install commands stay public.</p>
+      </section>
+
+      <section>
+        <h2>Public Local Mode</h2>
+        <div class="mode-grid">
+          <div class="tile">
+            <strong>No account required</strong>
+            <ul>
+              <li>Run local validation</li>
+              <li>Create local plans</li>
+              <li>Use dry-run examples</li>
+              <li>Test sandbox workflows</li>
+            </ul>
+          </div>
+          <div class="tile">
+            <strong>Python example</strong>
+            <pre><code>from software_sdk import ReliabilityMonitor
+
+sdk = ReliabilityMonitor(project_name="local-agent")
+plan = sdk.create_local_plan("Validate a workflow")
+result = sdk.dry_run_workflow("sandbox", plan["steps"])</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Authenticated Cloud Mode</h2>
+        <div class="mode-grid">
+          <div class="tile">
+            <strong>Login or API key required</strong>
+            <ul>
+              <li>Cloud workflow execution</li>
+              <li>Saved projects</li>
+              <li>User memory</li>
+              <li>Audit logs</li>
+              <li>External app integrations</li>
+              <li>Team and workspace features</li>
+            </ul>
+          </div>
+          <div class="tile">
+            <strong>Optional cloud login</strong>
+            <pre><code>software login
+
+# or
+SOFTWARE_API_KEY=...</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

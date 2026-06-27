@@ -12,5 +12,8 @@ authors = [
   { name = "Software Reliability Engine" }
 ]
 
+[project.scripts]
+software = "software_sdk.cli:main"
+
 [tool.setuptools.packages.find]
 include = ["software_sdk*"]

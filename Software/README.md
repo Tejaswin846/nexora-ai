@@ -179,6 +179,34 @@ GET /external-test/report/{run_id}
 See [EXTERNAL_AI_TESTER.md](EXTERNAL_AI_TESTER.md) for sandbox limits, adapter
 behavior, payload examples, and report contents.
 
+## Public SDK Access
+
+The SDK page is public:
+
+```text
+/sdk
+```
+
+Install commands, docs, examples, and downloads are not behind login:
+
+```bash
+pip install software-sdk
+npm install software-sdk
+```
+
+Local mode needs no account and supports local validation, local plans, dry-run
+examples, and sandbox workflow tests. Authenticated cloud mode starts only when
+using protected cloud workflow execution, saved projects, user memory, audit
+logs, integrations, or team/workspace features.
+
+Optional cloud auth:
+
+```bash
+software login
+# or
+SOFTWARE_API_KEY=...
+```
+
 ## Scoring Formula
 
 All component metrics are normalized to 0-100.

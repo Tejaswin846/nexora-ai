@@ -4,6 +4,8 @@ import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+import os
 from typing import Any, Dict, List, Optional
 
 from .client import SoftwareClient, SoftwareClientError
@@ -11,6 +13,10 @@ from .client import SoftwareClient, SoftwareClientError
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass
@@ -24,15 +30,113 @@ class ReliabilityMonitor:
     def __init__(
         self,
         project_name: str,
-        api_url: str,
-        api_key: str = "dev-key",
+        api_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        mode: str = "local",
         timeout: float = 10.0,
         raise_on_error: bool = False,
     ) -> None:
         self.project_name = project_name
-        self.client = SoftwareClient(api_url=api_url, api_key=api_key, timeout=timeout)
+        requested_mode = (mode or "local").strip().lower()
+        self.mode = "cloud" if requested_mode == "cloud" or api_url else "local"
+        configured_key = api_key if api_key is not None else os.getenv("SOFTWARE_API_KEY", "")
+        self.client = (
+            SoftwareClient(api_url=api_url or "", api_key=configured_key, timeout=timeout)
+            if self.mode == "cloud"
+            else None
+        )
         self.raise_on_error = raise_on_error
         self.buffer: List[BufferedRequest] = []
+        self.local_workflows: Dict[str, Dict[str, Any]] = {}
+        self.local_events: List[Dict[str, Any]] = []
+
+    def create_local_plan(
+        self,
+        goal: str,
+        steps: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        plan_steps = [step.strip() for step in (steps or []) if step and step.strip()]
+        if not plan_steps:
+            plan_steps = [
+                "Clarify the workflow goal.",
+                "List required inputs and constraints.",
+                "Run the workflow in dry-run mode.",
+                "Validate expected outputs and failure handling.",
+                "Record the local verdict.",
+            ]
+        return {
+            "ok": True,
+            "mode": "local",
+            "project_name": self.project_name,
+            "goal": goal.strip(),
+            "steps": plan_steps,
+            "metadata": metadata or {},
+            "requires_auth": False,
+        }
+
+    def validate_local_workflow(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+        steps = plan.get("steps") if isinstance(plan, dict) else []
+        failures: List[str] = []
+        if not isinstance(steps, list) or not steps:
+            failures.append("Plan must include at least one step.")
+        if isinstance(plan, dict) and not str(plan.get("goal", "")).strip():
+            failures.append("Plan should include a goal.")
+        return {
+            "ok": not failures,
+            "mode": "local",
+            "requires_auth": False,
+            "failures": failures,
+            "step_count": len(steps) if isinstance(steps, list) else 0,
+        }
+
+    def dry_run_workflow(
+        self,
+        workflow_name: str,
+        steps: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        workflow_id = f"local_{uuid.uuid4().hex}"
+        plan = self.create_local_plan(workflow_name, steps=steps, metadata=metadata)
+        validation = self.validate_local_workflow(plan)
+        self.local_workflows[workflow_id] = {
+            "workflow_id": workflow_id,
+            "workflow_name": workflow_name,
+            "status": "dry_run_completed" if validation["ok"] else "dry_run_failed",
+            "plan": plan,
+            "validation": validation,
+            "created_at": _now_iso(),
+        }
+        self.local_events.append({
+            "workflow_id": workflow_id,
+            "event_type": "dry_run",
+            "created_at": _now_iso(),
+            "metadata": metadata or {},
+        })
+        return {
+            "ok": validation["ok"],
+            "mode": "local",
+            "requires_auth": False,
+            "workflow_id": workflow_id,
+            "plan": plan,
+            "validation": validation,
+            "side_effects": "none",
+        }
+
+    def test_sandbox_workflow(
+        self,
+        workflow_name: str = "sandbox workflow",
+        steps: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        return self.dry_run_workflow(
+            workflow_name,
+            steps=steps or [
+                "Prepare dry-run inputs.",
+                "Execute simulated tool calls.",
+                "Verify no external side effects.",
+            ],
+            metadata={"sandbox": True},
+        )
 
     def track_workflow(
         self,
@@ -118,6 +222,14 @@ class ReliabilityMonitor:
         return self._send("complete_workflow", payload)
 
     def flush(self) -> Dict[str, Any]:
+        if self.mode == "local":
+            return {
+                "sent": 0,
+                "failed": 0,
+                "remaining": 0,
+                "mode": "local",
+                "message": "Local mode does not send buffered cloud requests.",
+            }
         pending = list(self.buffer)
         self.buffer.clear()
         sent = 0
@@ -141,7 +253,11 @@ class ReliabilityMonitor:
         }
 
     def _send(self, method_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self.mode == "local":
+            return self._send_local(method_name, payload)
         try:
+            if self.client is None:
+                raise SoftwareClientError("Cloud mode requires api_url.")
             return getattr(self.client, method_name)(payload) if method_name != "predict_failure" else self.client.predict_failure(payload["workflow_id"])
         except SoftwareClientError as error:
             self.buffer.append(BufferedRequest(method_name, payload, str(error)))
@@ -152,6 +268,66 @@ class ReliabilityMonitor:
                 "buffered": True,
                 "error": str(error),
             }
+
+    def _send_local(self, method_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        workflow_id = payload.get("workflow_id") or f"local_{uuid.uuid4().hex}"
+        event = {
+            "workflow_id": workflow_id,
+            "event_type": method_name,
+            "payload": dict(payload),
+            "created_at": _now_iso(),
+        }
+        self.local_events.append(event)
+        if method_name == "start_workflow":
+            self.local_workflows[workflow_id] = {
+                "workflow_id": workflow_id,
+                "project_name": payload.get("project_name", self.project_name),
+                "workflow_name": payload.get("workflow_name", "local workflow"),
+                "status": "running",
+                "started_at": event["created_at"],
+                "events": [],
+            }
+            return {
+                "ok": True,
+                "mode": "local",
+                "workflow_id": workflow_id,
+                "started_at": event["created_at"],
+                "requires_auth": False,
+            }
+        if method_name == "complete_workflow":
+            workflow = self.local_workflows.setdefault(workflow_id, {"workflow_id": workflow_id})
+            workflow["status"] = "completed"
+            workflow["success"] = payload.get("success")
+            workflow["completed_at"] = event["created_at"]
+            return {
+                "ok": True,
+                "mode": "local",
+                "workflow_id": workflow_id,
+                "completed_at": event["created_at"],
+                "requires_auth": False,
+            }
+        if method_name == "predict_failure":
+            failures = sum(1 for item in self.local_events if item["workflow_id"] == workflow_id and item["payload"].get("success") is False)
+            probability = min(0.95, 0.05 + failures * 0.2)
+            return {
+                "ok": True,
+                "mode": "local",
+                "workflow_id": workflow_id,
+                "probability_of_failure": probability,
+                "probability_of_success": round(1.0 - probability, 4),
+                "guardrail": {
+                    "action": "continue" if probability < 0.3 else "review",
+                    "should_continue": probability < 0.7,
+                },
+                "requires_auth": False,
+            }
+        return {
+            "ok": True,
+            "mode": "local",
+            "workflow_id": workflow_id,
+            "event_id": f"local_evt_{uuid.uuid4().hex}",
+            "requires_auth": False,
+        }
 
 
 @dataclass
