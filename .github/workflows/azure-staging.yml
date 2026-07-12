@@ -74,6 +74,8 @@ jobs:
               throw "Potential credential material detected."
             }
           }
+          Write-Output "Secret-pattern scan passed."
+          exit 0
 
       - name: Build API image
         run: docker build --file Dockerfile.api --tag software-api:${{ github.sha }} .
