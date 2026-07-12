@@ -1,0 +1,78 @@
+{
+  "routes": [
+    {
+      "route": "/dashboard",
+      "rewrite": "/dashboard.html"
+    },
+    {
+      "route": "/observability",
+      "rewrite": "/observability.html"
+    },
+    {
+      "route": "/onboarding",
+      "rewrite": "/onboarding.html"
+    },
+    {
+      "route": "/guide",
+      "rewrite": "/guide.html"
+    },
+    {
+      "route": "/code",
+      "rewrite": "/code.html"
+    },
+    {
+      "route": "/mcp",
+      "rewrite": "/mcp.html"
+    },
+    {
+      "route": "/reset-password",
+      "rewrite": "/reset-password.html"
+    },
+    {
+      "route": "/app",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/nexora",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/api/*",
+      "statusCode": 404
+    },
+    {
+      "route": "/auth/*",
+      "statusCode": 404
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/api/*",
+      "/auth/*",
+      "/health/*",
+      "/version",
+      "/openapi.json",
+      "*.css",
+      "*.js",
+      "*.png",
+      "*.jpg",
+      "*.jpeg",
+      "*.svg",
+      "*.ico",
+      "*.webp",
+      "*.json"
+    ]
+  },
+  "globalHeaders": {
+    "Content-Security-Policy-Report-Only": "default-src 'self'; connect-src 'self' https://*.azurefd.net https://*.supabase.co https://*.posthog.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY"
+  },
+  "mimeTypes": {
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json"
+  }
+}

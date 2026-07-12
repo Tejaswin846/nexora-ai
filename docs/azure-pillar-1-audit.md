@@ -123,7 +123,7 @@ Azure Static Web Apps is not offered in an Indian region according to current pr
 - Standard Service Bus namespace and `workflow-jobs` queue.
 - StorageV2 LRS account and four private blob containers.
 - Free staging Static Web App in East Asia.
-- Consumption API Management instance in Central India.
+- Developer API Management instance in Central India, explicitly staging-only.
 - Azure Front Door Premium profile, endpoint, routes, WAF policy, and diagnostics.
 - User-assigned identities and least-privilege data-plane role assignments.
 
@@ -138,14 +138,14 @@ Current public retail estimates, before tax, discounts, data transfer, and usage
 | Azure Front Door Premium | USD 330.00 |
 | Service Bus Standard base | USD 10.00 |
 | ACR Basic | approximately USD 5.00 |
-| APIM Consumption | USD 0 fixed; first usage tier is metered |
+| APIM Developer | approximately USD 48.03; no SLA and staging-only |
 | Static Web Apps Free | USD 0 |
 | Container Apps Consumption | USD 0 fixed; usage after free grant |
 | Log Analytics | USD 0 fixed; ingestion above allowance is metered |
 | Blob Storage | usage-based, approximately USD 0.011/GB-month for Cool LRS data |
-| **Minimum predictable fixed cost** | **approximately USD 345/month** |
+| **Minimum predictable fixed cost** | **approximately USD 393/month** |
 
-Front Door Standard costs approximately USD 35/month but does not support the required managed WAF rule set. Premium is therefore required to implement the attached specification as written. No Front Door resource should be provisioned until this cost is explicitly approved.
+Front Door Standard costs approximately USD 35/month but does not support the required managed WAF rule set. Premium is therefore required to implement the attached specification as written. APIM Consumption does not support the required key-based rate-limit policy for an open frontend flow, so the least expensive compatible staging choice is Developer at approximately USD 0.0658/hour. Developer has no SLA and must not be treated as production-ready. No Front Door or APIM resource should be provisioned until this combined cost is explicitly approved.
 
 ## Security risks
 
@@ -181,4 +181,4 @@ Front Door Standard costs approximately USD 35/month but does not support the re
 
 ## Audit conclusion
 
-Pillar 1 can be prepared safely in code and Bicep on `infra/azure-pillar-1`. Provisioning must pause for explicit approval of the approximately USD 345/month fixed staging baseline, primarily caused by the required Front Door Premium managed WAF capability. Production DNS, Render, Nexora resources, and customer traffic must remain unchanged.
+Pillar 1 can be prepared safely in code and Bicep on `infra/azure-pillar-1`. Provisioning must pause for explicit approval of the approximately USD 393/month fixed staging baseline, primarily caused by Front Door Premium and staging-only APIM Developer. Production DNS, Render, Nexora resources, and customer traffic must remain unchanged.
