@@ -1,7 +1,7 @@
 # Azure Pillar 1 Audit
 
-Audit date: 2026-07-12  
-Branch: `infra/azure-pillar-1`  
+Audit date: 2026-07-12
+Branch: `infra/azure-pillar-1`
 Scope: repository, current Render deployment configuration, and the currently authenticated Azure subscription.
 
 ## Executive summary
@@ -93,7 +93,7 @@ The Supabase July 2026 changelog includes relevant security and platform changes
 
 ## Azure subscription audit
 
-Subscription display name: `Azure subscription 1`  
+Subscription display name: `Azure subscription 1`
 Subscription ID: partially masked in operational reports only.
 
 The subscription currently contains 17 resources:

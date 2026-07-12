@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.config import Settings
-from backend.dependencies import get_runtime_settings
 from backend.routes import health_routes, job_routes
 from backend.services.blob_storage import InMemoryBlobStorage, tenant_blob_path
 from backend.services.message_schema import WorkflowJobMessage
@@ -36,18 +35,29 @@ def build_message(**overrides) -> WorkflowJobMessage:
 def health_client(settings: Settings) -> TestClient:
     app = FastAPI()
     app.include_router(health_routes.router)
-    app.dependency_overrides[get_runtime_settings] = lambda: settings
+    app.dependency_overrides[health_routes.get_runtime_settings] = lambda: settings
     return TestClient(app)
 
 
 def test_live_health_and_openapi_are_available() -> None:
-    client = health_client(Settings(_env_file=None, NEXORA_ENV="development"))
+    client = health_client(Settings(_env_file=None, env="development"))
     assert client.get("/health/live").json() == {"status": "alive"}
     assert client.get("/openapi.json").status_code == 200
 
 
 def test_readiness_fails_closed_when_staging_configuration_is_missing() -> None:
-    client = health_client(Settings(_env_file=None, NEXORA_ENV="staging"))
+    client = health_client(
+        Settings(
+            _env_file=None,
+            env="staging",
+            database_url="",
+            supabase_url="",
+            supabase_anon_key="",
+            supabase_service_role_key="",
+            upstash_redis_rest_url="",
+            upstash_redis_rest_token="",
+        )
+    )
     response = client.get("/health/ready")
     assert response.status_code == 503
     assert response.json()["status"] == "not_ready"
@@ -58,7 +68,7 @@ def test_version_contains_build_metadata(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("APP_VERSION", "1.2.3")
     monkeypatch.setenv("GIT_COMMIT_SHA", "abc1234")
     monkeypatch.setenv("BUILD_TIMESTAMP", "2026-07-12T00:00:00Z")
-    client = health_client(Settings(_env_file=None, NEXORA_ENV="staging"))
+    client = health_client(Settings(_env_file=None, env="staging"))
     payload = client.get("/version").json()
     assert payload == {
         "version": "1.2.3",
