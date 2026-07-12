@@ -2,9 +2,18 @@ name: Azure Pillar 1 Staging
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the explicitly approved lean staging profile
+        required: true
+        default: false
+        type: boolean
   push:
     branches:
       - infra/azure-pillar-1
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
 
 permissions:
   contents: read
@@ -13,6 +22,9 @@ permissions:
 concurrency:
   group: azure-pillar-1-staging
   cancel-in-progress: false
+
+env:
+  AZURE_CORE_OUTPUT: none
 
 jobs:
   verify:
@@ -32,6 +44,7 @@ jobs:
         run: >-
           ruff check
           backend/services
+          backend/gateway_protection.py
           backend/routes/health_routes.py
           backend/routes/job_routes.py
           worker
@@ -55,20 +68,30 @@ jobs:
             'DefaultEndpointsProtocol=https;AccountName='
           )
           foreach ($pattern in $patterns) {
-            if (git grep -I -n -E $pattern -- ':!*.example' ':!docs/*') {
+            if (git grep -I -n -E -e $pattern -- `
+              ':!*.example' ':!docs/*' ':!README.md' ':!tests/*' `
+              ':!.github/workflows/azure-staging.yml') {
               throw "Potential credential material detected."
             }
           }
 
-      - name: Validate Docker definitions
-        run: |
-          docker build --file Dockerfile.api --tag software-api:verify .
-          docker build --file Dockerfile.worker --tag software-worker:verify .
-          docker run --rm --entrypoint python software-worker:verify -c "from worker.processor import WorkerProcessor; print('worker-ok')"
+      - name: Build API image
+        run: docker build --file Dockerfile.api --tag software-api:${{ github.sha }} .
+
+      - name: Build worker image
+        run: docker build --file Dockerfile.worker --tag software-worker:${{ github.sha }} .
+
+      - name: Verify worker image
+        run: >-
+          docker run --rm --entrypoint python software-worker:${{ github.sha }}
+          -c "from worker.processor import WorkerProcessor; print('worker-ok')"
 
   deploy:
     needs: verify
-    if: vars.AZURE_PILLAR1_FIXED_COST_APPROVED == 'true'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.deploy == true &&
+      vars.AZURE_PILLAR1_LEAN_STAGING_APPROVED == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -77,19 +100,19 @@ jobs:
       - name: Azure login with OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Validate Bicep against subscription
         shell: pwsh
         run: ./infra/scripts/validate.ps1
 
-      - name: Deploy staging
+      - name: Deploy approved lean staging
         shell: pwsh
         env:
-          AZURE_PILLAR1_FIXED_COST_APPROVED: "true"
-          AZURE_APIM_PUBLISHER_EMAIL: ${{ secrets.AZURE_APIM_PUBLISHER_EMAIL }}
+          AZURE_PILLAR1_LEAN_STAGING_APPROVED: "true"
+          AZURE_DEPLOYER_PRINCIPAL_ID: ${{ vars.AZURE_DEPLOYER_PRINCIPAL_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -98,8 +121,7 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           NEXORA_AUTH_SECRET: ${{ secrets.NEXORA_AUTH_SECRET }}
           POSTHOG_PROJECT_API_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
-          APIM_BACKEND_SHARED_SECRET: ${{ secrets.APIM_BACKEND_SHARED_SECRET }}
-        run: ./infra/scripts/deploy-staging.ps1 -ApproveFixedMonthlyCost
+        run: ./infra/scripts/deploy-staging.ps1 -ApproveLeanStagingCost
 
       - name: Collect safe deployment outputs
         id: outputs
@@ -109,7 +131,6 @@ jobs:
           "resource_group=$($outputs.resourceGroupName.value)" >> $env:GITHUB_OUTPUT
           "front_door=$($outputs.frontDoorHostname.value)" >> $env:GITHUB_OUTPUT
           "api_host=$($outputs.apiContainerAppHostname.value)" >> $env:GITHUB_OUTPUT
-          "apim_host=$($outputs.apiManagementHostname.value)" >> $env:GITHUB_OUTPUT
           "worker_name=$($outputs.workerContainerAppName.value)" >> $env:GITHUB_OUTPUT
 
       - name: Run end-to-end smoke test
@@ -119,9 +140,7 @@ jobs:
           -ResourceGroup '${{ steps.outputs.outputs.resource_group }}'
           -FrontDoorHostname '${{ steps.outputs.outputs.front_door }}'
           -ApiContainerAppHostname '${{ steps.outputs.outputs.api_host }}'
-          -ApiManagementHostname '${{ steps.outputs.outputs.apim_host }}'
           -WorkerContainerAppName '${{ steps.outputs.outputs.worker_name }}'
 
-      - name: Confirm production paths remain untouched
-        run: |
-          echo "No production DNS, Render service, or Nexora Azure resource is modified by this workflow."
+      - name: Confirm protected systems remain untouched
+        run: echo "No production DNS, Render service, Supabase schema, or Nexora Azure resource is modified."

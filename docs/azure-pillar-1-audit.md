@@ -1,5 +1,7 @@
 # Azure Pillar 1 Audit
 
+> Lean-staging revision, 2026-07-12: the original $393.03 Premium/Developer conclusion below is retained as historical audit evidence and is rejected for staging. The current proposal uses Front Door Standard and the documented direct-to-Container-Apps fallback because APIM Consumption lacks `rate-limit-by-key`. See `azure-pillar-1-costs-lean-staging.md` and `azure-pillar-1-lean-staging-what-if.md`. No Azure resource was provisioned by the revision.
+
 Audit date: 2026-07-12
 Branch: `infra/azure-pillar-1`
 Scope: repository, current Render deployment configuration, and the currently authenticated Azure subscription.

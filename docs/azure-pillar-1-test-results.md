@@ -2,43 +2,31 @@
 
 Test date: 2026-07-12
 
-## Completed locally
+## Passed locally
 
 | Test | Result |
 |---|---|
-| Python syntax compilation for API, services, worker | Passed |
-| Pillar 1 focused unit and infrastructure tests | 21 passed |
-| Complete existing repository test suite | 72 passed |
-| Live health endpoint | Passed |
-| Readiness fail-closed behavior | Passed |
-| Build-aware version endpoint | Passed |
-| OpenAPI availability | Passed |
-| Queue message validation and secret-key rejection | Passed |
-| Valid and invalid job submission | Passed |
-| Blob upload/download and tenant path rejection | Passed |
-| Worker success, retryable failure, permanent failure | Passed |
-| Idempotent duplicate processing | Passed |
-| Frontend backend-secret assignment scan | Passed |
-| Bicep compilation | Passed |
-| Azure subscription-scope template validation | Passed; no resources created |
+| Full repository suite | 95 passed |
+| Focused Pillar 1 runtime/infrastructure suite | 26 passed |
 | Ruff focused lint | Passed |
-| PowerShell script parsing | Passed |
-| GitHub Actions YAML parsing | Passed |
+| Python compilation | Passed |
+| Bicep main template compilation/lint | Passed |
+| Staging and production parameter compilation | Passed |
+| Authenticated Azure foundation validation | Passed; no resources created |
+| Authenticated Azure full-workload validation | Passed; no resources created |
+| Azure full-workload what-if | Succeeded; 32 create, 0 modify, 0 delete, 6 runtime-ID RBAC evaluations unsupported |
+| PowerShell syntax | Passed |
+| GitHub Actions YAML syntax | Passed |
+| APIM Consumption compatibility review | Passed; unsupported key policy correctly activates fallback |
+| Front Door Standard/custom-only WAF assertions | Passed |
+| Lean SKU, LRS, scale-to-zero, and replica-cap assertions | Passed |
+| Gateway bypass, request-size, correlation, and fallback rate-limit tests | Passed |
+| Secret-pattern scan | Passed |
+| GitHub Actions API Docker build | Pending branch push |
+| GitHub Actions worker Docker build/runtime import | Pending branch push |
 
-## Not yet executed
+## Not claimed
 
-The following require approved Azure staging resources and must not be claimed as working yet:
+No Azure resource exists, so no end-to-end deployment success or live connection is claimed. After approval, deployment must still verify ACR pull, Front Door routing and origin protection, Container Apps cold starts, Service Bus send/receive/dead-letter/KEDA behavior, Blob managed identity, Static Web Apps, correlation across the entire flow, WAF findings, and rollback.
 
-- Docker image build and runtime health; Docker is not installed on the current machine and remains a CI check.
-- ACR managed-identity pull.
-- APIM OpenAPI import and policy execution.
-- Front Door frontend and API routing.
-- Exact `X-Azure-FDID` enforcement.
-- Service Bus send, receive, retry, dead-letter, and KEDA scaling.
-- Managed-identity Blob upload/download.
-- Static Web Apps deployment and direct hostname load.
-- Complete correlation path across Front Door, APIM, API, queue, worker, and Blob.
-- WAF legitimate-traffic findings.
-- Render availability confirmation through authenticated Render tooling.
-
-No paid AI calls were made. No Azure resource was created or changed during these tests.
+Render, Nexora, production DNS, and Supabase were not modified. No paid AI call was made.

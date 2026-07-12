@@ -2,6 +2,13 @@ param name string
 param location string
 param tags object = {}
 param softDeleteDays int = 14
+@allowed([
+  'Standard_LRS'
+  'Standard_ZRS'
+  'Standard_GRS'
+  'Standard_GZRS'
+])
+param replicationType string = 'Standard_LRS'
 
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
@@ -9,7 +16,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   tags: tags
   kind: 'StorageV2'
   sku: {
-    name: 'Standard_LRS'
+    name: replicationType
   }
   properties: {
     accessTier: 'Cool'
@@ -53,6 +60,49 @@ resource containers 'Microsoft.Storage/storageAccounts/blobServices/containers@2
     publicAccess: 'None'
   }
 }]
+
+resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05-01' = {
+  parent: storage
+  name: 'default'
+  properties: {
+    policy: {
+      rules: [
+        {
+          enabled: true
+          name: 'delete-temporary-staging-artifacts'
+          type: 'Lifecycle'
+          definition: {
+            actions: {
+              baseBlob: {
+                delete: {
+                  daysAfterModificationGreaterThan: 14
+                }
+              }
+              snapshot: {
+                delete: {
+                  daysAfterCreationGreaterThan: 14
+                }
+              }
+              version: {
+                delete: {
+                  daysAfterCreationGreaterThan: 14
+                }
+              }
+            }
+            filters: {
+              blobTypes: [
+                'blockBlob'
+              ]
+              prefixMatch: [
+                'workflow-artifacts/temporary/'
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
 
 output id string = storage.id
 output name string = storage.name

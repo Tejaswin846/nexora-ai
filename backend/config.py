@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     clerk_jwt_issuer: str = Field("", validation_alias="CLERK_JWT_ISSUER")
     clerk_webhook_secret: str = Field("", validation_alias="CLERK_WEBHOOK_SECRET")
     log_level: str = Field("INFO", validation_alias="NEXORA_LOG_LEVEL")
+    request_log_sample_rate: float = Field(1.0, validation_alias="REQUEST_LOG_SAMPLE_RATE")
     data_dir: str = Field("backend/nexora_data", validation_alias="NEXORA_DATA_DIR")
     posthog_api_key: str = Field("", validation_alias=AliasChoices("POSTHOG_PROJECT_API_KEY", "POSTHOG_API_KEY"))
     posthog_public_key: str = Field(

@@ -1,5 +1,11 @@
 param name string
 param location string
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param skuName string = 'Basic'
 param tags object = {}
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
@@ -7,7 +13,7 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'Basic'
+    name: skuName
   }
   properties: {
     adminUserEnabled: false

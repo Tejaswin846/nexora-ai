@@ -1,4 +1,6 @@
-# Azure Pillar 1 Costs
+# Rejected Azure Pillar 1 Premium Costs
+
+This report is retained as the rejected Premium/Developer baseline. The approved revision candidate is `azure-pillar-1-costs-lean-staging.md`. Do not deploy this profile.
 
 Pricing checked on 2026-07-12 using current Microsoft retail pricing and Central India meters. Estimates are in USD before tax, discounts, support, and data transfer.
 

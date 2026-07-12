@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hmac
-import os
 import time
 from contextlib import asynccontextmanager
 
@@ -15,6 +13,7 @@ try:
     from config import get_settings
     from database import init_database, validate_database_settings
     from exception_handlers import register_exception_handlers
+    from gateway_protection import gateway_protection_middleware
     from observability import configure_logging, request_context_middleware
     import posthog_client
     from routes.auth_routes import router as auth_router
@@ -35,6 +34,7 @@ except Exception:
     from .config import get_settings
     from .database import init_database, validate_database_settings
     from .exception_handlers import register_exception_handlers
+    from .gateway_protection import gateway_protection_middleware
     from .observability import configure_logging, request_context_middleware
     from . import posthog_client
     from .routes.auth_routes import router as auth_router
@@ -149,21 +149,7 @@ async def add_private_network_header(request: Request, call_next):
 
 
 app.middleware("http")(request_context_middleware)
-
-
-@app.middleware("http")
-async def require_approved_backend_path(request: Request, call_next):
-    enabled = os.getenv("REQUIRE_APIM_BACKEND_HEADER", "false").strip().lower() in {"1", "true", "yes", "on"}
-    public_probe_paths = {"/health", "/health/live", "/health/ready", "/version", "/openapi.json"}
-    if enabled and request.url.path not in public_probe_paths:
-        expected = os.getenv("APIM_BACKEND_SHARED_SECRET", "").strip()
-        supplied = request.headers.get("X-APIM-Backend-Key", "").strip()
-        if not expected or not supplied or not hmac.compare_digest(expected, supplied):
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "approved_gateway_required", "message": "Use the approved API endpoint."}},
-            )
-    return await call_next(request)
+app.middleware("http")(gateway_protection_middleware)
 
 for router in (
     health_router,

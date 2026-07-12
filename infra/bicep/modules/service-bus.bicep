@@ -1,6 +1,12 @@
 param namespaceName string
 param queueName string = 'workflow-jobs'
 param location string
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param skuName string = 'Standard'
 param tags object = {}
 
 resource namespace 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
@@ -8,8 +14,9 @@ resource namespace 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'Standard'
-    tier: 'Standard'
+    name: skuName
+    tier: skuName
+    capacity: skuName == 'Premium' ? 1 : 0
   }
   properties: {
     disableLocalAuth: true
@@ -27,7 +34,7 @@ resource queue 'Microsoft.ServiceBus/namespaces/queues@2024-01-01' = {
     maxDeliveryCount: 5
     defaultMessageTimeToLive: 'P14D'
     deadLetteringOnMessageExpiration: true
-    requiresDuplicateDetection: true
+    requiresDuplicateDetection: skuName != 'Basic'
     duplicateDetectionHistoryTimeWindow: 'PT10M'
     enableBatchedOperations: true
     enablePartitioning: false

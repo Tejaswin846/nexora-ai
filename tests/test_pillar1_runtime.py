@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.config import Settings
+from backend.gateway_protection import gateway_protection_middleware
 from backend.routes import health_routes, job_routes
 from backend.services.blob_storage import InMemoryBlobStorage, tenant_blob_path
 from backend.services.message_schema import WorkflowJobMessage
@@ -171,3 +172,51 @@ def test_frontend_does_not_contain_backend_secret_assignments() -> None:
     content = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for path in frontend.glob("*.*"))
     forbidden = ("SUPABASE_SERVICE_ROLE_KEY=", "AZURE_CLIENT_SECRET=", "DATABASE_URL=postgres")
     assert not any(value in content for value in forbidden)
+
+
+def gateway_client() -> TestClient:
+    app = FastAPI()
+    app.middleware("http")(gateway_protection_middleware)
+
+    @app.post("/api/test")
+    def protected_route() -> dict[str, bool]:
+        return {"ok": True}
+
+    return TestClient(app)
+
+
+def test_front_door_fallback_rejects_direct_origin_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APPROVED_GATEWAY_MODE", "frontdoor")
+    monkeypatch.setenv("EXPECTED_AZURE_FRONT_DOOR_ID", "expected-fdid")
+    client = gateway_client()
+
+    rejected = client.post("/api/test")
+    accepted = client.post(
+        "/api/test",
+        headers={"X-Azure-FDID": "expected-fdid", "X-Software-Edge": "azure-front-door"},
+    )
+
+    assert rejected.status_code == 403
+    assert accepted.status_code == 200
+    assert accepted.headers["x-correlation-id"]
+
+
+def test_front_door_fallback_enforces_request_size_and_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APPROVED_GATEWAY_MODE", "frontdoor")
+    monkeypatch.setenv("EXPECTED_AZURE_FRONT_DOOR_ID", "expected-fdid")
+    monkeypatch.setenv("STAGING_MAX_REQUEST_BYTES", "5")
+    monkeypatch.setenv("STAGING_RATE_LIMIT_CALLS", "1")
+    client = gateway_client()
+    headers = {
+        "X-Azure-FDID": "expected-fdid",
+        "X-Software-Edge": "azure-front-door",
+        "X-Organization-ID": f"test-{uuid4()}",
+    }
+
+    too_large = client.post("/api/test", headers=headers, content="123456")
+    first = client.post("/api/test", headers=headers)
+    second = client.post("/api/test", headers=headers)
+
+    assert too_large.status_code == 413
+    assert first.status_code == 200
+    assert second.status_code == 429

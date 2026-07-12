@@ -1,26 +1,25 @@
 param(
     [Parameter(Mandatory = $true)]
-    [switch]$ApproveFixedMonthlyCost,
+    [switch]$ApproveLeanStagingCost,
     [string]$Location = "centralindia",
     [string]$DeploymentName = "software-pillar1-staging",
     [switch]$FoundationOnly
 )
 
 $ErrorActionPreference = "Stop"
-if (-not $ApproveFixedMonthlyCost -or $env:AZURE_PILLAR1_FIXED_COST_APPROVED -ne "true") {
-    throw "Deployment blocked. Front Door Premium and APIM Developer create an estimated fixed baseline near USD 393/month. Supply -ApproveFixedMonthlyCost and set AZURE_PILLAR1_FIXED_COST_APPROVED=true after explicit approval."
+if (-not $ApproveLeanStagingCost -or $env:AZURE_PILLAR1_LEAN_STAGING_APPROVED -ne "true") {
+    throw "Deployment blocked. Supply -ApproveLeanStagingCost and set AZURE_PILLAR1_LEAN_STAGING_APPROVED=true only after explicit approval of the lean staging report."
 }
 
 $requiredEnvironment = @(
-    "AZURE_APIM_PUBLISHER_EMAIL",
+    "AZURE_DEPLOYER_PRINCIPAL_ID",
     "SUPABASE_URL",
     "SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "DATABASE_URL",
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",
-    "NEXORA_AUTH_SECRET",
-    "APIM_BACKEND_SHARED_SECRET"
+    "NEXORA_AUTH_SECRET"
 )
 foreach ($name in $requiredEnvironment) {
     if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
@@ -33,12 +32,11 @@ $template = Join-Path $repoRoot "infra\bicep\main.bicep"
 $parameters = Join-Path $repoRoot "infra\bicep\parameters\staging.bicepparam"
 $commitSha = (git -C $repoRoot rev-parse HEAD).Trim()
 $buildTimestamp = [DateTime]::UtcNow.ToString("o")
-$githubRepository = if ($env:GITHUB_REPOSITORY) { $env:GITHUB_REPOSITORY } else { "/" }
-$githubParts = $githubRepository.Split("/", 2)
-$githubOrganization = if ($githubParts.Count -eq 2) { $githubParts[0] } else { "" }
-$githubRepositoryName = if ($githubParts.Count -eq 2) { $githubParts[1] } else { "" }
-
-function Invoke-Deployment([bool]$DeployWorkloads, [string]$FrontDoorHostname = "") {
+function Invoke-Deployment(
+    [bool]$DeployWorkloads,
+    [string]$FrontDoorHostname = "",
+    [string]$ExpectedFrontDoorId = ""
+) {
     az deployment sub create `
         --name $DeploymentName `
         --location $Location `
@@ -46,15 +44,13 @@ function Invoke-Deployment([bool]$DeployWorkloads, [string]$FrontDoorHostname = 
         --parameters $parameters `
         --parameters `
             deployWorkloads=$($DeployWorkloads.ToString().ToLowerInvariant()) `
-            premiumFrontDoorCostApproved=true `
             gitCommitSha=$commitSha `
             apiImageTag=$commitSha `
             workerImageTag=$commitSha `
             buildTimestamp=$buildTimestamp `
-            githubOrganization=$githubOrganization `
-            githubRepository=$githubRepositoryName `
-            apimPublisherEmail=$env:AZURE_APIM_PUBLISHER_EMAIL `
+            deployerPrincipalId=$env:AZURE_DEPLOYER_PRINCIPAL_ID `
             frontDoorHostname=$FrontDoorHostname `
+            expectedFrontDoorId=$ExpectedFrontDoorId `
             supabaseUrl=$env:SUPABASE_URL `
             supabaseAnonKey=$env:SUPABASE_ANON_KEY `
             supabaseServiceRoleKey=$env:SUPABASE_SERVICE_ROLE_KEY `
@@ -63,7 +59,6 @@ function Invoke-Deployment([bool]$DeployWorkloads, [string]$FrontDoorHostname = 
             upstashToken=$env:UPSTASH_REDIS_REST_TOKEN `
             authSecret=$env:NEXORA_AUTH_SECRET `
             posthogKey=$env:POSTHOG_PROJECT_API_KEY `
-            apimBackendSharedSecret=$env:APIM_BACKEND_SHARED_SECRET `
         --only-show-errors `
         --output none
     if ($LASTEXITCODE -ne 0) { throw "Azure deployment failed." }
@@ -76,7 +71,7 @@ try {
     $registryName = $outputs.registryName.value
 
     if ($FoundationOnly) {
-        Write-Output "Foundation deployed. Workload and Premium edge resources were not deployed."
+        Write-Output "Foundation deployed. Workload and edge resources were not deployed."
         return
     }
 
@@ -92,8 +87,9 @@ try {
     Invoke-Deployment -DeployWorkloads $true
     $outputs = az deployment sub show --name $DeploymentName --query properties.outputs -o json | ConvertFrom-Json
     $frontDoorHostname = $outputs.frontDoorHostname.value
+    $frontDoorId = $outputs.frontDoorId.value
 
-    Invoke-Deployment -DeployWorkloads $true -FrontDoorHostname $frontDoorHostname
+    Invoke-Deployment -DeployWorkloads $true -FrontDoorHostname $frontDoorHostname -ExpectedFrontDoorId $frontDoorId
     $outputs = az deployment sub show --name $DeploymentName --query properties.outputs -o json | ConvertFrom-Json
 
     $resourceGroup = $outputs.resourceGroupName.value

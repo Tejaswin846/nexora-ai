@@ -1,45 +1,33 @@
 # Azure Pillar 1 Infrastructure
 
-This directory contains the staging-only Azure Bicep implementation and guarded operational scripts.
+This directory contains tier-configurable Bicep for lean staging and a separate production recommendation. Nothing deploys on a branch push.
+
+## Profiles
+
+- `bicep/parameters/staging.bicepparam`: Front Door Standard, APIM Consumption selected but disabled after compatibility review, Static Web Apps Free, ACR Basic, Service Bus Standard, Blob LRS, and Container Apps 0-2.
+- `bicep/parameters/production.bicepparam`: Front Door Premium, APIM Standard, managed WAF rules, SLA-backed frontend, and nonzero replicas. This profile is not wired to the staging deployment workflow.
+
+Lean staging has a $50.07 fixed baseline, a $50.77 low-traffic estimate, and an $85.40 maximum-expected operating envelope. See `docs/azure-pillar-1-costs-lean-staging.md`.
 
 ## Safety gate
 
-The requested managed Front Door WAF rules require Azure Front Door Premium. Together with APIM Developer, Service Bus Standard, and ACR Basic, the predictable fixed baseline is approximately USD 393/month before usage, tax, and discounts.
+The workflow deploy job requires all of the following:
 
-`deploy-staging.ps1` refuses to deploy unless both conditions are met:
+1. Manual `workflow_dispatch` with `deploy=true`.
+2. Successful test and Docker build job.
+3. `AZURE_PILLAR1_LEAN_STAGING_APPROVED=true`.
+4. Approval through the protected GitHub Environment `staging`.
+5. OIDC authentication without a client secret.
+
+The script independently requires:
 
 ```powershell
-$env:AZURE_PILLAR1_FIXED_COST_APPROVED = "true"
-./infra/scripts/deploy-staging.ps1 -ApproveFixedMonthlyCost
+$env:AZURE_PILLAR1_LEAN_STAGING_APPROVED = "true"
+./infra/scripts/deploy-staging.ps1 -ApproveLeanStagingCost
 ```
 
-Do not run that command until the cost report has explicit approval.
+Do not run it until the user sends the exact approval sentence from the final report.
 
-## Layout
+## Validation
 
-- `bicep/main.bicep`: subscription-scope composition and staging resource group.
-- `bicep/modules/`: one module per Azure service or role boundary.
-- `bicep/parameters/staging.bicepparam`: non-secret staging defaults.
-- `scripts/validate.ps1`: local Bicep build and read-only deployment validation.
-- `scripts/deploy-staging.ps1`: guarded foundation, image, workload, edge, and frontend deployment.
-- `scripts/smoke-test.ps1`: complete request-flow smoke test without paid AI calls.
-- `scripts/rollback-staging.ps1`: revision, route, and worker rollback without deleting data.
-- `scripts/destroy-staging.ps1`: intentionally disabled break-glass placeholder.
-
-## Selected locations
-
-- Regional Azure resources: `centralindia`.
-- Static Web Apps: `eastasia`, because the provider does not offer Static Web Apps in India.
-- Azure Front Door and WAF: global.
-
-## Deployment sequence
-
-1. Validate Bicep.
-2. Deploy the foundation with workloads disabled.
-3. Build and push `api:<git-sha>` and `worker:<git-sha>`.
-4. Deploy API, worker, APIM Developer, Front Door Premium, and WAF Detection mode.
-5. Feed the generated Front Door hostname back into exact CORS configuration.
-6. Deploy unchanged frontend files to Static Web Apps.
-7. Run the end-to-end smoke test.
-
-No script modifies Render, production DNS, or any resource in the Nexora resource group.
+`scripts/validate.ps1` compiles the template and both parameter profiles, then runs read-only Azure validation. Azure what-if must also be reviewed before deployment. No script modifies Render, production DNS, Supabase, or Nexora.

@@ -1,6 +1,12 @@
 param profileName string
 param endpointName string
-param apiManagementHostname string
+@allowed([
+  'Standard_AzureFrontDoor'
+  'Premium_AzureFrontDoor'
+])
+param profileSku string = 'Standard_AzureFrontDoor'
+param apiOriginHostname string
+param apiOriginName string = 'container-apps-api'
 param staticWebAppHostname string
 param wafPolicyId string
 param logAnalyticsWorkspaceId string
@@ -11,7 +17,7 @@ resource profile 'Microsoft.Cdn/profiles@2024-02-01' = {
   location: 'global'
   tags: tags
   sku: {
-    name: 'Premium_AzureFrontDoor'
+    name: profileSku
   }
   properties: {
     originResponseTimeoutSeconds: 60
@@ -48,16 +54,41 @@ resource apiOriginGroup 'Microsoft.Cdn/profiles/originGroups@2024-02-01' = {
 
 resource apiOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2024-02-01' = {
   parent: apiOriginGroup
-  name: 'api-management'
+  name: apiOriginName
   properties: {
     enabledState: 'Enabled'
     enforceCertificateNameCheck: true
-    hostName: apiManagementHostname
+    hostName: apiOriginHostname
     httpPort: 80
     httpsPort: 443
-    originHostHeader: apiManagementHostname
+    originHostHeader: apiOriginHostname
     priority: 1
     weight: 1000
+  }
+}
+
+resource apiRuleSet 'Microsoft.Cdn/profiles/ruleSets@2024-02-01' = {
+  parent: profile
+  name: 'api-forwarding-headers'
+}
+
+resource apiForwardingHeaders 'Microsoft.Cdn/profiles/ruleSets/rules@2024-02-01' = {
+  parent: apiRuleSet
+  name: 'mark-approved-edge-path'
+  properties: {
+    order: 1
+    conditions: []
+    actions: [
+      {
+        name: 'ModifyRequestHeader'
+        parameters: {
+          typeName: 'DeliveryRuleHeaderActionParameters'
+          headerAction: 'Overwrite'
+          headerName: 'X-Software-Edge'
+          value: 'azure-front-door'
+        }
+      }
+    ]
   }
 }
 
@@ -107,6 +138,11 @@ resource apiRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-02-01' = {
     originGroup: {
       id: apiOriginGroup.id
     }
+    ruleSets: [
+      {
+        id: apiRuleSet.id
+      }
+    ]
     patternsToMatch: [
       '/api/*'
       '/auth/*'
@@ -149,6 +185,7 @@ resource apiRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-02-01' = {
   }
   dependsOn: [
     apiOrigin
+    apiForwardingHeaders
   ]
 }
 

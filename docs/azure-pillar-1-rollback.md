@@ -23,9 +23,9 @@ Rollback preserves queues, Blob data, container images, and the Render fallback.
 - Leaves the frontend route, Service Bus queue, dead-letter queue, Blob Storage, ACR, identities, and logs intact.
 - Does not modify Render or production DNS.
 
-## APIM backend rollback
+## Optional production APIM rollback
 
-Redeploy the last known-good Bicep commit or restore the previous APIM backend named value and API policy through a reviewed infrastructure deployment. Do not place backend credentials on the command line or in the repository.
+APIM is disabled in lean staging. If the production profile is approved later, redeploy the last known-good Bicep commit or restore the previous APIM backend named value and API policy through a reviewed infrastructure deployment. Do not place backend credentials on the command line or in the repository.
 
 ## Resume
 

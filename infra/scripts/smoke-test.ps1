@@ -2,8 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string]$ResourceGroup,
     [Parameter(Mandatory = $true)][string]$FrontDoorHostname,
     [Parameter(Mandatory = $true)][string]$ApiContainerAppHostname,
-    [Parameter(Mandatory = $true)][string]$ApiManagementHostname,
     [Parameter(Mandatory = $true)][string]$WorkerContainerAppName,
+    [string]$ApiManagementHostname = "",
     [string]$OrganizationId = "pillar1-staging-test",
     [string]$ProjectId = "request-flow"
 )
@@ -56,11 +56,13 @@ try {
     if ($_.Exception.Response.StatusCode.value__ -ne 403) { throw }
 }
 
-try {
-    Invoke-RestMethod -Uri "https://$ApiManagementHostname/api/jobs" -Method Post -Headers $headers -Body '{"job_type":"staging_smoke_test"}' -TimeoutSec 20 | Out-Null
-    throw "Direct API Management bypass was accepted."
-} catch {
-    if ($_.Exception.Response.StatusCode.value__ -ne 403) { throw }
+if (-not [string]::IsNullOrWhiteSpace($ApiManagementHostname)) {
+    try {
+        Invoke-RestMethod -Uri "https://$ApiManagementHostname/api/jobs" -Method Post -Headers $headers -Body '{"job_type":"staging_smoke_test"}' -TimeoutSec 20 | Out-Null
+        throw "Direct API Management bypass was accepted."
+    } catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 403) { throw }
+    }
 }
 
 $workerIngress = az containerapp show -g $ResourceGroup -n $WorkerContainerAppName --query properties.configuration.ingress.external -o tsv

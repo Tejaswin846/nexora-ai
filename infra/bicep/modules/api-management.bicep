@@ -1,5 +1,13 @@
 param name string
 param location string
+@allowed([
+  'Consumption'
+  'Developer'
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param skuName string = 'Consumption'
 param publisherName string
 param publisherEmail string
 param backendUrl string
@@ -12,8 +20,8 @@ resource service 'Microsoft.ApiManagement/service@2024-05-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'Developer'
-    capacity: 1
+    name: skuName
+    capacity: skuName == 'Consumption' ? 0 : 1
   }
   identity: {
     type: 'SystemAssigned'

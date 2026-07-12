@@ -43,7 +43,7 @@ resource workerAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource deployerAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource deployerAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
   name: guid(registry.id, deployerPrincipalId, acrPushRole)
   scope: registry
   properties: {
@@ -96,7 +96,6 @@ resource workerBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-
 output assignmentIds array = [
   apiAcrPull.id
   workerAcrPull.id
-  deployerAcrPush.id
   apiServiceBusSender.id
   workerServiceBusReceiver.id
   apiBlobContributor.id

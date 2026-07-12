@@ -5,16 +5,14 @@ param projectName string = 'software'
 
 @allowed([
   'staging'
+  'production'
 ])
 param environmentName string = 'staging'
 
 param location string = 'centralindia'
 param staticWebAppLocation string = 'eastasia'
 param uniqueSuffix string = take(uniqueString(subscription().subscriptionId, projectName, environmentName), 6)
-param resourceGroupName string = 'rg-${projectName}-${environmentName}-${uniqueSuffix}'
-param githubOrganization string = ''
-param githubRepository string = ''
-param githubEnvironment string = 'staging'
+param resourceGroupName string = 'rg-${projectName}-${environmentName}'
 param apimPublisherName string = 'Software Platform'
 param apimPublisherEmail string = 'azure-admin@example.com'
 param appVersion string = '0.1.0'
@@ -23,8 +21,79 @@ param buildTimestamp string = 'unknown'
 param apiImageTag string = 'bootstrap'
 param workerImageTag string = 'bootstrap'
 param frontDoorHostname string = ''
+param expectedFrontDoorId string = ''
+param deployerPrincipalId string = ''
 param deployWorkloads bool = false
-param premiumFrontDoorCostApproved bool = false
+
+@allowed([
+  'Standard_AzureFrontDoor'
+  'Premium_AzureFrontDoor'
+])
+param frontDoorSku string = 'Standard_AzureFrontDoor'
+
+@allowed([
+  'Consumption'
+  'Developer'
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param apiManagementSku string = 'Consumption'
+
+@allowed([
+  'Free'
+  'Standard'
+])
+param staticWebAppSku string = 'Free'
+
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param containerRegistrySku string = 'Basic'
+
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param serviceBusSku string = 'Standard'
+
+@allowed([
+  'Standard_LRS'
+  'Standard_ZRS'
+  'Standard_GRS'
+  'Standard_GZRS'
+])
+param storageReplicationType string = 'Standard_LRS'
+
+@minValue(0)
+@maxValue(10)
+param apiMinReplicas int = 0
+
+@minValue(1)
+@maxValue(10)
+param apiMaxReplicas int = 2
+
+@minValue(0)
+@maxValue(10)
+param workerMinReplicas int = 0
+
+@minValue(1)
+@maxValue(10)
+param workerMaxReplicas int = 2
+
+param enableManagedWafRules bool = false
+param enableFrontDoor bool = true
+param enableApiManagement bool = false
+param logRetentionInDays int = 30
+@allowed([
+  '0.5'
+  '1'
+  '5'
+])
+param logDailyQuotaGb string = '0.5'
 
 @secure()
 param supabaseUrl string = ''
@@ -45,8 +114,10 @@ param posthogKey string = ''
 @secure()
 param apimBackendSharedSecret string = ''
 
+var configurationIsValid = (!enableManagedWafRules || frontDoorSku == 'Premium_AzureFrontDoor') && (apiMinReplicas <= apiMaxReplicas) && (workerMinReplicas <= workerMaxReplicas) && (serviceBusSku != 'Basic')
+
 var normalizedProject = toLower(replace(projectName, '-', ''))
-var compactEnvironment = environmentName == 'staging' ? 'stg' : take(environmentName, 3)
+var compactEnvironment = environmentName == 'staging' ? 'stg' : 'prd'
 var registryName = take('acr${normalizedProject}${compactEnvironment}${uniqueSuffix}', 50)
 var storageAccountName = take('st${normalizedProject}${compactEnvironment}${uniqueSuffix}', 24)
 var logAnalyticsName = 'log-${projectName}-${environmentName}-${uniqueSuffix}'
@@ -61,15 +132,15 @@ var frontDoorEndpointName = 'software-${environmentName}-${uniqueSuffix}'
 var wafPolicyName = 'waf-${projectName}-${environmentName}-${uniqueSuffix}'
 var apiIdentityName = 'id-${projectName}-api-${environmentName}-${uniqueSuffix}'
 var workerIdentityName = 'id-${projectName}-worker-${environmentName}-${uniqueSuffix}'
-var deployerIdentityName = 'id-${projectName}-github-${environmentName}-${uniqueSuffix}'
 var commonTags = {
   project: projectName
   environment: environmentName
   pillar: '1'
   managedBy: 'bicep'
+  costProfile: environmentName == 'staging' ? 'lean' : 'production'
 }
 
-resource stagingResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+resource targetResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: resourceGroupName
   location: location
   tags: commonTags
@@ -77,41 +148,41 @@ resource stagingResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = 
 
 module identities 'modules/identities.bicep' = {
   name: 'identities'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     location: location
     apiIdentityName: apiIdentityName
     workerIdentityName: workerIdentityName
-    deployerIdentityName: deployerIdentityName
-    githubOrganization: githubOrganization
-    githubRepository: githubRepository
-    githubEnvironment: githubEnvironment
+    tags: commonTags
   }
 }
 
 module registry 'modules/container-registry.bicep' = {
   name: 'container-registry'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: registryName
     location: location
+    skuName: containerRegistrySku
     tags: commonTags
   }
 }
 
 module logs 'modules/log-analytics.bicep' = {
   name: 'log-analytics'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: logAnalyticsName
     location: location
+    retentionInDays: logRetentionInDays
+    dailyQuotaGb: logDailyQuotaGb
     tags: commonTags
   }
 }
 
 module containerEnvironment 'modules/container-apps-environment.bicep' = {
   name: 'container-apps-environment'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: containerEnvironmentName
     location: location
@@ -122,45 +193,48 @@ module containerEnvironment 'modules/container-apps-environment.bicep' = {
 
 module serviceBus 'modules/service-bus.bicep' = {
   name: 'service-bus'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     namespaceName: serviceBusName
     queueName: 'workflow-jobs'
     location: location
+    skuName: serviceBusSku
     tags: commonTags
   }
 }
 
 module storage 'modules/blob-storage.bicep' = {
   name: 'blob-storage'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: storageAccountName
     location: location
+    replicationType: storageReplicationType
     tags: commonTags
   }
 }
 
 module staticWeb 'modules/static-web-app.bicep' = {
   name: 'static-web-app'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: staticWebAppName
     location: staticWebAppLocation
+    skuName: staticWebAppSku
     tags: commonTags
   }
 }
 
 module roles 'modules/role-assignments.bicep' = {
   name: 'role-assignments'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     registryName: registry.outputs.name
     serviceBusNamespaceName: serviceBus.outputs.name
     storageAccountName: storage.outputs.name
     apiPrincipalId: identities.outputs.apiPrincipalId
     workerPrincipalId: identities.outputs.workerPrincipalId
-    deployerPrincipalId: identities.outputs.deployerPrincipalId
+    deployerPrincipalId: deployerPrincipalId
   }
 }
 
@@ -169,9 +243,11 @@ var workerImage = '${registry.outputs.loginServer}/worker:${workerImageTag}'
 var allowedOrigins = empty(frontDoorHostname)
   ? 'https://${staticWeb.outputs.defaultHostname}'
   : 'https://${staticWeb.outputs.defaultHostname},https://${frontDoorHostname}'
-module apiApp 'modules/container-app-api.bicep' = if (deployWorkloads) {
+var approvedGatewayMode = enableApiManagement ? 'apim' : (enableFrontDoor ? 'frontdoor' : 'none')
+
+module apiApp 'modules/container-app-api.bicep' = if (deployWorkloads && configurationIsValid) {
   name: 'container-app-api'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: apiAppName
     location: location
@@ -184,9 +260,13 @@ module apiApp 'modules/container-app-api.bicep' = if (deployWorkloads) {
     serviceBusQueueName: serviceBus.outputs.queueName
     storageAccountUrl: storage.outputs.accountUrl
     allowedOrigins: allowedOrigins
+    approvedGatewayMode: approvedGatewayMode
+    expectedFrontDoorId: expectedFrontDoorId
     appVersion: appVersion
     gitCommitSha: gitCommitSha
     buildTimestamp: buildTimestamp
+    minReplicas: apiMinReplicas
+    maxReplicas: apiMaxReplicas
     supabaseUrl: supabaseUrl
     supabaseAnonKey: supabaseAnonKey
     supabaseServiceRoleKey: supabaseServiceRoleKey
@@ -198,14 +278,12 @@ module apiApp 'modules/container-app-api.bicep' = if (deployWorkloads) {
     apimBackendKey: apimBackendSharedSecret
     tags: commonTags
   }
-  dependsOn: [
-    roles
-  ]
+  dependsOn: [roles]
 }
 
-module workerApp 'modules/container-app-worker.bicep' = if (deployWorkloads) {
+module workerApp 'modules/container-app-worker.bicep' = if (deployWorkloads && configurationIsValid) {
   name: 'container-app-worker'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: workerAppName
     location: location
@@ -219,19 +297,20 @@ module workerApp 'modules/container-app-worker.bicep' = if (deployWorkloads) {
     storageAccountUrl: storage.outputs.accountUrl
     gitCommitSha: gitCommitSha
     buildTimestamp: buildTimestamp
+    minReplicas: workerMinReplicas
+    maxReplicas: workerMaxReplicas
     tags: commonTags
   }
-  dependsOn: [
-    roles
-  ]
+  dependsOn: [roles]
 }
 
-module apiManagement 'modules/api-management.bicep' = if (deployWorkloads && premiumFrontDoorCostApproved) {
+module apiManagement 'modules/api-management.bicep' = if (deployWorkloads && enableApiManagement) {
   name: 'api-management'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: apiManagementName
     location: location
+    skuName: apiManagementSku
     publisherName: apimPublisherName
     publisherEmail: apimPublisherEmail
     backendUrl: 'https://${apiApp!.outputs.fqdn}'
@@ -240,22 +319,26 @@ module apiManagement 'modules/api-management.bicep' = if (deployWorkloads && pre
   }
 }
 
-module waf 'modules/waf-policy.bicep' = if (deployWorkloads && premiumFrontDoorCostApproved) {
+module waf 'modules/waf-policy.bicep' = if (deployWorkloads && enableFrontDoor) {
   name: 'waf-policy'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     name: wafPolicyName
+    frontDoorSku: frontDoorSku
+    enableManagedRules: enableManagedWafRules
     tags: commonTags
   }
 }
 
-module frontDoor 'modules/front-door.bicep' = if (deployWorkloads && premiumFrontDoorCostApproved) {
+module frontDoor 'modules/front-door.bicep' = if (deployWorkloads && enableFrontDoor) {
   name: 'front-door'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     profileName: frontDoorProfileName
     endpointName: frontDoorEndpointName
-    apiManagementHostname: apiManagement!.outputs.gatewayHostname
+    profileSku: frontDoorSku
+    apiOriginHostname: enableApiManagement ? apiManagement!.outputs.gatewayHostname : apiApp!.outputs.fqdn
+    apiOriginName: enableApiManagement ? 'api-management' : 'container-apps-api'
     staticWebAppHostname: staticWeb.outputs.defaultHostname
     wafPolicyId: waf!.outputs.id
     logAnalyticsWorkspaceId: logs.outputs.id
@@ -263,9 +346,9 @@ module frontDoor 'modules/front-door.bicep' = if (deployWorkloads && premiumFron
   }
 }
 
-module apiPolicy 'modules/api-management-policy.bicep' = if (deployWorkloads && premiumFrontDoorCostApproved) {
+module apiPolicy 'modules/api-management-policy.bicep' = if (deployWorkloads && enableApiManagement && enableFrontDoor) {
   name: 'api-management-policy'
-  scope: stagingResourceGroup
+  scope: targetResourceGroup
   params: {
     apiManagementName: apiManagement!.outputs.name
     apiName: apiManagement!.outputs.apiName
@@ -274,14 +357,21 @@ module apiPolicy 'modules/api-management-policy.bicep' = if (deployWorkloads && 
   }
 }
 
-output resourceGroupName string = stagingResourceGroup.name
+output resourceGroupName string = targetResourceGroup.name
 output selectedRegion string = location
 output staticWebAppRegion string = staticWebAppLocation
+output selectedSkus object = {
+  frontDoor: enableFrontDoor ? frontDoorSku : 'disabled'
+  apiManagement: enableApiManagement ? apiManagementSku : 'disabled'
+  staticWebApp: staticWebAppSku
+  containerRegistry: containerRegistrySku
+  serviceBus: serviceBusSku
+  storage: storageReplicationType
+}
 output registryName string = registry.outputs.name
 output registryLoginServer string = registry.outputs.loginServer
 output apiIdentityClientId string = identities.outputs.apiClientId
 output workerIdentityClientId string = identities.outputs.workerClientId
-output deployerIdentityClientId string = identities.outputs.deployerClientId
 output serviceBusNamespace string = serviceBus.outputs.fqdn
 output serviceBusQueueName string = serviceBus.outputs.queueName
 output storageAccountName string = storage.outputs.name
@@ -289,6 +379,7 @@ output blobContainers array = storage.outputs.containerNames
 output staticWebAppHostname string = staticWeb.outputs.defaultHostname
 output apiContainerAppHostname string = deployWorkloads ? apiApp!.outputs.fqdn : ''
 output workerContainerAppName string = deployWorkloads ? workerApp!.outputs.name : ''
-output apiManagementHostname string = deployWorkloads && premiumFrontDoorCostApproved ? apiManagement!.outputs.gatewayHostname : ''
-output frontDoorHostname string = deployWorkloads && premiumFrontDoorCostApproved ? frontDoor!.outputs.endpointHostname : ''
-output wafMode string = deployWorkloads && premiumFrontDoorCostApproved ? waf!.outputs.mode : 'not-deployed'
+output apiManagementHostname string = deployWorkloads && enableApiManagement ? apiManagement!.outputs.gatewayHostname : ''
+output frontDoorHostname string = deployWorkloads && enableFrontDoor ? frontDoor!.outputs.endpointHostname : ''
+output frontDoorId string = deployWorkloads && enableFrontDoor ? frontDoor!.outputs.frontDoorId : ''
+output wafMode string = deployWorkloads && enableFrontDoor ? waf!.outputs.mode : 'not-deployed'

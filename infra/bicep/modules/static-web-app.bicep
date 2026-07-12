@@ -1,5 +1,10 @@
 param name string
 param location string = 'eastasia'
+@allowed([
+  'Free'
+  'Standard'
+])
+param skuName string = 'Free'
 param tags object = {}
 
 resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
@@ -7,8 +12,8 @@ resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'Free'
-    tier: 'Free'
+    name: skuName
+    tier: skuName
   }
   properties: {
     allowConfigFileUpdates: true

@@ -1,14 +1,37 @@
 param name string
+@allowed([
+  'Standard_AzureFrontDoor'
+  'Premium_AzureFrontDoor'
+])
+param frontDoorSku string = 'Standard_AzureFrontDoor'
+param enableManagedRules bool = false
 param tags object = {}
+
+var managedRuleConfiguration = enableManagedRules ? {
+  managedRules: {
+    managedRuleSets: [
+      {
+        ruleSetType: 'Microsoft_DefaultRuleSet'
+        ruleSetVersion: '2.1'
+        ruleSetAction: 'Log'
+      }
+      {
+        ruleSetType: 'Microsoft_BotManagerRuleSet'
+        ruleSetVersion: '1.1'
+        ruleSetAction: 'Log'
+      }
+    ]
+  }
+} : {}
 
 resource waf 'Microsoft.Network/frontDoorWebApplicationFirewallPolicies@2024-02-01' = {
   name: name
   location: 'Global'
   tags: tags
   sku: {
-    name: 'Premium_AzureFrontDoor'
+    name: frontDoorSku
   }
-  properties: {
+  properties: union({
     policySettings: {
       enabledState: 'Enabled'
       mode: 'Detection'
@@ -39,23 +62,28 @@ resource waf 'Microsoft.Network/frontDoorWebApplicationFirewallPolicies@2024-02-
             }
           ]
         }
+        {
+          name: 'LogUnexpectedHttpMethods'
+          action: 'Log'
+          enabledState: 'Enabled'
+          priority: 110
+          ruleType: 'MatchRule'
+          matchConditions: [
+            {
+              matchVariable: 'RequestMethod'
+              operator: 'Equal'
+              matchValue: [
+                'TRACE'
+                'TRACK'
+              ]
+              negateCondition: false
+              transforms: []
+            }
+          ]
+        }
       ]
     }
-    managedRules: {
-      managedRuleSets: [
-        {
-          ruleSetType: 'Microsoft_DefaultRuleSet'
-          ruleSetVersion: '2.1'
-          ruleSetAction: 'Log'
-        }
-        {
-          ruleSetType: 'Microsoft_BotManagerRuleSet'
-          ruleSetVersion: '1.1'
-          ruleSetAction: 'Log'
-        }
-      ]
-    }
-  }
+  }, managedRuleConfiguration)
 }
 
 output id string = waf.id

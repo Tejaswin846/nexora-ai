@@ -12,7 +12,7 @@ param gitCommitSha string
 param buildTimestamp string
 param tags object = {}
 param minReplicas int = 0
-param maxReplicas int = 3
+param maxReplicas int = 2
 
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
@@ -36,13 +36,14 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
       ]
     }
     template: {
+      terminationGracePeriodSeconds: 60
       containers: [
         {
           name: 'worker'
           image: image
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('0.25')
+            memory: '0.5Gi'
           }
           env: [
             { name: 'ENVIRONMENT', value: 'staging' }

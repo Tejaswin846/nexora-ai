@@ -9,6 +9,13 @@ param serviceBusNamespace string
 param serviceBusQueueName string
 param storageAccountUrl string
 param allowedOrigins string
+@allowed([
+  'none'
+  'frontdoor'
+  'apim'
+])
+param approvedGatewayMode string = 'none'
+param expectedFrontDoorId string = ''
 param appVersion string
 param gitCommitSha string
 param buildTimestamp string
@@ -33,6 +40,23 @@ param apimBackendKey string
 param tags object = {}
 param minReplicas int = 0
 param maxReplicas int = 2
+
+var applicationSecrets = [
+  { name: 'supabase-url', value: supabaseUrl }
+  { name: 'supabase-anon-key', value: supabaseAnonKey }
+  { name: 'supabase-service-role-key', value: supabaseServiceRoleKey }
+  { name: 'database-url', value: databaseUrl }
+  { name: 'upstash-url', value: upstashUrl }
+  { name: 'upstash-token', value: upstashToken }
+  { name: 'auth-secret', value: authSecret }
+  { name: 'posthog-key', value: posthogKey }
+]
+var gatewaySecrets = approvedGatewayMode == 'apim' ? [
+  { name: 'apim-backend-key', value: apimBackendKey }
+] : []
+var gatewayEnvironment = approvedGatewayMode == 'apim' ? [
+  { name: 'APIM_BACKEND_SHARED_SECRET', secretRef: 'apim-backend-key' }
+] : []
 
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
@@ -66,17 +90,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
       ]
-      secrets: [
-        { name: 'supabase-url', value: supabaseUrl }
-        { name: 'supabase-anon-key', value: supabaseAnonKey }
-        { name: 'supabase-service-role-key', value: supabaseServiceRoleKey }
-        { name: 'database-url', value: databaseUrl }
-        { name: 'upstash-url', value: upstashUrl }
-        { name: 'upstash-token', value: upstashToken }
-        { name: 'auth-secret', value: authSecret }
-        { name: 'posthog-key', value: posthogKey }
-        { name: 'apim-backend-key', value: apimBackendKey }
-      ]
+      secrets: concat(applicationSecrets, gatewaySecrets)
     }
     template: {
       containers: [
@@ -84,10 +98,10 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
           name: 'api'
           image: image
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('0.25')
+            memory: '0.5Gi'
           }
-          env: [
+          env: concat([
             { name: 'HOST', value: '0.0.0.0' }
             { name: 'PORT', value: '8000' }
             { name: 'NEXORA_ENV', value: 'staging' }
@@ -96,6 +110,13 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'GIT_COMMIT_SHA', value: gitCommitSha }
             { name: 'BUILD_TIMESTAMP', value: buildTimestamp }
             { name: 'CORS_ALLOWED_ORIGINS', value: allowedOrigins }
+            { name: 'APPROVED_GATEWAY_MODE', value: approvedGatewayMode }
+            { name: 'EXPECTED_AZURE_FRONT_DOOR_ID', value: expectedFrontDoorId }
+            { name: 'STAGING_RATE_LIMIT_CALLS', value: '120' }
+            { name: 'STAGING_RATE_LIMIT_WINDOW_SECONDS', value: '60' }
+            { name: 'STAGING_MAX_REQUEST_BYTES', value: '1048576' }
+            { name: 'STAGING_REQUEST_TIMEOUT_SECONDS', value: '60' }
+            { name: 'REQUEST_LOG_SAMPLE_RATE', value: '0.25' }
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'AZURE_SERVICE_BUS_NAMESPACE', value: serviceBusNamespace }
             { name: 'AZURE_SERVICE_BUS_QUEUE_NAME', value: serviceBusQueueName }
@@ -111,9 +132,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'POSTHOG_CAPTURE_PROMPTS', value: 'false' }
             { name: 'POSTHOG_CAPTURE_RESPONSES', value: 'false' }
             { name: 'POSTHOG_PRIVACY_MODE', value: 'true' }
-            { name: 'APIM_BACKEND_SHARED_SECRET', secretRef: 'apim-backend-key' }
-            { name: 'REQUIRE_APIM_BACKEND_HEADER', value: 'true' }
-          ]
+          ], gatewayEnvironment)
           probes: [
             {
               type: 'Liveness'
