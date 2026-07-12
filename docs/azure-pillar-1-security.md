@@ -28,4 +28,5 @@ Request logs contain route, status, latency, request/correlation ID, and authent
 - Front Door Standard has no managed OWASP/DRS coverage.
 - Scale-to-zero creates cold-start latency.
 - The Log Analytics alert has no notification action until an approved operations contact is supplied.
+- Generated local benchmark JSON files are intentionally not baked into the worker image. `benchmark_export` jobs will retry until approved exports are placed in Blob-backed storage or another reviewed source; the staging smoke-test job is unaffected.
 - The current subscription-scope deployment wrapper needs narrowly defined subscription deployment permission; every run must retain what-if review and GitHub Environment approval.

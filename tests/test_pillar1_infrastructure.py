@@ -155,6 +155,7 @@ def test_container_builds_are_non_root_and_exclude_sensitive_files() -> None:
     ignore = read(".dockerignore")
     assert "USER 10001:10001" in api
     assert "USER 10001:10001" in worker
+    assert "Software/data/*.json" not in worker
     assert "**/.env*" in ignore
     assert "**/*.db" in ignore
     assert "Software/*_report.md" in ignore

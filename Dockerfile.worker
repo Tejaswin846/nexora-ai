@@ -21,7 +21,7 @@ RUN python -m pip install --no-cache-dir --requirement /tmp/requirements-worker.
 COPY --chown=app:app backend/services /app/backend/services
 COPY --chown=app:app backend/__init__.py /app/backend/__init__.py
 COPY --chown=app:app worker /app/worker
-COPY --chown=app:app Software/data/*.json /app/Software/data/
+RUN mkdir -p /app/Software/data && chown -R app:app /app/Software
 
 USER 10001:10001
 
