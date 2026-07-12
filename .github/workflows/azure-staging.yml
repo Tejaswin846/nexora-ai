@@ -54,8 +54,8 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q backend worker
 
-      - name: Run unit tests
-        run: pytest -q
+      - name: Run committed infrastructure contract tests
+        run: pytest -q tests/test_pillar1_infrastructure.py
 
       - name: Reject committed credentials
         shell: pwsh

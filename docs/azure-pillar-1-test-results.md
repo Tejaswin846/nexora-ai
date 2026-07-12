@@ -8,6 +8,7 @@ Test date: 2026-07-12
 |---|---|
 | Full repository suite | 95 passed |
 | Focused Pillar 1 runtime/infrastructure suite | 26 passed |
+| GitHub clean-checkout infrastructure contract suite | Pending rerun; full local suite relies on pre-existing untracked application modules |
 | Ruff focused lint | Passed |
 | Python compilation | Passed |
 | Bicep main template compilation/lint | Passed |
