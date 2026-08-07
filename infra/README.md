@@ -28,6 +28,13 @@ $env:AZURE_PILLAR1_LEAN_STAGING_APPROVED = "true"
 
 Do not run it until the user sends the exact approval sentence from the final report.
 
+The staging environment must also provide `NEXORA_SMOKE_EMAIL` and
+`NEXORA_SMOKE_PASSWORD` secrets for a dedicated test account. The end-to-end
+smoke test signs in through the public application, reuses or creates a project
+owned by that account, derives the tenant from the session, and verifies
+anonymous job submission is rejected before testing the queue and artifact
+path.
+
 ## Validation
 
 `scripts/validate.ps1` compiles the template and both parameter profiles, then runs read-only Azure validation. Azure what-if must also be reviewed before deployment. No script modifies Render, production DNS, Supabase, or Nexora.

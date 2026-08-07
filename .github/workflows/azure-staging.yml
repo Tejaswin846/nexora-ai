@@ -137,6 +137,9 @@ jobs:
 
       - name: Run end-to-end smoke test
         shell: pwsh
+        env:
+          NEXORA_SMOKE_EMAIL: ${{ secrets.NEXORA_SMOKE_EMAIL }}
+          NEXORA_SMOKE_PASSWORD: ${{ secrets.NEXORA_SMOKE_PASSWORD }}
         run: >-
           ./infra/scripts/smoke-test.ps1
           -ResourceGroup '${{ steps.outputs.outputs.resource_group }}'

@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -99,8 +99,14 @@ def test_valid_job_submission_sets_correlation_header(monkeypatch: pytest.Monkey
 
     queue = FakeQueue()
     monkeypatch.setattr(job_routes, "get_job_queue", lambda: queue)
+    monkeypatch.setattr(
+        job_routes,
+        "get_runtime_module",
+        lambda: type("ProjectStore", (), {"projects_for_user": staticmethod(lambda _user_id: [{"id": "test-project"}])}),
+    )
     app = FastAPI()
     app.include_router(job_routes.router)
+    app.dependency_overrides[job_routes.get_current_user] = lambda: {"id": "test-org"}
     client = TestClient(app)
 
     response = client.post(
@@ -112,19 +118,112 @@ def test_valid_job_submission_sets_correlation_header(monkeypatch: pytest.Monkey
     assert response.status_code == 202
     assert response.headers["x-correlation-id"] == response.json()["correlation_id"]
     assert len(queue.messages) == 1
+    assert queue.messages[0].organization_id == "test-org"
+    assert queue.messages[0].project_id == "test-project"
 
 
 def test_invalid_job_submission_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(job_routes, "get_job_queue", lambda: None)
+    monkeypatch.setattr(
+        job_routes,
+        "get_runtime_module",
+        lambda: type("ProjectStore", (), {"projects_for_user": staticmethod(lambda _user_id: [{"id": "test-project"}])}),
+    )
     app = FastAPI()
     app.include_router(job_routes.router)
+    app.dependency_overrides[job_routes.get_current_user] = lambda: {"id": "test-org"}
     client = TestClient(app)
     response = client.post(
         "/api/jobs",
         headers={"X-Organization-ID": "../escape", "X-Project-ID": "test-project"},
         json={"job_type": "staging_smoke_test"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 403
+
+
+def test_job_submission_requires_authentication(monkeypatch: pytest.MonkeyPatch) -> None:
+    class RejectAnonymous:
+        def __call__(self) -> dict:
+            raise HTTPException(status_code=401, detail="Login required.")
+
+    app = FastAPI()
+    app.include_router(job_routes.router)
+    app.dependency_overrides[job_routes.get_current_user] = RejectAnonymous()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/jobs",
+        headers={"X-Organization-ID": "attacker", "X-Project-ID": "victim-project"},
+        json={"job_type": "staging_smoke_test"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_job_submission_rejects_spoofed_tenant_and_project(monkeypatch: pytest.MonkeyPatch) -> None:
+    class QueueMustNotRun:
+        def enqueue(self, _message: WorkflowJobMessage) -> None:
+            raise AssertionError("unauthorized job reached the queue")
+
+    monkeypatch.setattr(job_routes, "get_job_queue", lambda: QueueMustNotRun())
+    monkeypatch.setattr(
+        job_routes,
+        "get_runtime_module",
+        lambda: type("ProjectStore", (), {"projects_for_user": staticmethod(lambda _user_id: [{"id": "alice-project"}])}),
+    )
+    app = FastAPI()
+    app.include_router(job_routes.router)
+    app.dependency_overrides[job_routes.get_current_user] = lambda: {"id": "alice-user"}
+    client = TestClient(app)
+
+    wrong_organization = client.post(
+        "/api/jobs",
+        headers={"X-Organization-ID": "bob-user", "X-Project-ID": "alice-project"},
+        json={"job_type": "staging_smoke_test"},
+    )
+    wrong_project = client.post(
+        "/api/jobs",
+        headers={"X-Organization-ID": "alice-user", "X-Project-ID": "bob-project"},
+        json={"job_type": "staging_smoke_test"},
+    )
+
+    assert wrong_organization.status_code == 403
+    assert wrong_project.status_code == 403
+
+
+def test_job_artifact_access_is_tenant_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
+    storage = InMemoryBlobStorage()
+    job_id = uuid4()
+    owned_path = tenant_blob_path("alice-user", "alice-project", "jobs", f"{job_id}.json")
+    storage.upload_json("workflow-artifacts", owned_path, {"job_id": str(job_id), "result": "private"})
+    monkeypatch.setattr(job_routes, "get_blob_storage", lambda: storage)
+    monkeypatch.setattr(
+        job_routes,
+        "get_runtime_module",
+        lambda: type("ProjectStore", (), {"projects_for_user": staticmethod(lambda _user_id: [{"id": "alice-project"}])}),
+    )
+    app = FastAPI()
+    app.include_router(job_routes.router)
+    app.dependency_overrides[job_routes.get_current_user] = lambda: {"id": "alice-user"}
+    client = TestClient(app)
+
+    allowed = client.get(
+        f"/api/jobs/{job_id}/artifact",
+        headers={"X-Organization-ID": "alice-user", "X-Project-ID": "alice-project"},
+    )
+    cross_tenant = client.get(
+        f"/api/jobs/{job_id}/artifact",
+        headers={"X-Organization-ID": "bob-user", "X-Project-ID": "alice-project"},
+    )
+    cross_project = client.get(
+        f"/api/jobs/{job_id}/artifact",
+        headers={"X-Organization-ID": "alice-user", "X-Project-ID": "bob-project"},
+    )
+
+    assert allowed.status_code == 200
+    assert allowed.json()["result"] == "private"
+    assert cross_tenant.status_code == 403
+    assert cross_project.status_code == 403
 
 
 def test_blob_upload_download_and_tenant_path_validation() -> None:
