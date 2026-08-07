@@ -183,8 +183,17 @@ def fallback_create_api_key(onboarding_id: str, framework: str, name: str, full_
     save_fallback_store(data)
 
 
-def create_api_key(onboarding_id: str, framework: str, name: str = "Onboarding key") -> dict[str, Any]:
+def create_api_key(
+    onboarding_id: str,
+    framework: str,
+    name: str = "Onboarding key",
+    *,
+    user_id: str,
+) -> dict[str, Any]:
     clean_onboarding_id = clean_id(onboarding_id)
+    clean_user_id = str(user_id or "").strip()[:120]
+    if not clean_user_id:
+        raise ValueError("Authenticated user id is required to create an onboarding API key.")
     clean_name = str(name or "Onboarding key").strip()[:80] or "Onboarding key"
     clean_framework_name = clean_framework(framework)
     full_key = generate_api_key()
@@ -192,7 +201,7 @@ def create_api_key(onboarding_id: str, framework: str, name: str = "Onboarding k
     record = {
         "id": f"onb_key_{uuid.uuid4().hex[:12]}",
         "onboarding_id": clean_onboarding_id,
-        "user_id": f"onboarding:{clean_onboarding_id}",
+        "user_id": clean_user_id,
         "name": clean_name,
         "key_prefix": full_key[:16],
         "key_hash": hash_key(full_key),

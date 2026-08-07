@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Setup Wizard - Software</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070809;
+      --panel: #111418;
+      --panel-2: #171b20;
+      --line: rgba(255,255,255,.11);
+      --text: #f8fafc;
+      --muted: #a7b0bd;
+      --green: #38d996;
+      --cyan: #6ee7f9;
+      --amber: #f6c453;
+      --red: #ff7373;
+      --ink: #061014;
+      --shadow: 0 28px 70px rgba(0,0,0,.34);
+    }
+
+    * { box-sizing: border-box; }
+    html { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 4%, rgba(56,217,150,.16), transparent 30%),
+        radial-gradient(circle at 86% 8%, rgba(246,196,83,.12), transparent 26%),
+        linear-gradient(135deg, #070809 0%, #0d1014 52%, #090a0c 100%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, input, textarea { font: inherit; }
+    button { border: 0; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 72px;
+      padding: 16px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(7,8,9,.88);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      color: var(--ink);
+      font-weight: 950;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 780;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .nav a.active, .nav a:hover {
+      color: var(--text);
+      border-color: var(--line);
+      background: rgba(255,255,255,.06);
+    }
+
+    .shell {
+      width: min(1220px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 32px 0 58px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 8px 0 10px;
+      font-size: clamp(34px, 5vw, 62px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .hero p { max-width: 740px; }
+
+    .time-pill {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border: 1px solid rgba(56,217,150,.28);
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(56,217,150,.11);
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .wizard {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .rail, .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+    }
+
+    .rail {
+      position: sticky;
+      top: 92px;
+      padding: 16px;
+    }
+
+    .step {
+      width: 100%;
+      min-height: 48px;
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding: 7px;
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .step[disabled] { cursor: default; opacity: .72; }
+    .step.active, .step.complete {
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+    }
+
+    .step-index {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .step.complete .step-index {
+      color: var(--ink);
+      border-color: transparent;
+      background: var(--green);
+    }
+
+    .step-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 820;
+    }
+
+    .panel {
+      min-height: 620px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      padding: clamp(22px, 4vw, 34px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-body {
+      padding: clamp(22px, 4vw, 34px);
+    }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .btn {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      font-weight: 850;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: rgba(255,255,255,.1); }
+    .btn.primary {
+      color: var(--ink);
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+    }
+
+    .btn.success {
+      color: var(--ink);
+      border-color: transparent;
+      background: var(--green);
+    }
+
+    .btn.danger {
+      color: var(--text);
+      border-color: rgba(255,115,115,.32);
+      background: rgba(255,115,115,.12);
+    }
+
+    .btn:disabled {
+      opacity: .56;
+      cursor: not-allowed;
+    }
+
+    .copy-icon {
+      width: 16px;
+      height: 16px;
+      position: relative;
+      display: inline-block;
+      flex: 0 0 16px;
+    }
+
+    .copy-icon::before,
+    .copy-icon::after {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 2px solid currentColor;
+      border-radius: 3px;
+    }
+
+    .copy-icon::before { left: 1px; top: 1px; opacity: .55; }
+    .copy-icon::after { right: 1px; bottom: 1px; background: transparent; }
+
+    .framework-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .framework-card {
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(0,0,0,.18);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .framework-card.active {
+      border-color: rgba(56,217,150,.55);
+      box-shadow: 0 0 0 1px rgba(56,217,150,.22) inset;
+    }
+
+    .framework-card strong { font-size: 18px; }
+    .framework-card span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    input, textarea {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(0,0,0,.25);
+      outline: none;
+      padding: 0 12px;
+    }
+
+    textarea {
+      min-height: 88px;
+      padding: 12px;
+      resize: vertical;
+    }
+
+    input:focus, textarea:focus {
+      border-color: rgba(110,231,249,.48);
+      box-shadow: 0 0 0 3px rgba(110,231,249,.1);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, .72fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .info {
+      padding: 14px;
+      border: 1px solid rgba(246,196,83,.22);
+      border-radius: 8px;
+      color: #ffe7a8;
+      background: rgba(246,196,83,.09);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .code-block {
+      margin-top: 18px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #080b0e;
+    }
+
+    .code-head {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px 8px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    pre {
+      margin: 0;
+      max-height: 320px;
+      overflow: auto;
+      padding: 16px;
+      color: #d9f99d;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .status {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: rgba(255,255,255,.04);
+      font-weight: 780;
+    }
+
+    .status.ok {
+      color: var(--green);
+      border-color: rgba(56,217,150,.28);
+      background: rgba(56,217,150,.09);
+    }
+
+    .status.error {
+      color: var(--red);
+      border-color: rgba(255,115,115,.28);
+      background: rgba(255,115,115,.09);
+    }
+
+    .meter {
+      height: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+    }
+
+    .meter span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), var(--cyan));
+      transition: width .25s ease;
+    }
+
+    .success-mark {
+      width: 78px;
+      height: 78px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      font-size: 42px;
+      font-weight: 950;
+      margin-bottom: 18px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 30;
+      max-width: min(420px, calc(100vw - 36px));
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(13,16,20,.95);
+      box-shadow: var(--shadow);
+      transition: opacity .2s ease, transform .2s ease;
+      font-weight: 800;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .muted { color: var(--muted); }
+    .hidden { display: none !important; }
+
+    @media (max-width: 920px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { width: 100%; }
+      .hero { grid-template-columns: 1fr; }
+      .wizard { grid-template-columns: 1fr; }
+      .rail { position: static; }
+      .rail-list {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .step { grid-template-columns: 1fr; place-items: center; min-height: 64px; text-align: center; }
+      .step-name { white-space: normal; font-size: 12px; }
+      .split { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 24px, 1220px); padding-top: 22px; }
+      .framework-grid { grid-template-columns: 1fr; }
+      .rail-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .panel { min-height: auto; }
+      .panel-head { flex-direction: column; }
+      .btn { width: 100%; }
+      .actions { align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="mark">S</span>
+      <span>Software+</span>
+    </a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/guide">Guide</a>
+      <a href="/dashboard">Dashboard</a>
+      <a class="active" href="/onboarding">Setup Wizard</a>
+      <a href="/observability">Observability</a>
+      <a href="/mcp">MCP</a>
+      <a href="/code">Code</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Developer onboarding</div>
+        <h1>Setup Wizard</h1>
+        <p>Choose your stack, create an API key, copy the exact setup, and verify the first event from one guided flow.</p>
+      </div>
+      <span class="time-pill">Under 2 minutes</span>
+    </section>
+
+    <section class="wizard">
+      <aside class="rail">
+        <div class="meter"><span id="progressBar"></span></div>
+        <div class="rail-list" id="stepRail" style="margin-top:14px"></div>
+      </aside>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="eyebrow" id="screenEyebrow">Step 1</div>
+            <h2 id="screenTitle">Welcome</h2>
+            <p id="screenSubhead">Start with the fastest path for your project.</p>
+          </div>
+          <button class="btn" id="backBtn" type="button">Back</button>
+        </div>
+
+        <div class="panel-body">
+          <section class="screen active" data-screen="welcome">
+            <div class="split">
+              <div>
+                <h2>Connect a real request without reading docs first.</h2>
+                <p style="margin-top:12px">The wizard keeps the key private, uses environment variables, and checks the connection before you leave.</p>
+                <div class="actions">
+                  <button class="btn primary" id="startBtn" type="button">Start setup</button>
+                  <a class="btn" href="/dashboard">Open dashboard</a>
+                </div>
+              </div>
+              <div class="info">
+                You will generate or paste a key, copy three blocks, send a test event, and get a verified status before the success screen.
+              </div>
+            </div>
+          </section>
+
+          <section class="screen" data-screen="framework">
+            <p>Select the framework closest to your app. The commands and snippets update immediately.</p>
+            <div class="framework-grid" id="frameworkGrid"></div>
+            <div class="status" id="frameworkStatus">Loading frameworks...</div>
+          </section>
+
+          <section class="screen" data-screen="apikey">
+            <div class="split">
+              <div>
+                <h2>API key</h2>
+                <p style="margin-top:12px">Generated keys are stored as hashes. The full secret is shown once so you can move it into your environment.</p>
+                <div class="actions">
+                  <button class="btn primary" id="generateKeyBtn" type="button">Generate key</button>
+                  <button class="btn" id="useEnteredKeyBtn" type="button">Use entered key</button>
+                </div>
+                <div class="field">
+                  <label for="apiKeyInput">Existing or generated key</label>
+                  <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste an existing Software API key">
+                </div>
+              </div>
+              <div class="info">
+                Do not commit this key. The wizard never adds the secret to sample code, and status responses only show safe key prefixes.
+              </div>
+            </div>
+            <div class="code-block hidden" id="newKeyBlock">
+              <div class="code-head">
+                <span>New key shown once</span>
+                <button class="btn" id="copyKeyBtn" type="button" title="Copy API key" aria-label="Copy API key"><span class="copy-icon"></span>Copy</button>
+              </div>
+              <pre id="newKeyValue"></pre>
+            </div>
+          </section>
+
+          <section class="screen" data-screen="install">
+            <h2>Install command</h2>
+            <p style="margin-top:12px">Run this in your project, then continue to environment setup.</p>
+            <div class="code-block">
+              <div class="code-head">
+                <span id="installLabel">Install</span>
+                <button class="btn" id="copyInstallBtn" type="button" title="Copy install command" aria-label="Copy install command"><span class="copy-icon"></span>Copy</button>
+              </div>
+              <pre id="installCommand"></pre>
+            </div>
+            <div class="actions">
+              <button class="btn primary" data-next type="button">Continue</button>
+            </div>
+          </section>
+
+          <section class="screen" data-screen="env">
+            <h2>Environment variables</h2>
+            <p style="margin-top:12px">Put these in your local `.env`, deployment secrets, or platform environment settings.</p>
+            <div class="code-block">
+              <div class="code-head">
+                <span>.env</span>
+                <button class="btn" id="copyEnvBtn" type="button" title="Copy environment variables" aria-label="Copy environment variables"><span class="copy-icon"></span>Copy</button>
+              </div>
+              <pre id="envVars"></pre>
+            </div>
+            <div class="actions">
+              <button class="btn primary" data-next type="button">Continue</button>
+            </div>
+          </section>
+
+          <section class="screen" data-screen="sample">
+            <h2>Sample code</h2>
+            <p style="margin-top:12px">This code sends a normal Software event using `SOFTWARE_API_KEY` and `SOFTWARE_ENDPOINT`.</p>
+            <div class="code-block">
+              <div class="code-head">
+                <span id="sampleLabel">Sample</span>
+                <button class="btn" id="copySampleBtn" type="button" title="Copy sample code" aria-label="Copy sample code"><span class="copy-icon"></span>Copy</button>
+              </div>
+              <pre id="sampleCode"></pre>
+            </div>
+            <div class="actions">
+              <button class="btn primary" id="sendTestBtn" type="button">Send test event</button>
+            </div>
+            <div class="status" id="testStatus">Ready to send a test event.</div>
+          </section>
+
+          <section class="screen" data-screen="verify">
+            <h2>Verify connection</h2>
+            <p style="margin-top:12px">The wizard checks that an event arrived and that the key is active.</p>
+            <div class="status" id="verifyStatus">Waiting for verification...</div>
+            <div class="actions">
+              <button class="btn primary" id="verifyBtn" type="button">Check status</button>
+            </div>
+          </section>
+
+          <section class="screen" data-screen="success">
+            <div class="success-mark">OK</div>
+            <h2>Connection verified</h2>
+            <p style="margin-top:12px">Your first event reached Software. Keep the environment variables in your deployment and watch live requests from the dashboard.</p>
+            <div class="actions">
+              <a class="btn primary" href="/dashboard">View dashboard</a>
+              <a class="btn" href="/observability">Open observability</a>
+            </div>
+            <div class="status ok" id="successStatus">Onboarding completed.</div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const steps = [
+      ["welcome", "Welcome"],
+      ["framework", "Framework"],
+      ["apikey", "API key"],
+      ["install", "Install"],
+      ["env", "Environment"],
+      ["sample", "Test event"],
+      ["verify", "Verify"],
+      ["success", "Success"]
+    ];
+    const randomId = window.crypto && crypto.randomUUID
+      ? crypto.randomUUID().replaceAll("-", "").slice(0, 20)
+      : String(Date.now()) + String(Math.random()).slice(2, 10);
+    const state = {
+      step: 0,
+      frameworks: [],
+      selected: null,
+      apiKey: "",
+      onboardingId: localStorage.getItem("nexoraOnboardingId") || ("onb_" + randomId),
+      trackedStarted: false,
+      completedTracked: false
+    };
+    localStorage.setItem("nexoraOnboardingId", state.onboardingId);
+
+    const $ = (id) => document.getElementById(id);
+    const screens = Array.from(document.querySelectorAll(".screen"));
+    const pendingTracks = [];
+
+    function toast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => el.classList.remove("show"), 2200);
+    }
+
+    function track(event, properties) {
+      const payload = Object.assign({
+        onboarding_id: state.onboardingId,
+        framework: state.selected ? state.selected.name : "",
+        path: location.pathname
+      }, properties || {});
+      if (window.nexoraTrackEvent) {
+        window.nexoraTrackEvent(event, payload);
+        return;
+      }
+      if (window.posthog && typeof window.posthog.capture === "function") {
+        window.posthog.capture(event, payload);
+        return;
+      }
+      if (pendingTracks.length < 50) pendingTracks.push([event, payload]);
+    }
+
+    function flushTracks() {
+      if (!pendingTracks.length) return;
+      if (!window.nexoraTrackEvent && !(window.posthog && typeof window.posthog.capture === "function")) return;
+      const items = pendingTracks.splice(0, pendingTracks.length);
+      items.forEach((item) => track(item[0], item[1]));
+    }
+    setInterval(flushTracks, 800);
+
+    function apiHeaders() {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-Onboarding-Id": state.onboardingId
+      };
+      const token = localStorage.getItem("nexoraAuthToken") || "";
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return headers;
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, Object.assign({}, options || {}, {
+        headers: Object.assign(apiHeaders(), (options && options.headers) || {})
+      }));
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && path === "/api/onboarding/generate-key") {
+        window.location.assign(`/dashboard?next=${encodeURIComponent(location.pathname)}`);
+        throw new Error("Sign in before generating an API key.");
+      }
+      if (!res.ok) throw new Error(data.detail || data.message || "Request failed");
+      return data;
+    }
+
+    function setStep(index) {
+      state.step = Math.max(0, Math.min(index, steps.length - 1));
+      const id = steps[state.step][0];
+      screens.forEach((screen) => screen.classList.toggle("active", screen.dataset.screen === id));
+      $("screenEyebrow").textContent = `Step ${state.step + 1} of ${steps.length}`;
+      $("screenTitle").textContent = steps[state.step][1];
+      $("screenSubhead").textContent = subheadFor(id);
+      $("backBtn").disabled = state.step === 0;
+      $("progressBar").style.width = `${Math.round((state.step / (steps.length - 1)) * 100)}%`;
+      renderRail();
+      renderDynamicBlocks();
+      if (id === "verify") verifyStatus();
+    }
+
+    function subheadFor(id) {
+      const copy = {
+        welcome: "Start with the fastest path for your project.",
+        framework: "Pick the stack you are integrating today.",
+        apikey: "Generate a new secret or paste an existing one.",
+        install: "Copy the command for your selected framework.",
+        env: "Keep secrets in environment variables.",
+        sample: "Send a test request from the wizard.",
+        verify: "Confirm that Software received the event.",
+        success: "The integration is ready."
+      };
+      return copy[id] || "";
+    }
+
+    function renderRail() {
+      $("stepRail").innerHTML = "";
+      steps.forEach((step, index) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "step";
+        btn.disabled = index > state.step;
+        btn.classList.toggle("active", index === state.step);
+        btn.classList.toggle("complete", index < state.step);
+        btn.innerHTML = `<span class="step-index">${index < state.step ? "OK" : index + 1}</span><span class="step-name"></span>`;
+        btn.querySelector(".step-name").textContent = step[1];
+        if (index <= state.step) btn.addEventListener("click", () => setStep(index));
+        $("stepRail").appendChild(btn);
+      });
+    }
+
+    function renderFrameworks() {
+      const grid = $("frameworkGrid");
+      grid.innerHTML = "";
+      state.frameworks.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "framework-card";
+        btn.classList.toggle("active", state.selected && state.selected.id === item.id);
+        btn.innerHTML = "<strong></strong><span></span>";
+        btn.querySelector("strong").textContent = item.name;
+        btn.querySelector("span").textContent = item.install_command.replace(/^#\s*/, "");
+        btn.addEventListener("click", () => {
+          state.selected = item;
+          track("framework_selected", { framework: item.name });
+          renderFrameworks();
+          setStep(2);
+        });
+        grid.appendChild(btn);
+      });
+      $("frameworkStatus").textContent = state.frameworks.length ? "Choose one framework to continue." : "No frameworks available.";
+      $("frameworkStatus").className = state.frameworks.length ? "status ok" : "status error";
+    }
+
+    function currentFramework() {
+      if (state.selected) return state.selected;
+      state.selected = state.frameworks[0] || null;
+      return state.selected;
+    }
+
+    function renderDynamicBlocks() {
+      const framework = currentFramework();
+      if (!framework) return;
+      $("installLabel").textContent = `${framework.name} install`;
+      $("installCommand").textContent = framework.install_command;
+      $("sampleLabel").textContent = `${framework.name} sample`;
+      $("sampleCode").textContent = framework.sample_code;
+      $("envVars").textContent = [
+        `SOFTWARE_ENDPOINT=${location.origin}`,
+        `SOFTWARE_API_KEY=${state.apiKey || "your_api_key_here"}`
+      ].join("\n");
+    }
+
+    async function loadFrameworks() {
+      try {
+        const data = await api("/api/onboarding/frameworks");
+        state.frameworks = data.frameworks || [];
+        state.selected = state.frameworks[0] || null;
+        renderFrameworks();
+        renderDynamicBlocks();
+        if (!state.trackedStarted) {
+          state.trackedStarted = true;
+          track("onboarding_started", { framework_count: state.frameworks.length });
+        }
+      } catch (error) {
+        $("frameworkStatus").textContent = error.message;
+        $("frameworkStatus").className = "status error";
+      }
+    }
+
+    async function generateKey() {
+      const framework = currentFramework();
+      if (!framework) return;
+      $("generateKeyBtn").disabled = true;
+      try {
+        const data = await api("/api/onboarding/generate-key", {
+          method: "POST",
+          body: JSON.stringify({
+            onboarding_id: state.onboardingId,
+            framework: framework.name,
+            name: `${framework.name} onboarding key`
+          })
+        });
+        state.apiKey = data.api_key || "";
+        $("apiKeyInput").value = state.apiKey;
+        $("newKeyBlock").classList.remove("hidden");
+        $("newKeyValue").textContent = state.apiKey;
+        track("api_key_generated", { framework: framework.name, key_prefix: data.record && data.record.key_prefix });
+        toast("API key generated");
+        setStep(3);
+      } catch (error) {
+        track("onboarding_failed", { step: "generate_key", reason: error.message });
+        toast(error.message);
+      } finally {
+        $("generateKeyBtn").disabled = false;
+      }
+    }
+
+    function useEnteredKey() {
+      state.apiKey = $("apiKeyInput").value.trim();
+      if (!state.apiKey) {
+        toast("Paste an API key first");
+        return;
+      }
+      setStep(3);
+    }
+
+    async function copyText(kind, text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (kind === "install") track("install_command_copied", { framework: currentFramework().name });
+        if (kind === "env") track("onboarding_env_copied", { framework: currentFramework().name });
+        if (kind === "sample") track("onboarding_sample_code_copied", { framework: currentFramework().name });
+        toast("Copied");
+      } catch (error) {
+        toast("Copy failed");
+      }
+    }
+
+    async function sendTestEvent() {
+      const framework = currentFramework();
+      state.apiKey = $("apiKeyInput").value.trim() || state.apiKey;
+      if (!framework) return;
+      if (!state.apiKey) {
+        $("testStatus").textContent = "Generate or enter an API key first.";
+        $("testStatus").className = "status error";
+        track("onboarding_failed", { step: "test_event", reason: "missing_api_key" });
+        return;
+      }
+      $("sendTestBtn").disabled = true;
+      $("testStatus").textContent = "Sending test event...";
+      $("testStatus").className = "status";
+      try {
+        const data = await api("/api/onboarding/test-event", {
+          method: "POST",
+          body: JSON.stringify({
+            onboarding_id: state.onboardingId,
+            framework: framework.name,
+            api_key: state.apiKey,
+            project_id: "onboarding"
+          })
+        });
+        $("testStatus").textContent = `Event received: ${data.event && data.event.trace_id ? data.event.trace_id : "verified"}`;
+        $("testStatus").className = "status ok";
+        track("test_event_sent", { framework: framework.name });
+        setStep(6);
+      } catch (error) {
+        $("testStatus").textContent = error.message;
+        $("testStatus").className = "status error";
+        track("onboarding_failed", { step: "test_event", reason: error.message });
+      } finally {
+        $("sendTestBtn").disabled = false;
+      }
+    }
+
+    async function verifyStatus() {
+      $("verifyStatus").textContent = "Checking connection...";
+      $("verifyStatus").className = "status";
+      try {
+        const data = await api(`/api/onboarding/status?onboarding_id=${encodeURIComponent(state.onboardingId)}`);
+        const status = data.status || {};
+        if (status.verified) {
+          $("verifyStatus").textContent = `Verified with event ${status.test_event_id || "received"}.`;
+          $("verifyStatus").className = "status ok";
+          if (!state.completedTracked) {
+            state.completedTracked = true;
+            track("onboarding_completed", { framework: status.framework || (currentFramework() && currentFramework().name) });
+          }
+          setTimeout(() => setStep(7), 500);
+        } else {
+          $("verifyStatus").textContent = status.last_error || "No verified event yet.";
+          $("verifyStatus").className = status.last_error ? "status error" : "status";
+        }
+      } catch (error) {
+        $("verifyStatus").textContent = error.message;
+        $("verifyStatus").className = "status error";
+        track("onboarding_failed", { step: "verify", reason: error.message });
+      }
+    }
+
+    $("startBtn").addEventListener("click", () => setStep(1));
+    $("backBtn").addEventListener("click", () => setStep(state.step - 1));
+    $("generateKeyBtn").addEventListener("click", generateKey);
+    $("useEnteredKeyBtn").addEventListener("click", useEnteredKey);
+    $("copyKeyBtn").addEventListener("click", () => copyText("key", state.apiKey));
+    $("copyInstallBtn").addEventListener("click", () => copyText("install", $("installCommand").textContent));
+    $("copyEnvBtn").addEventListener("click", () => copyText("env", $("envVars").textContent));
+    $("copySampleBtn").addEventListener("click", () => copyText("sample", $("sampleCode").textContent));
+    $("sendTestBtn").addEventListener("click", sendTestEvent);
+    $("verifyBtn").addEventListener("click", verifyStatus);
+    document.querySelectorAll("[data-next]").forEach((btn) => btn.addEventListener("click", () => setStep(state.step + 1)));
+
+    setStep(0);
+    loadFrameworks();
+  </script>
+</body>
+</html>

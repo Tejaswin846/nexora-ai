@@ -43,6 +43,7 @@ def default_store() -> dict[str, Any]:
     return {
         "events": [],
         "alerts": default_alert_settings(),
+        "alerts_by_user": {},
         "updated_at": now_iso(),
     }
 
@@ -76,6 +77,7 @@ def load_store() -> dict[str, Any]:
             return default_store()
         data.setdefault("events", [])
         data.setdefault("alerts", default_alert_settings())
+        data.setdefault("alerts_by_user", {})
         return data
 
 
@@ -196,7 +198,7 @@ def overview(user_id: str | None = None) -> dict[str, Any]:
             "last_event_at": events[0].get("created_at") if events else None,
         },
         "providers": provider_breakdown(events),
-        "active_alerts": active_alerts(events),
+        "active_alerts": active_alerts(events, user_id=user_id),
     }
 
 
@@ -258,8 +260,13 @@ def sessions(limit: int = 50, user_id: str | None = None) -> list[dict[str, Any]
     return items[: max(1, min(limit, 200))]
 
 
-def get_alert_settings() -> dict[str, Any]:
-    alerts = load_store().get("alerts")
+def get_alert_settings(user_id: str | None = None) -> dict[str, Any]:
+    data = load_store()
+    if user_id:
+        alerts_by_user = data.get("alerts_by_user")
+        alerts = alerts_by_user.get(str(user_id)) if isinstance(alerts_by_user, Mapping) else None
+    else:
+        alerts = data.get("alerts")
     if not isinstance(alerts, dict):
         return default_alert_settings()
     defaults = default_alert_settings()
@@ -267,8 +274,8 @@ def get_alert_settings() -> dict[str, Any]:
     return defaults
 
 
-def update_alert_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
-    current = get_alert_settings()
+def update_alert_settings(settings: Mapping[str, Any], user_id: str | None = None) -> dict[str, Any]:
+    current = get_alert_settings(user_id=user_id)
     for key in ("enabled", "latency_ms_threshold", "error_rate_threshold", "token_usage_threshold", "notify_email", "webhook_url"):
         if key in settings:
             current[key] = settings[key]
@@ -280,13 +287,18 @@ def update_alert_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
     current["webhook_url"] = str(current.get("webhook_url") or "")[:500]
     current["updated_at"] = now_iso()
     data = load_store()
-    data["alerts"] = current
+    if user_id:
+        alerts_by_user = data.get("alerts_by_user") if isinstance(data.get("alerts_by_user"), dict) else {}
+        alerts_by_user[str(user_id)] = current
+        data["alerts_by_user"] = alerts_by_user
+    else:
+        data["alerts"] = current
     save_store(data)
     return current
 
 
 def active_alerts(events: list[dict[str, Any]] | None = None, user_id: str | None = None) -> list[dict[str, Any]]:
-    settings = get_alert_settings()
+    settings = get_alert_settings(user_id=user_id)
     if not settings.get("enabled"):
         return []
     source = events if events is not None else list_events(MAX_EVENTS, user_id=user_id)
@@ -305,9 +317,9 @@ def active_alerts(events: list[dict[str, Any]] | None = None, user_id: str | Non
     return alerts
 
 
-def seed_demo_event() -> dict[str, Any]:
+def seed_demo_event(user_id: str = "demo-user") -> dict[str, Any]:
     return record_ai_request(
-        distinct_id="demo-user",
+        distinct_id=user_id,
         trace_id=f"trace_demo_{uuid.uuid4().hex[:8]}",
         session_id=f"session_demo_{uuid.uuid4().hex[:6]}",
         provider="openai",
@@ -316,5 +328,10 @@ def seed_demo_event() -> dict[str, Any]:
         output_tokens=760,
         latency_ms=1280,
         error=None,
-        metadata={"route": "/api/observability/demo", "mode": "demo", "source": "dashboard"},
+        metadata={
+            "route": "/api/observability/demo",
+            "mode": "demo",
+            "source": "dashboard",
+            "user_id": user_id,
+        },
     )

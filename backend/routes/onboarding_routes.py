@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 try:
@@ -11,11 +11,13 @@ try:
     import customer_dashboard_store
     import onboarding_store
     import posthog_client
+    from dependencies import get_current_user
 except Exception:  # pragma: no cover - package import fallback
     from .. import ai_observability_store
     from .. import customer_dashboard_store
     from .. import onboarding_store
     from .. import posthog_client
+    from ..dependencies import get_current_user
 
 
 router = APIRouter(tags=["onboarding"])
@@ -273,16 +275,26 @@ def get_onboarding_frameworks(request: Request) -> dict[str, Any]:
 
 
 @router.post("/api/onboarding/generate-key")
-def generate_onboarding_key(req: OnboardingGenerateKeyRequest, request: Request) -> dict[str, Any]:
+def generate_onboarding_key(
+    req: OnboardingGenerateKeyRequest,
+    request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     framework = framework_by_name(req.framework, public_base_url(request))
     onboarding_id = onboarding_id_from_request(request, req.onboarding_id)
+    user_id = str(current_user.get("id") or "")
     capture_onboarding_event(
         request,
         "framework_selected",
         onboarding_id=onboarding_id,
         properties={"framework": framework["name"]},
     )
-    created = onboarding_store.create_api_key(onboarding_id, framework["name"], req.name)
+    created = onboarding_store.create_api_key(
+        onboarding_id,
+        framework["name"],
+        req.name,
+        user_id=user_id,
+    )
     capture_onboarding_event(
         request,
         "api_key_generated",

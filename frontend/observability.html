@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Observability - Software</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07080d;
+      --panel: #10131c;
+      --panel-2: #151a25;
+      --line: rgba(255,255,255,.1);
+      --text: #f6f7fb;
+      --muted: #a8afc2;
+      --green: #36d399;
+      --yellow: #f8c14b;
+      --red: #ff6b6b;
+      --cyan: #67e8f9;
+      --shadow: 0 24px 70px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 20% 0%, rgba(103,232,249,.13), transparent 28%),
+                  radial-gradient(circle at 90% 8%, rgba(54,211,153,.1), transparent 26%),
+                  var(--bg);
+      color: var(--text);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(7,8,13,.86);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      letter-spacing: .01em;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #36d399, #67e8f9);
+      color: #061014;
+      font-weight: 900;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .nav a {
+      padding: 9px 12px;
+      border-radius: 8px;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+    }
+
+    .shell {
+      width: min(1420px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 36px 0 56px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    h1 {
+      margin: 12px 0 10px;
+      font-size: clamp(34px, 5vw, 68px);
+      line-height: .96;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 15px;
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      cursor: pointer;
+      font-weight: 750;
+    }
+
+    .btn.primary {
+      color: #061014;
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .stats {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .stat,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+    }
+
+    .stat {
+      padding: 18px;
+      min-height: 118px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 12px;
+      font-size: 31px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .stat em {
+      display: block;
+      margin-top: 10px;
+      color: var(--muted);
+      font-style: normal;
+      font-size: 13px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(340px, .8fr);
+      gap: 16px;
+    }
+
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .panel-sub {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      text-align: left;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      background: rgba(0,0,0,.18);
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 74px;
+      font-weight: 800;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 18px rgba(54,211,153,.5);
+    }
+
+    .status.error .dot {
+      background: var(--red);
+      box-shadow: 0 0 18px rgba(255,107,107,.5);
+    }
+
+    .rows {
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .row-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .row-main span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.075);
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .pill.green { color: var(--green); background: rgba(54,211,153,.12); }
+    .pill.yellow { color: var(--yellow); background: rgba(248,193,75,.13); }
+    .pill.red { color: var(--red); background: rgba(255,107,107,.13); }
+
+    .alerts {
+      padding: 18px 20px 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .field input {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(0,0,0,.26);
+      color: var(--text);
+      padding: 0 12px;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: rgba(103,232,249,.65);
+      box-shadow: 0 0 0 3px rgba(103,232,249,.12);
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 46px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(0,0,0,.22);
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .toggle input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--green);
+    }
+
+    .empty {
+      padding: 34px 20px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 26px;
+      transform: translateX(-50%) translateY(12px);
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #10131c;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: .18s ease;
+      z-index: 20;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 1120px) {
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .layout { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+      .hero { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { width: 100%; overflow-x: auto; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      th:nth-child(3), td:nth-child(3), th:nth-child(5), td:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="mark">S</span>
+      <span>Software+</span>
+    </a>
+    <nav class="nav">
+      <a href="/install">Install</a>
+      <a href="/guide">Guide</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/onboarding">Setup Wizard</a>
+      <a class="active" href="/observability">Observability</a>
+      <a href="/mcp">MCP</a>
+      <a href="/sdk">SDK</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">AI Operations</div>
+        <h1>AI observability dashboard</h1>
+        <p>Monitor model requests, latency, token usage, errors, traces, sessions, and alert rules from one production-grade control surface.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="refreshBtn">Refresh</button>
+        <button class="btn primary" id="demoBtn">Send Demo Event</button>
+      </div>
+    </section>
+
+    <section class="grid stats" id="stats"></section>
+
+    <section class="layout">
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>AI requests</h2>
+              <div class="panel-sub">Recent observed generations and provider calls.</div>
+            </div>
+            <span class="pill" id="requestCount">0 requests</span>
+          </div>
+          <div style="overflow:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Model</th>
+                  <th>Provider</th>
+                  <th>Latency</th>
+                  <th>Tokens</th>
+                  <th>Trace</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="requestsBody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="requestsEmpty">No AI requests observed yet.</div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Traces</h2>
+              <div class="panel-sub">Trace-level rollups with timelines.</div>
+            </div>
+            <span class="pill" id="traceCount">0 traces</span>
+          </div>
+          <div class="rows" id="tracesRows"></div>
+        </section>
+      </div>
+
+      <aside class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Active alerts</h2>
+              <div class="panel-sub">Thresholds are evaluated from observed events.</div>
+            </div>
+          </div>
+          <div class="rows" id="activeAlerts"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Sessions</h2>
+              <div class="panel-sub">Recent sessions with AI activity.</div>
+            </div>
+          </div>
+          <div class="rows" id="sessionsRows"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Configure alerts</h2>
+              <div class="panel-sub">Latency, error-rate, and token thresholds.</div>
+            </div>
+          </div>
+          <form class="alerts" id="alertsForm">
+            <label class="toggle">
+              <span>Alerts enabled</span>
+              <input type="checkbox" id="alertsEnabled">
+            </label>
+            <div class="field">
+              <label for="latencyThreshold">Latency threshold ms</label>
+              <input id="latencyThreshold" type="number" min="0" step="100">
+            </div>
+            <div class="field">
+              <label for="errorThreshold">Error-rate threshold</label>
+              <input id="errorThreshold" type="number" min="0" max="1" step="0.01">
+            </div>
+            <div class="field">
+              <label for="tokenThreshold">Token threshold</label>
+              <input id="tokenThreshold" type="number" min="0" step="100">
+            </div>
+            <div class="field">
+              <label for="notifyEmail">Notify email</label>
+              <input id="notifyEmail" type="email" placeholder="ops@example.com">
+            </div>
+            <div class="field">
+              <label for="webhookUrl">Webhook URL</label>
+              <input id="webhookUrl" type="url" placeholder="https://example.com/webhook">
+            </div>
+            <button class="btn primary" type="submit">Save alert rules</button>
+          </form>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const TOKEN_KEY = "nexoraAuthToken";
+    const $ = (id) => document.getElementById(id);
+    const fmt = new Intl.NumberFormat();
+    const timeFmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+    function authToken() {
+      return localStorage.getItem(TOKEN_KEY) || "";
+    }
+
+    function redirectToLogin() {
+      const next = `${location.pathname}${location.search}`;
+      window.location.assign(`/dashboard?next=${encodeURIComponent(next)}`);
+    }
+
+    async function api(path, options) {
+      const token = authToken();
+      if (!token) {
+        redirectToLogin();
+        throw new Error("Sign in to open observability.");
+      }
+
+      const requestOptions = Object.assign({}, options || {});
+      const headers = new Headers(requestOptions.headers || {});
+      if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+      headers.set("Authorization", `Bearer ${token}`);
+      requestOptions.headers = headers;
+
+      const res = await fetch(path, requestOptions);
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        localStorage.removeItem(TOKEN_KEY);
+        redirectToLogin();
+        throw new Error("Your session expired. Sign in again.");
+      }
+      if (!res.ok) throw new Error(data.detail || data.message || "Request failed");
+      return data;
+    }
+
+    function createNode(tag, className, text) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined) element.textContent = String(text);
+      return element;
+    }
+
+    function textValue(value, fallback) {
+      if (value === null || value === undefined || value === "") return fallback;
+      return String(value);
+    }
+
+    function showEmpty(container, message) {
+      container.replaceChildren(createNode("div", "empty", message));
+    }
+
+    function showToast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => el.classList.remove("show"), 2400);
+    }
+
+    function timeLabel(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "-" : timeFmt.format(date);
+    }
+
+    function stat(label, value, detail, tone) {
+      const card = createNode("article", "stat");
+      card.appendChild(createNode("span", "", label));
+      card.appendChild(createNode("strong", tone || "", value));
+      card.appendChild(createNode("em", "", detail || ""));
+      return card;
+    }
+
+    function renderStats(summary) {
+      $("stats").replaceChildren(
+        stat("Requests", fmt.format(summary.requests || 0), "observed AI calls"),
+        stat("Latency", `${fmt.format(summary.avg_latency_ms || 0)}ms`, `p95 ${fmt.format(summary.p95_latency_ms || 0)}ms`),
+        stat("Tokens", fmt.format(summary.total_tokens || 0), "prompt + completion"),
+        stat("Errors", fmt.format(summary.errors || 0), `${Math.round((summary.error_rate || 0) * 100)}% error rate`),
+        stat("Traces", fmt.format(summary.traces || 0), "execution groups"),
+        stat("Sessions", fmt.format(summary.sessions || 0), "active contexts")
+      );
+    }
+
+    function renderRequests(requests) {
+      $("requestCount").textContent = `${requests.length} requests`;
+      $("requestsEmpty").style.display = requests.length ? "none" : "block";
+      const body = $("requestsBody");
+      body.replaceChildren();
+      requests.forEach((item) => {
+        const ok = item.success !== false;
+        const row = document.createElement("tr");
+        const statusCell = document.createElement("td");
+        const status = createNode("span", `status ${ok ? "" : "error"}`.trim());
+        status.appendChild(createNode("i", "dot"));
+        status.appendChild(document.createTextNode(ok ? "Pass" : "Error"));
+        statusCell.appendChild(status);
+        row.appendChild(statusCell);
+
+        const model = textValue(item.model, "unknown");
+        const modelCell = createNode("td", "", model);
+        modelCell.title = model;
+        row.appendChild(modelCell);
+        row.appendChild(createNode("td", "", textValue(item.provider, "unknown")));
+        row.appendChild(createNode("td", "", `${fmt.format(item.latency_ms || 0)}ms`));
+        row.appendChild(createNode("td", "", fmt.format(item.total_tokens || 0)));
+
+        const traceId = textValue(item.trace_id, "-");
+        const traceCell = createNode("td", "", traceId);
+        traceCell.title = traceId;
+        row.appendChild(traceCell);
+        row.appendChild(createNode("td", "", timeLabel(item.created_at)));
+        body.appendChild(row);
+      });
+    }
+
+    function renderTraces(traces) {
+      $("traceCount").textContent = `${traces.length} traces`;
+      const container = $("tracesRows");
+      if (!traces.length) return showEmpty(container, "No traces yet.");
+      container.replaceChildren();
+      traces.forEach((trace) => {
+        const row = createNode("article", "row");
+        const main = createNode("div", "row-main");
+        const traceId = textValue(trace.trace_id, "unknown");
+        const id = createNode("span", "", traceId);
+        id.title = traceId;
+        main.appendChild(id);
+        main.appendChild(createNode("span", `pill ${trace.errors ? "red" : "green"}`, trace.errors ? "risk" : "clean"));
+        row.appendChild(main);
+
+        const meta = createNode("div", "row-meta");
+        meta.appendChild(createNode("span", "", `${fmt.format(trace.requests || 0)} requests`));
+        meta.appendChild(createNode("span", "", `${fmt.format(trace.latency_ms || 0)}ms`));
+        meta.appendChild(createNode("span", "", `${fmt.format(trace.tokens || 0)} tokens`));
+        meta.appendChild(createNode("span", "", timeLabel(trace.latest_at)));
+        row.appendChild(meta);
+        container.appendChild(row);
+      });
+    }
+
+    function renderSessions(sessions) {
+      const container = $("sessionsRows");
+      if (!sessions.length) return showEmpty(container, "No sessions yet.");
+      container.replaceChildren();
+      sessions.forEach((session) => {
+        const row = createNode("article", "row");
+        const main = createNode("div", "row-main");
+        const sessionId = textValue(session.session_id, "unknown");
+        const id = createNode("span", "", sessionId);
+        id.title = sessionId;
+        main.appendChild(id);
+        main.appendChild(createNode("span", `pill ${session.errors ? "red" : "green"}`, `${session.errors || 0} errors`));
+        row.appendChild(main);
+
+        const meta = createNode("div", "row-meta");
+        meta.appendChild(createNode("span", "", `${fmt.format(session.requests || 0)} requests`));
+        meta.appendChild(createNode("span", "", `${fmt.format(session.avg_latency_ms || 0)}ms avg`));
+        meta.appendChild(createNode("span", "", `${fmt.format(session.tokens || 0)} tokens`));
+        row.appendChild(meta);
+        container.appendChild(row);
+      });
+    }
+
+    function renderAlerts(payload) {
+      const settings = payload.settings || {};
+      $("alertsEnabled").checked = settings.enabled !== false;
+      $("latencyThreshold").value = settings.latency_ms_threshold || 5000;
+      $("errorThreshold").value = settings.error_rate_threshold ?? 0.1;
+      $("tokenThreshold").value = settings.token_usage_threshold || 8000;
+      $("notifyEmail").value = settings.notify_email || "";
+      $("webhookUrl").value = settings.webhook_url || "";
+
+      const alerts = payload.active_alerts || [];
+      const container = $("activeAlerts");
+      if (!alerts.length) return showEmpty(container, "No active alerts.");
+      container.replaceChildren();
+      alerts.forEach((alert) => {
+        const row = createNode("article", "row");
+        const main = createNode("div", "row-main");
+        main.appendChild(createNode("span", "", textValue(alert.message, "Alert triggered.")));
+        const severity = textValue(alert.severity, "warning");
+        main.appendChild(createNode("span", `pill ${severity === "critical" ? "red" : "yellow"}`, severity));
+        row.appendChild(main);
+        const meta = createNode("div", "row-meta");
+        meta.appendChild(createNode("span", "", textValue(alert.type, "alert")));
+        row.appendChild(meta);
+        container.appendChild(row);
+      });
+    }
+
+    async function loadDashboard() {
+      const [overview, requests, traces, sessions, alerts] = await Promise.all([
+        api("/api/observability/overview"),
+        api("/api/observability/requests?limit=80"),
+        api("/api/observability/traces?limit=30"),
+        api("/api/observability/sessions?limit=30"),
+        api("/api/observability/alerts")
+      ]);
+      renderStats(overview.summary || {});
+      renderRequests(requests.requests || []);
+      renderTraces(traces.traces || []);
+      renderSessions(sessions.sessions || []);
+      renderAlerts(alerts);
+    }
+
+    $("refreshBtn").addEventListener("click", () => loadDashboard().then(() => showToast("Dashboard refreshed")));
+    $("demoBtn").addEventListener("click", () => api("/api/observability/demo", { method: "POST", body: "{}" })
+      .then(() => loadDashboard())
+      .then(() => showToast("Demo AI event created"))
+      .catch((error) => showToast(error.message)));
+
+    $("alertsForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const payload = {
+        enabled: $("alertsEnabled").checked,
+        latency_ms_threshold: Number($("latencyThreshold").value || 0),
+        error_rate_threshold: Number($("errorThreshold").value || 0),
+        token_usage_threshold: Number($("tokenThreshold").value || 0),
+        notify_email: $("notifyEmail").value.trim(),
+        webhook_url: $("webhookUrl").value.trim()
+      };
+      api("/api/observability/alerts", { method: "POST", body: JSON.stringify(payload) })
+        .then(renderAlerts)
+        .then(() => showToast("Alert rules saved"))
+        .catch((error) => showToast(error.message));
+    });
+
+    if (!authToken()) {
+      redirectToLogin();
+    } else {
+      loadDashboard().catch((error) => showToast(error.message));
+    }
+  </script>
+</body>
+</html>

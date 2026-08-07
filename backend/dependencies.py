@@ -5,15 +5,21 @@ from typing import Any, Callable, Iterator
 from fastapi import Request
 
 try:
-    import runtime
     from config import Settings, get_settings
     from database import DatabaseSession, session_scope
     from supabase_client import SupabaseAuthClient
 except Exception:
-    from . import runtime
     from .config import Settings, get_settings
     from .database import DatabaseSession, session_scope
     from .supabase_client import SupabaseAuthClient
+
+
+def get_runtime_module():
+    try:
+        import runtime
+    except Exception:
+        from . import runtime
+    return runtime
 
 
 def get_db() -> Iterator[DatabaseSession]:
@@ -21,15 +27,15 @@ def get_db() -> Iterator[DatabaseSession]:
 
 
 def get_current_user(request: Request) -> dict[str, Any]:
-    return runtime.require_authenticated_user(request)
+    return get_runtime_module().require_authenticated_user(request)
 
 
 def get_rate_limiter() -> Callable[[Request], dict[str, Any]]:
-    return runtime.check_rate_limit
+    return get_runtime_module().check_rate_limit
 
 
 def get_supabase() -> SupabaseAuthClient:
-    return runtime.supabase_auth_client
+    return get_runtime_module().supabase_auth_client
 
 
 def get_runtime_settings() -> Settings:

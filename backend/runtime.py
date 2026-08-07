@@ -1496,6 +1496,7 @@ def register_request_user(
         user_id = register_user(None, session_id)
     else:
         user_id = register_user(supplied_user_id, session_id)
+    request.state.nexora_user_id = user_id
     if session_id:
         register_user(user_id, session_id)
         bind_session_user(ensure_session(session_id), user_id)
@@ -17149,7 +17150,7 @@ def customer_dashboard_payload(user: Dict[str, Any]) -> Dict[str, Any]:
         "traces": traces,
         "sessions": sessions,
         "alerts": {
-            "settings": ai_observability_store.get_alert_settings(),
+            "settings": ai_observability_store.get_alert_settings(user_id=user_id),
             "active_alerts": ai_observability_store.active_alerts(user_id=user_id),
         },
     }
@@ -17838,8 +17839,16 @@ def local_specialist_fast_response(
 
 
 def posthog_distinct_id_for_chat(req: ChatRequest, request: Request, session_id: Optional[str] = None) -> str:
+    authenticated_user_id = str(getattr(request.state, "nexora_user_id", "") or "")
+    if not authenticated_user_id:
+        try:
+            authenticated_user = optional_authenticated_user(request)
+            authenticated_user_id = str((authenticated_user or {}).get("id") or "")
+        except HTTPException:
+            authenticated_user_id = ""
     return (
-        request.headers.get("x-user-id")
+        authenticated_user_id
+        or request.headers.get("x-user-id")
         or request.headers.get("x-posthog-distinct-id")
         or req.user_id
         or session_id
