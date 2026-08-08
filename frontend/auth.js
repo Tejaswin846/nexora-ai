@@ -91,19 +91,71 @@
     };
   }
 
-  function loadClerkSdk() {
+  function clerkFrontendApi(config) {
+    const encoded = String(config.clerk_publishable_key || "").split("_").slice(2).join("_");
+    if (encoded) {
+      try {
+        const decoded = atob(encoded).replace(/\$$/, "");
+        if (decoded) return decoded;
+      } catch (_error) {
+        // Fall back to the configured issuer when the key is not decodable.
+      }
+    }
+    try {
+      return new URL(config.clerk_jwt_issuer || "").host;
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function loadScriptOnce(id, src, attributes) {
     return new Promise((resolve, reject) => {
-      if (window.Clerk) {
-        resolve();
+      const existing = document.getElementById(id);
+      if (existing) {
+        if (existing.dataset.loaded === "true") resolve();
+        else {
+          existing.addEventListener("load", resolve, { once: true });
+          existing.addEventListener("error", reject, { once: true });
+        }
         return;
       }
       const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
+      script.id = id;
+      script.src = src;
       script.async = true;
-      script.onload = resolve;
+      script.crossOrigin = "anonymous";
+      Object.entries(attributes || {}).forEach(([name, value]) => script.setAttribute(name, value));
+      script.onload = () => {
+        script.dataset.loaded = "true";
+        resolve();
+      };
       script.onerror = () => reject(new Error("Could not load Clerk authentication SDK."));
       document.head.appendChild(script);
     });
+  }
+
+  async function loadClerkSdk(config) {
+    if (window.Clerk) return;
+    const frontendApi = clerkFrontendApi(config);
+    if (!frontendApi) throw new Error("Clerk frontend API is unavailable.");
+    const baseUrl = `https://${frontendApi}/npm`;
+    await loadScriptOnce("nexora-clerk-ui", `${baseUrl}/@clerk/ui@1/dist/ui.browser.js`);
+    await loadScriptOnce(
+      "nexora-clerk-js",
+      `${baseUrl}/@clerk/clerk-js@6/dist/clerk.browser.js`,
+      { "data-clerk-publishable-key": config.clerk_publishable_key },
+    );
+  }
+
+  function createClerkInstance(config) {
+    const exported = window.Clerk;
+    if (!exported) throw new Error("Clerk authentication SDK did not initialize.");
+    if (typeof exported === "function") return new exported(config.clerk_publishable_key);
+    if (typeof exported.Clerk === "function") return new exported.Clerk(config.clerk_publishable_key);
+    if (typeof exported.default === "function") return new exported.default(config.clerk_publishable_key);
+    if (typeof exported.load === "function") return exported;
+    if (exported.default && typeof exported.default.load === "function") return exported.default;
+    throw new Error("Clerk authentication SDK is incompatible with this deployment.");
   }
 
   async function loadConfig() {
@@ -208,9 +260,13 @@
     };
     try {
       await loadConfig();
-      await loadClerkSdk();
-      clerk = new window.Clerk(authConfig.clerk_publishable_key);
-      await clerk.load();
+      await loadClerkSdk(authConfig);
+      clerk = createClerkInstance(authConfig);
+      const loadOptions = { publishableKey: authConfig.clerk_publishable_key };
+      if (window.__internal_ClerkUICtor) {
+        loadOptions.ui = { ClerkUI: window.__internal_ClerkUICtor };
+      }
+      await clerk.load(loadOptions);
       if (clerk.session) {
         await refreshClerkSession();
         await syncBackendProfile();
