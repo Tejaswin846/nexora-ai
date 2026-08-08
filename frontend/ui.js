@@ -29,14 +29,24 @@
   function buildBar() {
     if (!document.body || document.querySelector(".mx-global-bar")) return;
 
-    var route = currentRoute(window.location.pathname);
-    var links = [
+    var pageKind = document.body.dataset.matrixsPage || "";
+    var reliabilityApp = pageKind === "reliability" || pageKind === "ai-tester";
+    var route = reliabilityApp ? window.location.pathname : currentRoute(window.location.pathname);
+    var links = reliabilityApp ? [
+      ["/", "Home"],
+      ["/dashboard", "Reliability"],
+      ["/onboarding", "Setup"],
+      ["/failure-analysis", "Failures"],
+      ["/developer-docs", "Docs"]
+    ] : [
       ["/", "Workbench"],
       ["/dashboard", "Reliability"],
       ["/onboarding", "Setup"],
       ["/observability", "Observe"],
       ["/guide", "Docs"]
     ];
+    var ctaHref = reliabilityApp ? "/onboarding" : "/onboarding";
+    var ctaLabel = reliabilityApp ? "Connect a project" : "Protect an app";
     var header = document.createElement("header");
     header.className = "mx-global-bar";
     header.setAttribute("data-ui", "matrixs-global-navigation");
@@ -53,7 +63,7 @@
           }).join("") +
         '</nav>' +
         '<div class="mx-global-actions">' +
-          '<a class="mx-global-cta" href="/onboarding">Protect an app</a>' +
+          '<a class="mx-global-cta" href="' + ctaHref + '">' + ctaLabel + '</a>' +
           '<button class="mx-menu-button" type="button" aria-expanded="false" aria-controls="mx-global-nav" aria-label="Open navigation">' + menuIcon() + '</button>' +
         '</div>' +
       '</div>';
