@@ -12801,6 +12801,11 @@ def root() -> HTMLResponse:
     return web_app()
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> HTMLResponse:
+    return HTMLResponse(content="", status_code=204)
+
+
 @app.get("/nexora", response_class=HTMLResponse)
 def nexora_web_app() -> HTMLResponse:
     return web_app()
