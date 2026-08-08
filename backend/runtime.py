@@ -630,6 +630,8 @@ CODE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "code.html"
 RESET_PASSWORD_INDEX = BASE_DIR.parent / "frontend" / "reset-password.html"
 AUTH_CONTROLLER_INDEX = BASE_DIR.parent / "frontend" / "auth.js"
 POSTHOG_BROWSER_SCRIPT = BASE_DIR.parent / "frontend" / "posthog.js"
+SHARED_UI_STYLES = BASE_DIR.parent / "frontend" / "ui.css"
+SHARED_UI_SCRIPT = BASE_DIR.parent / "frontend" / "ui.js"
 OBSERVABILITY_INDEX = BASE_DIR.parent / "frontend" / "observability.html"
 DASHBOARD_INDEX = BASE_DIR.parent / "frontend" / "dashboard.html"
 ONBOARDING_INDEX = BASE_DIR.parent / "frontend" / "onboarding.html"
@@ -16552,6 +16554,28 @@ def posthog_browser_script() -> HTMLResponse:
         return HTMLResponse("window.NexoraPostHogUnavailable=true;", media_type="application/javascript", status_code=404)
     return HTMLResponse(
         POSTHOG_BROWSER_SCRIPT.read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@static_router.get("/ui.css", response_class=HTMLResponse, include_in_schema=False)
+def shared_ui_styles() -> HTMLResponse:
+    if not SHARED_UI_STYLES.exists():
+        return HTMLResponse("/* Matrixs shared UI stylesheet not found. */", media_type="text/css", status_code=404)
+    return HTMLResponse(
+        SHARED_UI_STYLES.read_text(encoding="utf-8"),
+        media_type="text/css",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@static_router.get("/ui.js", response_class=HTMLResponse, include_in_schema=False)
+def shared_ui_script() -> HTMLResponse:
+    if not SHARED_UI_SCRIPT.exists():
+        return HTMLResponse("window.__matrixsUiReady=false;", media_type="application/javascript", status_code=404)
+    return HTMLResponse(
+        SHARED_UI_SCRIPT.read_text(encoding="utf-8"),
         media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=300"},
     )

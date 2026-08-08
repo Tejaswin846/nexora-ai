@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>21st MCP Console - Software</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b0f;
+      --surface: #0f141a;
+      --surface-2: #151b23;
+      --surface-3: #0b1016;
+      --line: rgba(255,255,255,.11);
+      --line-strong: rgba(255,255,255,.18);
+      --text: #f8fafc;
+      --muted: #9da8b5;
+      --soft: #cdd6df;
+      --green: #3bdd9d;
+      --cyan: #74e4f6;
+      --blue: #8cb7ff;
+      --amber: #f4c35a;
+      --red: #ff7373;
+      --ink: #061014;
+      --shadow: 0 24px 70px rgba(0,0,0,.34);
+      --shadow-soft: 0 16px 42px rgba(0,0,0,.22);
+    }
+
+    * { box-sizing: border-box; }
+    html { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(116,228,246,.08), transparent 280px),
+        linear-gradient(120deg, rgba(59,221,157,.08), transparent 34%),
+        var(--bg);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+    button { border: 0; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(8,11,15,.9);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      font-weight: 950;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 780;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      color: var(--text);
+      border-color: var(--line);
+      background: rgba(255,255,255,.06);
+    }
+
+    .shell {
+      width: min(1360px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 28px 0 60px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 470px);
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+
+    .hero-main,
+    .command-center,
+    .panel,
+    .stat,
+    .mini-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.027));
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      min-height: 360px;
+      display: grid;
+      align-content: space-between;
+      padding: clamp(24px, 4vw, 42px);
+      overflow: hidden;
+      position: relative;
+      isolation: isolate;
+    }
+
+    .hero-main::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(90deg, black, transparent 82%);
+      opacity: .7;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 860px;
+      margin: 18px 0 14px;
+      font-size: clamp(40px, 6vw, 82px);
+      line-height: .95;
+      letter-spacing: 0;
+    }
+
+    .hero-main p,
+    .muted {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.58;
+    }
+
+    .hero-main p {
+      max-width: 710px;
+      font-size: 16px;
+    }
+
+    .hero-actions,
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.045);
+      font-size: 12px;
+      font-weight: 860;
+      white-space: nowrap;
+    }
+
+    .pill.ok {
+      color: var(--green);
+      border-color: rgba(59,221,157,.35);
+      background: rgba(59,221,157,.12);
+    }
+
+    .pill.warn {
+      color: var(--amber);
+      border-color: rgba(244,195,90,.36);
+      background: rgba(244,195,90,.12);
+    }
+
+    .pill.info {
+      color: var(--cyan);
+      border-color: rgba(116,228,246,.36);
+      background: rgba(116,228,246,.12);
+    }
+
+    .btn {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      cursor: pointer;
+      font-weight: 850;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(116,228,246,.36);
+      background: rgba(255,255,255,.09);
+    }
+
+    .btn.primary {
+      color: var(--ink);
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+    }
+
+    .btn.icon {
+      width: 42px;
+      padding: 0;
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .command-center {
+      display: grid;
+      gap: 16px;
+      padding: 20px;
+    }
+
+    .center-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .center-head h2,
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 2.5vw, 30px);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .health-ring {
+      width: 86px;
+      height: 86px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background:
+        conic-gradient(var(--amber) 0 70%, rgba(255,255,255,.12) 70% 100%);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset;
+      flex: 0 0 auto;
+    }
+
+    .health-ring span {
+      width: 68px;
+      height: 68px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: var(--amber);
+      background: var(--surface);
+      font-weight: 950;
+    }
+
+    .status-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,.095);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .dot {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: var(--ink);
+      background: var(--green);
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .dot.warn { background: var(--amber); }
+    .dot.info { background: var(--cyan); }
+
+    .status-row strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 14px;
+    }
+
+    .status-row span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      min-height: 118px;
+      padding: 18px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      display: block;
+      margin: 12px 0 4px;
+      color: var(--text);
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1;
+    }
+
+    .stat p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      padding: clamp(18px, 3vw, 26px);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(160px, 210px);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(0,0,0,.22);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(116,228,246,.58);
+      box-shadow: 0 0 0 3px rgba(116,228,246,.12);
+    }
+
+    .hint-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.09);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .codebox {
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      background: #080c11;
+    }
+
+    .codebar {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      color: var(--muted);
+      background: rgba(255,255,255,.035);
+      font-size: 13px;
+      font-weight: 820;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      max-height: 360px;
+      overflow: auto;
+      color: #d8f7eb;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .mini-card {
+      padding: 15px;
+      box-shadow: none;
+      background: rgba(255,255,255,.035);
+    }
+
+    .mini-card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .mini-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.48;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+    }
+
+    .node {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      padding: 13px;
+      border: 1px solid rgba(255,255,255,.095);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .node-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--green);
+      font-weight: 950;
+    }
+
+    .node:nth-child(2) .node-icon { background: var(--cyan); }
+    .node:nth-child(3) .node-icon { background: var(--amber); }
+    .node:nth-child(4) .node-icon { background: var(--blue); }
+
+    .node strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 14px;
+    }
+
+    .node span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 60;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      color: var(--text);
+      background: rgba(15,20,26,.95);
+      box-shadow: var(--shadow);
+      transform: translate(-50%, 16px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @media (max-width: 1000px) {
+      .hero,
+      .layout { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 720px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { width: 100%; }
+      .stats,
+      .mini-grid,
+      .form-grid { grid-template-columns: 1fr; }
+      .panel-head,
+      .center-head { flex-direction: column; }
+      .status-row { grid-template-columns: 30px minmax(0, 1fr); }
+      .status-row .pill { grid-column: 2; justify-self: start; }
+      .hero-actions .btn,
+      .actions .btn { flex: 1 1 180px; }
+      h1 { font-size: clamp(36px, 12vw, 54px); }
+    }
+  </style>
+  <link rel="stylesheet" href="/ui.css?v=20260808">
+  <script src="/ui.js?v=20260808" defer></script>
+</head>
+<body data-matrixs-page="mcp">
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="mark">S</span>
+      <span>Software+</span>
+    </a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/guide">Guide</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/onboarding">Setup Wizard</a>
+      <a href="/observability">Observability</a>
+      <a class="active" href="/mcp">MCP</a>
+      <a href="/code">Code</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-main">
+        <div class="hero-top">
+          <div class="eyebrow">Integration Console</div>
+          <div class="hero-actions">
+            <span class="pill info">Remote MCP</span>
+            <span class="pill warn" id="heroStatus">Awaiting key</span>
+          </div>
+        </div>
+        <div>
+          <h1>21st design MCP for Nexora.</h1>
+          <p>A polished control surface for connecting Codex to 21st, generating install commands, and keeping secrets in the right place.</p>
+        </div>
+        <div class="hero-actions">
+          <button class="btn primary" type="button" id="copyAllBtn">
+            <svg viewBox="0 0 24 24"><rect x="8" y="8" width="10" height="12" rx="2"></rect><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copy setup
+          </button>
+          <a class="btn" href="/dashboard">Open dashboard</a>
+        </div>
+      </div>
+
+      <aside class="command-center" aria-label="21st MCP readiness">
+        <div class="center-head">
+          <div>
+            <h2>Readiness</h2>
+            <p class="muted" id="statusCopy">MCP server is configured. Add the environment key, then restart Codex.</p>
+          </div>
+          <div class="health-ring" aria-hidden="true"><span id="healthScore">70%</span></div>
+        </div>
+
+        <div class="status-stack">
+          <div class="status-row">
+            <span class="dot">1</span>
+            <div><strong>Server registered</strong><span>https://21st.dev/api/mcp</span></div>
+            <span class="pill ok">Done</span>
+          </div>
+          <div class="status-row">
+            <span class="dot warn" id="keyDot">2</span>
+            <div><strong>API key source</strong><span id="keyCopy">API_KEY_21ST is required at startup.</span></div>
+            <span class="pill warn" id="statusPill">Needs key</span>
+          </div>
+          <div class="status-row">
+            <span class="dot info">3</span>
+            <div><strong>Session refresh</strong><span>Restart Codex after saving the key.</span></div>
+            <span class="pill info">Manual</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="stats" aria-label="MCP facts">
+      <article class="stat">
+        <label>Server</label>
+        <strong>21st</strong>
+        <p>Remote MCP endpoint for design intelligence.</p>
+      </article>
+      <article class="stat">
+        <label>Header</label>
+        <strong>x-api-key</strong>
+        <p>Resolved from API_KEY_21ST, not hardcoded.</p>
+      </article>
+      <article class="stat">
+        <label>Client</label>
+        <strong>Codex</strong>
+        <p>Configured through local MCP settings.</p>
+      </article>
+      <article class="stat">
+        <label>Scope</label>
+        <strong>UI/UX</strong>
+        <p>Built for page, component, and review work.</p>
+      </article>
+    </section>
+
+    <section class="layout">
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Command generator</h2>
+              <p class="muted">Generate the installer and environment commands without storing the key in the page.</p>
+            </div>
+            <div class="actions">
+              <button class="btn primary" type="button" id="copyGeneratedBtn">Copy generated commands</button>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label for="apiKeyInput">21st API key</label>
+              <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste key to generate exact commands">
+            </div>
+            <div class="field">
+              <label for="clientSelect">Client</label>
+              <select id="clientSelect">
+                <option value="codex">Codex</option>
+                <option value="cursor">Cursor</option>
+                <option value="claude">Claude Code</option>
+                <option value="windsurf">Windsurf</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="hint-row">
+            <span>Secret handling: browser-only preview, no network submit, no local save.</span>
+            <span class="pill" id="secretMode">Placeholder mode</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Codex MCP block</h2>
+              <p class="muted">The active local configuration for the 21st server.</p>
+            </div>
+          </div>
+          <div class="codebox">
+            <div class="codebar">
+              <span>C:\Users\user\.codex\config.toml</span>
+              <button class="btn icon" type="button" data-copy="codexConfig" title="Copy Codex config" aria-label="Copy Codex config">
+                <svg viewBox="0 0 24 24"><rect x="8" y="8" width="10" height="12" rx="2"></rect><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+            <pre id="codexConfig">[mcp_servers."21st"]
+url = "https://21st.dev/api/mcp"
+enabled = true
+
+[mcp_servers."21st".env_http_headers]
+"x-api-key" = "API_KEY_21ST"</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Generated commands</h2>
+              <p class="muted">Run the environment command, then restart Codex.</p>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="codebox">
+              <div class="codebar">
+                <span>Installer</span>
+                <button class="btn icon" type="button" data-copy="cliCommand" title="Copy CLI command" aria-label="Copy CLI command">
+                  <svg viewBox="0 0 24 24"><rect x="8" y="8" width="10" height="12" rx="2"></rect><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+              </div>
+              <pre id="cliCommand">npx @21st-dev/cli@latest install codex --api-key &lt;key&gt;</pre>
+            </div>
+            <div class="codebox">
+              <div class="codebar">
+                <span>Windows environment</span>
+                <button class="btn icon" type="button" data-copy="envCommand" title="Copy PowerShell command" aria-label="Copy PowerShell command">
+                  <svg viewBox="0 0 24 24"><rect x="8" y="8" width="10" height="12" rx="2"></rect><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+              </div>
+              <pre id="envCommand">[Environment]::SetEnvironmentVariable("API_KEY_21ST", "&lt;key&gt;", "User")</pre>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Integration path</h2>
+              <p class="muted">The operational flow from request to generated UI.</p>
+            </div>
+          </div>
+          <div class="flow">
+            <div class="node">
+              <div class="node-icon">NX</div>
+              <div><strong>Nexora task</strong><span>UI request, screen build, component polish, or review.</span></div>
+            </div>
+            <div class="node">
+              <div class="node-icon">CX</div>
+              <div><strong>Codex client</strong><span>Loads the 21st MCP endpoint from local config.</span></div>
+            </div>
+            <div class="node">
+              <div class="node-icon">21</div>
+              <div><strong>21st MCP</strong><span>Provides external design intelligence through the MCP channel.</span></div>
+            </div>
+            <div class="node">
+              <div class="node-icon">UI</div>
+              <div><strong>Production pass</strong><span>Changes land in the repo and get checked in browser.</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Runtime checklist</h2>
+              <p class="muted">A compact handoff for finishing authentication.</p>
+            </div>
+          </div>
+          <div class="mini-grid">
+            <article class="mini-card">
+              <h3>1. Save key</h3>
+              <p>Set API_KEY_21ST in the Windows user environment.</p>
+            </article>
+            <article class="mini-card">
+              <h3>2. Restart</h3>
+              <p>Reopen Codex so the MCP header resolves from env.</p>
+            </article>
+            <article class="mini-card">
+              <h3>3. Verify</h3>
+              <p>Run codex mcp list and confirm 21st authenticates.</p>
+            </article>
+            <article class="mini-card">
+              <h3>4. Build</h3>
+              <p>Use the MCP-backed UI workflow for design tasks.</p>
+            </article>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const keyInput = $("apiKeyInput");
+    const clientSelect = $("clientSelect");
+    let toastTimer = null;
+
+    function cleanText(text) {
+      return text ? text.trim() : "";
+    }
+
+    function toast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 1500);
+    }
+
+    function commandKey() {
+      return keyInput.value.trim() || "<key>";
+    }
+
+    function updateCommands() {
+      const key = commandKey();
+      const client = clientSelect.value || "codex";
+      const hasKey = key !== "<key>";
+
+      $("cliCommand").textContent = `npx @21st-dev/cli@latest install ${client} --api-key ${key}`;
+      $("envCommand").textContent = `[Environment]::SetEnvironmentVariable("API_KEY_21ST", "${key}", "User")`;
+      $("statusPill").textContent = hasKey ? "Ready" : "Needs key";
+      $("statusPill").className = `pill ${hasKey ? "ok" : "warn"}`;
+      $("heroStatus").textContent = hasKey ? "Ready to apply" : "Awaiting key";
+      $("heroStatus").className = `pill ${hasKey ? "ok" : "warn"}`;
+      $("secretMode").textContent = hasKey ? "Key preview active" : "Placeholder mode";
+      $("secretMode").className = `pill ${hasKey ? "ok" : ""}`;
+      $("keyDot").className = `dot ${hasKey ? "" : "warn"}`;
+      $("keyCopy").textContent = hasKey ? "Copy the command, run it in PowerShell, then restart Codex." : "API_KEY_21ST is required at startup.";
+      $("statusCopy").textContent = hasKey ? "Commands are generated locally. Apply the env command and restart Codex." : "MCP server is configured. Add the environment key, then restart Codex.";
+      $("healthScore").textContent = hasKey ? "95%" : "70%";
+    }
+
+    async function copyText(text) {
+      await navigator.clipboard.writeText(text);
+      toast("Copied");
+    }
+
+    function generatedCommands() {
+      return [
+        $("envCommand").textContent,
+        "",
+        $("cliCommand").textContent,
+      ].join("\n");
+    }
+
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", () => copyText(cleanText($(button.dataset.copy).textContent)));
+    });
+
+    $("copyAllBtn").addEventListener("click", () => {
+      copyText([generatedCommands(), "", $("codexConfig").textContent].join("\n"));
+    });
+
+    $("copyGeneratedBtn").addEventListener("click", () => {
+      copyText(generatedCommands());
+    });
+
+    keyInput.addEventListener("input", updateCommands);
+    clientSelect.addEventListener("change", updateCommands);
+    updateCommands();
+  </script>
+</body>
+</html>

@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard - Software</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06070b;
+      --panel: #11151f;
+      --panel-2: #171d2a;
+      --line: rgba(255,255,255,.1);
+      --text: #f8fafc;
+      --muted: #a7b0c3;
+      --green: #35d39b;
+      --yellow: #f7c74c;
+      --red: #ff6d6d;
+      --blue: #7dd3fc;
+      --ink: #061014;
+      --shadow: 0 28px 80px rgba(0,0,0,.36);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 12% 0%, rgba(53,211,155,.16), transparent 30%),
+                  radial-gradient(circle at 88% 4%, rgba(125,211,252,.13), transparent 28%),
+                  var(--bg);
+    }
+
+    button, input, select, textarea { font: inherit; }
+    a { color: inherit; text-decoration: none; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(6,7,11,.86);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--green), var(--blue));
+      color: var(--ink);
+      font-weight: 950;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .nav a, .ghost {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .nav a.active, .nav a:hover, .ghost:hover {
+      color: var(--text);
+      border-color: var(--line);
+      background: rgba(255,255,255,.06);
+    }
+
+    .shell {
+      width: min(1420px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 34px 0 56px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 22px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .11em;
+    }
+
+    h1 {
+      margin: 10px 0;
+      font-size: clamp(34px, 5vw, 64px);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    .card, .stat, .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+    }
+
+    .auth-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 460px);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .card {
+      padding: clamp(20px, 4vw, 32px);
+    }
+
+    .checklist {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 50px;
+      padding: 0 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px;
+      background: rgba(0,0,0,.18);
+      font-weight: 800;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.08);
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .pill.green { color: var(--green); background: rgba(53,211,155,.13); }
+    .pill.yellow { color: var(--yellow); background: rgba(247,199,76,.13); }
+    .pill.red { color: var(--red); background: rgba(255,109,109,.13); }
+
+    .form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 43px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(0,0,0,.3);
+      color: var(--text);
+      padding: 0 12px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 86px;
+      padding-top: 11px;
+      resize: vertical;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(125,211,252,.7);
+      box-shadow: 0 0 0 3px rgba(125,211,252,.12);
+    }
+
+    .btn {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 15px;
+      cursor: pointer;
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+      font-weight: 900;
+    }
+
+    .btn.primary {
+      color: var(--ink);
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--green), var(--blue));
+    }
+
+    .btn.danger {
+      border-color: rgba(255,109,109,.4);
+      color: #ffd6d6;
+      background: rgba(255,109,109,.11);
+    }
+
+    .btn:disabled {
+      opacity: .52;
+      cursor: not-allowed;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .tabs button.active {
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--green), var(--blue));
+      border-color: transparent;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      min-height: 116px;
+      padding: 17px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 12px;
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    .stat em {
+      display: block;
+      margin-top: 10px;
+      color: var(--muted);
+      font-style: normal;
+      font-size: 13px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(340px, .78fr);
+      gap: 16px;
+    }
+
+    .panel {
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .panel-sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 3px;
+    }
+
+    .panel-body {
+      padding: 18px 20px 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      background: rgba(0,0,0,.18);
+    }
+
+    code, pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.36);
+      color: #dcfce7;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .rows {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      gap: 7px;
+      padding: 13px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.035);
+    }
+
+    .row-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+      font-weight: 900;
+    }
+
+    .row-main span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 28px 8px;
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status.error { color: #fca5a5; }
+    .status.ok { color: #86efac; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 26px;
+      transform: translateX(-50%) translateY(12px);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 40;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #11151f;
+      box-shadow: var(--shadow);
+      transition: .18s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 1140px) {
+      .hero, .auth-grid, .layout { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 720px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { width: 100%; overflow-x: auto; }
+      .stats, .grid-2 { grid-template-columns: 1fr 1fr; }
+      th:nth-child(3), td:nth-child(3), th:nth-child(6), td:nth-child(6) { display: none; }
+    }
+
+    @media (max-width: 520px) {
+      .stats, .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+  <link rel="stylesheet" href="/ui.css?v=20260808">
+  <script src="/ui.js?v=20260808" defer></script>
+</head>
+<body data-matrixs-page="dashboard">
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="mark">S</span>
+      <span>Software+</span>
+    </a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/guide">Guide</a>
+      <a class="active" href="/dashboard">Dashboard</a>
+      <a href="/onboarding">Setup Wizard</a>
+      <a href="/observability">Observability</a>
+      <a href="/mcp">MCP</a>
+      <a href="/code">Code</a>
+      <button class="ghost hidden" id="logoutBtn" type="button">Logout</button>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Software cloud</div>
+        <h1 id="headline">Your Software dashboard</h1>
+        <p id="subhead">Sign in, create an API key, connect a project, and watch the dashboard update from real Software usage.</p>
+      </div>
+      <div>
+        <span class="pill yellow" id="phasePill">Signed out</span>
+      </div>
+    </section>
+
+    <section id="signedOutView" class="auth-grid">
+      <div class="card">
+        <div class="eyebrow">Start here</div>
+        <h1 style="font-size:clamp(30px,4vw,54px)">Install first. Sign in when cloud data matters.</h1>
+        <p style="color:var(--muted);line-height:1.65;margin:0">SDK docs and local usage stay public. Your private dashboard appears after signup and then changes as your project sends requests, traces, sessions, errors, and token usage.</p>
+        <div class="checklist">
+          <div class="check"><span>Install Software</span><span class="pill green">public</span></div>
+          <div class="check"><span>Create account</span><span class="pill yellow">cloud</span></div>
+          <div class="check"><span>Copy API key</span><span class="pill yellow">private</span></div>
+          <div class="check"><span>Send first event</span><span class="pill green">live</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="tabs">
+          <button class="btn active" id="signInTab" type="button">Sign in</button>
+          <button class="btn" id="signUpTab" type="button">Sign up</button>
+        </div>
+        <form class="form" id="authForm">
+          <div class="field" id="nameField">
+            <label for="nameInput">Name</label>
+            <input id="nameInput" autocomplete="name" placeholder="Avery">
+          </div>
+          <div class="field">
+            <label for="emailInput">Email</label>
+            <input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com">
+          </div>
+          <div class="field">
+            <label for="passwordInput">Password</label>
+            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="At least 6 characters">
+          </div>
+          <button class="btn primary" id="authSubmit" type="submit">Sign in</button>
+          <div class="status" id="authStatus"></div>
+        </form>
+      </div>
+    </section>
+
+    <section id="dashboardView" class="hidden">
+      <section class="stats" id="stats"></section>
+
+      <section class="layout">
+        <div class="rows">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Setup state</h2>
+                <div class="panel-sub" id="nextAction">Create an API key to begin.</div>
+              </div>
+              <button class="btn" id="refreshBtn" type="button">Refresh</button>
+            </div>
+            <div class="panel-body">
+              <div class="checklist" id="setupChecklist"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>AI requests</h2>
+                <div class="panel-sub">Latest events from this account.</div>
+              </div>
+              <span class="pill" id="requestCount">0 requests</span>
+            </div>
+            <div style="overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Model</th>
+                    <th>Provider</th>
+                    <th>Latency</th>
+                    <th>Tokens</th>
+                    <th>Trace</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody id="requestsBody"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="requestsEmpty">No project events yet.</div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Integration snippet</h2>
+                <div class="panel-sub">Generated from your latest key and project.</div>
+              </div>
+              <button class="btn" id="copySnippetBtn" type="button">Copy snippet</button>
+            </div>
+            <div class="panel-body">
+              <pre id="snippetBox">Create an API key and project to generate a snippet.</pre>
+            </div>
+          </section>
+        </div>
+
+        <aside class="rows">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>API keys</h2>
+                <div class="panel-sub">Full keys are shown once.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="keyName">Key name</label>
+                  <input id="keyName" value="Default cloud key">
+                </div>
+                <div class="field">
+                  <label>&nbsp;</label>
+                  <button class="btn primary" id="createKeyBtn" type="button">Create API key</button>
+                </div>
+              </div>
+              <div id="newKeyBox" class="hidden">
+                <label>New API key</label>
+                <pre id="newKeyValue"></pre>
+                <button class="btn" id="copyKeyBtn" type="button">Copy API key</button>
+              </div>
+              <div class="rows" id="keysRows"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Projects</h2>
+                <div class="panel-sub">Connected workspaces for this user.</div>
+              </div>
+            </div>
+            <form class="panel-body" id="projectForm">
+              <div class="field">
+                <label for="projectName">Project name</label>
+                <input id="projectName" placeholder="my-agent">
+              </div>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="framework">Framework</label>
+                  <select id="framework">
+                    <option>JavaScript</option>
+                    <option>Python</option>
+                    <option>Node</option>
+                    <option>Generic HTTP</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="environment">Environment</label>
+                  <select id="environment">
+                    <option>Production</option>
+                    <option>Staging</option>
+                    <option>Development</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="projectUrl">Project URL</label>
+                <input id="projectUrl" placeholder="https://example.com">
+              </div>
+              <div class="field">
+                <label for="projectDescription">Description</label>
+                <textarea id="projectDescription" placeholder="Main agent workflow"></textarea>
+              </div>
+              <button class="btn primary" type="submit">Connect project</button>
+              <div class="rows" id="projectsRows"></div>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Test usage</h2>
+                <div class="panel-sub">Creates one event for this dashboard.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <button class="btn primary" id="sendTestBtn" type="button">Send test event</button>
+              <div class="status" id="testStatus"></div>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const TOKEN_KEY = "nexoraAuthToken";
+    const USER_KEY = "nexoraAuthUser";
+    const USER_ID_KEY = "nexoraUserId";
+    const $ = (id) => document.getElementById(id);
+    const fmt = new Intl.NumberFormat();
+    const timeFmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    let authMode = "signin";
+    let dashboardData = null;
+    let visibleApiKey = "";
+
+    function token() { return localStorage.getItem(TOKEN_KEY) || ""; }
+    function setToken(value) { value ? localStorage.setItem(TOKEN_KEY, value) : localStorage.removeItem(TOKEN_KEY); }
+    function authHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      if (token()) headers.Authorization = `Bearer ${token()}`;
+      return headers;
+    }
+    async function api(path, options = {}) {
+      const res = await fetch(path, Object.assign({}, options, { headers: Object.assign(authHeaders(), options.headers || {}) }));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || data.message || "Request failed");
+      return data;
+    }
+    function toast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => el.classList.remove("show"), 2400);
+    }
+    function timeLabel(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "-" : timeFmt.format(date);
+    }
+    function stat(label, value, detail) {
+      return `<article class="stat"><span>${label}</span><strong>${value}</strong><em>${detail || ""}</em></article>`;
+    }
+    function setupItem(label, complete) {
+      return `<div class="check"><span>${label}</span><span class="pill ${complete ? "green" : "yellow"}">${complete ? "Done" : "Next"}</span></div>`;
+    }
+    function showSignedOut() {
+      $("signedOutView").classList.remove("hidden");
+      $("dashboardView").classList.add("hidden");
+      $("logoutBtn").classList.add("hidden");
+      $("phasePill").textContent = "Signed out";
+      $("phasePill").className = "pill yellow";
+      $("headline").textContent = "Your Software dashboard";
+    }
+    function showDashboard() {
+      $("signedOutView").classList.add("hidden");
+      $("dashboardView").classList.remove("hidden");
+      $("logoutBtn").classList.remove("hidden");
+    }
+    function render(data) {
+      dashboardData = data;
+      showDashboard();
+      const s = data.overview?.summary || {};
+      const state = data.state || {};
+      $("headline").textContent = `Welcome${data.user?.name ? ", " + data.user.name : ""}`;
+      $("subhead").textContent = "Your dashboard now reflects your API keys, connected projects, AI requests, latency, token usage, errors, traces, and sessions.";
+      $("phasePill").textContent = state.phase || "Dashboard";
+      $("phasePill").className = `pill ${state.events_received ? "green" : "yellow"}`;
+      $("nextAction").textContent = state.next_action || "";
+      $("stats").innerHTML = [
+        stat("Requests", fmt.format(s.requests || 0), "AI calls"),
+        stat("Latency", `${fmt.format(s.avg_latency_ms || 0)}ms`, `p95 ${fmt.format(s.p95_latency_ms || 0)}ms`),
+        stat("Tokens", fmt.format(s.total_tokens || 0), "prompt + output"),
+        stat("Errors", fmt.format(s.errors || 0), `${Math.round((s.error_rate || 0) * 100)}% error rate`),
+        stat("Traces", fmt.format(s.traces || 0), "groups"),
+        stat("Sessions", fmt.format(s.sessions || 0), "contexts")
+      ].join("");
+      $("setupChecklist").innerHTML = [
+        setupItem("Signed in", state.signed_in),
+        setupItem("API key created", state.api_key_created),
+        setupItem("Project connected", state.project_connected),
+        setupItem("Usage received", state.events_received)
+      ].join("");
+      renderKeys(data.api_keys || []);
+      renderProjects(data.projects || []);
+      renderRequests(data.requests || []);
+      renderSnippet();
+    }
+    function renderKeys(keys) {
+      $("keysRows").innerHTML = keys.length ? keys.map((item) => `
+        <article class="row">
+          <div class="row-main"><span>${item.name || "API key"}</span><span class="pill ${item.revoked ? "red" : "green"}">${item.revoked ? "revoked" : "active"}</span></div>
+          <div class="row-meta"><span>${item.key_prefix}...</span><span>created ${timeLabel(item.created_at)}</span><span>${item.last_used_at ? "used " + timeLabel(item.last_used_at) : "not used yet"}</span></div>
+        </article>
+      `).join("") : `<div class="empty">No API keys yet.</div>`;
+    }
+    function renderProjects(projects) {
+      $("projectsRows").innerHTML = projects.length ? projects.map((item) => `
+        <article class="row">
+          <div class="row-main"><span>${item.name}</span><span class="pill green">${item.status || "connected"}</span></div>
+          <div class="row-meta"><span>${item.framework || "Generic"}</span><span>${item.environment || "Production"}</span><span>${item.id}</span></div>
+        </article>
+      `).join("") : `<div class="empty">No connected projects yet.</div>`;
+    }
+    function renderRequests(requests) {
+      $("requestCount").textContent = `${requests.length} requests`;
+      $("requestsEmpty").style.display = requests.length ? "none" : "block";
+      $("requestsBody").innerHTML = requests.map((item) => {
+        const ok = item.success !== false;
+        return `<tr>
+          <td><span class="pill ${ok ? "green" : "red"}">${ok ? "ok" : "error"}</span></td>
+          <td title="${item.model || ""}">${item.model || "unknown"}</td>
+          <td>${item.provider || "generic"}</td>
+          <td>${fmt.format(item.latency_ms || 0)}ms</td>
+          <td>${fmt.format(item.total_tokens || 0)}</td>
+          <td title="${item.trace_id || ""}">${item.trace_id || "-"}</td>
+          <td>${timeLabel(item.created_at)}</td>
+        </tr>`;
+      }).join("");
+    }
+    function renderSnippet() {
+      const project = (dashboardData?.projects || [])[0];
+      const key = visibleApiKey || "SOFTWARE_API_KEY";
+      if (!project) {
+        $("snippetBox").textContent = "Create a project to generate a snippet.";
+        return;
+      }
+      $("snippetBox").textContent = `fetch("${location.origin}/api/events/ingest", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer ${key}"
+  },
+  body: JSON.stringify({
+    project_id: "${project.id}",
+    event_type: "agent_run",
+    message: "Agent produced an answer",
+    provider: "openai",
+    model: "gpt-4.1",
+    latency_ms: 1200,
+    prompt_tokens: 500,
+    completion_tokens: 800,
+    success: true,
+    trace_id: "trace_" + Date.now(),
+    session_id: "session_" + Date.now()
+  })
+});`;
+    }
+    async function loadDashboard() {
+      if (!token()) {
+        showSignedOut();
+        return;
+      }
+      try {
+        render(await api("/api/dashboard/customer"));
+      } catch (error) {
+        setToken("");
+        showSignedOut();
+        $("authStatus").textContent = error.message;
+        $("authStatus").className = "status error";
+      }
+    }
+    function setAuthMode(mode) {
+      authMode = mode;
+      $("signInTab").classList.toggle("active", mode === "signin");
+      $("signUpTab").classList.toggle("active", mode === "signup");
+      $("nameField").classList.toggle("hidden", mode !== "signup");
+      $("authSubmit").textContent = mode === "signup" ? "Create account" : "Sign in";
+      $("authStatus").textContent = "";
+    }
+    $("signInTab").addEventListener("click", () => setAuthMode("signin"));
+    $("signUpTab").addEventListener("click", () => setAuthMode("signup"));
+    $("authForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const path = authMode === "signup" ? "/auth/signup" : "/auth/login";
+      const payload = {
+        email: $("emailInput").value.trim(),
+        password: $("passwordInput").value,
+        name: $("nameInput").value.trim()
+      };
+      try {
+        $("authStatus").textContent = "Working...";
+        const data = await api(path, { method: "POST", body: JSON.stringify(payload) });
+        setToken(data.token || "");
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
+        localStorage.setItem(USER_ID_KEY, data.user?.id || "");
+        $("authStatus").textContent = data.message || "Signed in.";
+        $("authStatus").className = "status ok";
+        await loadDashboard();
+      } catch (error) {
+        $("authStatus").textContent = error.message;
+        $("authStatus").className = "status error";
+      }
+    });
+    $("logoutBtn").addEventListener("click", () => {
+      setToken("");
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(USER_ID_KEY);
+      visibleApiKey = "";
+      showSignedOut();
+    });
+    $("refreshBtn").addEventListener("click", () => loadDashboard().then(() => toast("Dashboard refreshed")));
+    $("createKeyBtn").addEventListener("click", async () => {
+      const data = await api("/api/keys/create", { method: "POST", body: JSON.stringify({ name: $("keyName").value || "Default key" }) });
+      visibleApiKey = data.api_key || "";
+      $("newKeyBox").classList.remove("hidden");
+      $("newKeyValue").textContent = visibleApiKey;
+      render(data.dashboard);
+      $("newKeyBox").classList.remove("hidden");
+      $("newKeyValue").textContent = visibleApiKey;
+      toast("API key created");
+    });
+    $("copyKeyBtn").addEventListener("click", () => navigator.clipboard.writeText(visibleApiKey).then(() => toast("API key copied")));
+    $("projectForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = await api("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({
+          name: $("projectName").value.trim(),
+          framework: $("framework").value,
+          environment: $("environment").value,
+          url: $("projectUrl").value.trim(),
+          description: $("projectDescription").value.trim()
+        })
+      });
+      render(data.dashboard);
+      toast("Project connected");
+    });
+    $("copySnippetBtn").addEventListener("click", () => navigator.clipboard.writeText($("snippetBox").textContent).then(() => toast("Snippet copied")));
+    $("sendTestBtn").addEventListener("click", async () => {
+      const project = (dashboardData?.projects || [])[0];
+      const key = visibleApiKey;
+      if (!project) { $("testStatus").textContent = "Create a project first."; $("testStatus").className = "status error"; return; }
+      if (!key) { $("testStatus").textContent = "Create or copy a fresh API key first."; $("testStatus").className = "status error"; return; }
+      $("testStatus").textContent = "Sending...";
+      try {
+        await fetch("/api/events/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+          body: JSON.stringify({
+            project_id: project.id,
+            event_type: "agent_run",
+            message: "Dashboard test event",
+            provider: "openai",
+            model: "gpt-4.1",
+            latency_ms: 1180,
+            prompt_tokens: 420,
+            completion_tokens: 760,
+            success: true,
+            trace_id: "trace_dashboard_test_" + Date.now(),
+            session_id: "session_dashboard_test_" + Date.now()
+          })
+        }).then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || "Event failed");
+          return data;
+        });
+        $("testStatus").textContent = "Event received.";
+        $("testStatus").className = "status ok";
+        await loadDashboard();
+      } catch (error) {
+        $("testStatus").textContent = error.message;
+        $("testStatus").className = "status error";
+      }
+    });
+    setAuthMode("signin");
+    loadDashboard();
+  </script>
+</body>
+</html>

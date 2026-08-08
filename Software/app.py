@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -37,7 +38,9 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 APP_NAME = os.getenv("SOFTWARE_APP_NAME", "Software Reliability Engine")
 APP_VERSION = os.getenv("SOFTWARE_VERSION", "0.2.0")
-ENVIRONMENT = os.getenv("SOFTWARE_ENV", "development").lower()
+ENVIRONMENT = os.getenv("SOFTWARE_ENV", os.getenv("NEXORA_ENV", os.getenv("ENV", "development"))).strip().lower() or "development"
+ENV = ENVIRONMENT
+is_development = ENV in ["development", "test"]
 ROOT_PATH = os.getenv("SOFTWARE_ROOT_PATH", "")
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -477,7 +480,44 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def production_like_environment() -> bool:
+    return ENV in {"production", "staging"}
+
+
+def _env_value(*names: str) -> str:
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def validate_sqlite_dev_only() -> None:
+    if is_development:
+        return
+    raise RuntimeError(
+        "SQLite storage is only allowed when ENV is development or test. "
+        "Configure Supabase and a production database for production/staging."
+    )
+
+
+def validate_runtime_environment() -> None:
+    if ENV == "production":
+        missing: List[str] = []
+        supabase_url = _env_value("SUPABASE_URL")
+        if not supabase_url:
+            missing.append("SUPABASE_URL")
+        elif "/rest/v1" in supabase_url.rstrip("/"):
+            raise RuntimeError("SUPABASE_URL must be the Supabase project URL and must not include /rest/v1/.")
+        if not _env_value("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY"):
+            missing.append("SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY")
+        if missing:
+            raise RuntimeError(f"Production configuration is incomplete. Missing: {', '.join(missing)}.")
+    validate_sqlite_dev_only()
+
+
 def connect() -> sqlite3.Connection:
+    validate_sqlite_dev_only()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
@@ -1807,6 +1847,8 @@ def dashboard_asset_check() -> Dict[str, Any]:
         "ai_tester.html": BASE_DIR / "ai_tester.html",
         "ai_tester.css": BASE_DIR / "ai_tester.css",
         "ai_tester.js": BASE_DIR / "ai_tester.js",
+        "ui.css": BASE_DIR.parent / "frontend" / "ui.css",
+        "ui.js": BASE_DIR.parent / "frontend" / "ui.js",
     }
     asset_status = {
         name: {
@@ -1842,12 +1884,20 @@ def service_uptime_seconds() -> float:
     return round((datetime.now(timezone.utc) - SERVICE_STARTED_AT).total_seconds(), 2)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    validate_runtime_environment()
+    run_startup_checks()
+    yield
+
+
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     root_path=ROOT_PATH,
     docs_url=None if ENVIRONMENT == "production" else "/docs",
     redoc_url=None if ENVIRONMENT == "production" else "/redoc",
+    lifespan=lifespan,
 )
 
 if ALLOWED_ORIGINS:
@@ -1858,11 +1908,6 @@ if ALLOWED_ORIGINS:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
-
-
-@app.on_event("startup")
-def startup() -> None:
-    run_startup_checks()
 
 
 @app.get("/health")
@@ -1960,6 +2005,21 @@ def dashboard_script() -> FileResponse:
     return FileResponse(BASE_DIR / "dashboard.js")
 
 
+@app.get("/preline.js", include_in_schema=False)
+def preline_script() -> FileResponse:
+    return FileResponse(BASE_DIR.parent / "node_modules" / "preline" / "dist" / "preline.js")
+
+
+@app.get("/ui.css", include_in_schema=False)
+def shared_ui_styles() -> FileResponse:
+    return FileResponse(BASE_DIR.parent / "frontend" / "ui.css", media_type="text/css")
+
+
+@app.get("/ui.js", include_in_schema=False)
+def shared_ui_script() -> FileResponse:
+    return FileResponse(BASE_DIR.parent / "frontend" / "ui.js", media_type="application/javascript")
+
+
 @app.get("/ai-tester", include_in_schema=False)
 def ai_tester_page() -> FileResponse:
     return FileResponse(BASE_DIR / "ai_tester.html")
@@ -1978,6 +2038,16 @@ def ai_tester_script() -> FileResponse:
 @app.get("/api/dashboard")
 def api_dashboard() -> Dict[str, Any]:
     return {"ok": True, **dashboard_payload()}
+
+
+@app.get("/api/me/dashboard")
+def api_me_dashboard() -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "authenticated": False,
+        "auth_required": False,
+        **dashboard_payload(),
+    }
 
 
 @app.get("/api/external-test/scenarios")
