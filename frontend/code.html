@@ -12,7 +12,7 @@
       --soft:#eef3ff;
       --line:rgba(15,23,42,.13);
       --glow:#315cff;
-      --violet:#7c5cff;
+      --violet:#3b82f6;
       --cyan:#5de2ff;
     }
 
@@ -493,8 +493,10 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="/ui.css?v=20260808">
+  <script src="/ui.js?v=20260808" defer></script>
 </head>
-<body>
+<body data-matrixs-page="code">
   <section class="hero" id="overview">
     <canvas id="nexoraCodeScene" aria-hidden="true"></canvas>
 
@@ -505,8 +507,8 @@
             <defs>
               <linearGradient id="codeIconA" x1="8" y1="8" x2="58" y2="58">
                 <stop offset="0" stop-color="#5de2ff"/>
-                <stop offset=".52" stop-color="#7c5cff"/>
-                <stop offset="1" stop-color="#254cff"/>
+                <stop offset=".52" stop-color="#3b82f6"/>
+                <stop offset="1" stop-color="#1d4ed8"/>
               </linearGradient>
             </defs>
             <path d="M32 7 51 18v21L32 57 13 39V18L32 7Z" fill="url(#codeIconA)"/>
@@ -523,6 +525,8 @@
         <a href="#features">Features</a>
         <a href="#workflow">Workflow</a>
         <a href="#workflow">Guide</a>
+        <a href="/guide">Software Guide</a>
+        <a href="/mcp">MCP</a>
         <a href="#download">Download</a>
       </div>
 
@@ -539,8 +543,8 @@
             <defs>
               <linearGradient id="heroCodeA" x1="8" y1="8" x2="58" y2="58">
                 <stop offset="0" stop-color="#5de2ff"/>
-                <stop offset=".5" stop-color="#8a63ff"/>
-                <stop offset="1" stop-color="#2148ff"/>
+                <stop offset=".5" stop-color="#3b82f6"/>
+                <stop offset="1" stop-color="#1d4ed8"/>
               </linearGradient>
               <filter id="heroGlow">
                 <feGaussianBlur stdDeviation="3.5" result="blur"/>
@@ -694,7 +698,7 @@
       const grad = ctx.createLinearGradient(0, 0, w, h);
       grad.addColorStop(0, "#b9cbff");
       grad.addColorStop(.45, "#edf3ff");
-      grad.addColorStop(1, "#b8a9ff");
+      grad.addColorStop(1, "#c9dcff");
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 

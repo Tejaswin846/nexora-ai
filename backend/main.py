@@ -493,8 +493,12 @@ REMINDERS_FILE = DATA_DIR / "reminders.json"
 WORKFLOWS_FILE = DATA_DIR / "workflows.json"
 FRONTEND_INDEX = BASE_DIR.parent / "frontend" / "index.html"
 CODE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "code.html"
+GUIDE_PAGE_INDEX = BASE_DIR.parent / "frontend" / "guide.html"
+MCP_PAGE_INDEX = BASE_DIR.parent / "frontend" / "mcp.html"
 RESET_PASSWORD_INDEX = BASE_DIR.parent / "frontend" / "reset-password.html"
 AUTH_CONTROLLER_INDEX = BASE_DIR.parent / "frontend" / "auth.js"
+SHARED_UI_STYLES = BASE_DIR.parent / "frontend" / "ui.css"
+SHARED_UI_SCRIPT = BASE_DIR.parent / "frontend" / "ui.js"
 CACHE_FRONTEND_HTML = os.getenv("NEXORA_CACHE_FRONTEND_HTML", "true").strip().lower() not in {"0", "false", "off", "no"}
 HEALTH_DEEP = os.getenv("NEXORA_HEALTH_DEEP", "false").strip().lower() in {"1", "true", "yes", "on"}
 FRONTEND_HTML_CACHE: Dict[str, str] = {}
@@ -12820,6 +12824,36 @@ def code_page_slash() -> HTMLResponse:
     return code_page()
 
 
+@app.get("/guide", response_class=HTMLResponse)
+def guide_page() -> HTMLResponse:
+    if not GUIDE_PAGE_INDEX.exists():
+        return HTMLResponse("<h1>Guide not found</h1>", status_code=404)
+    return HTMLResponse(
+        read_frontend_html(GUIDE_PAGE_INDEX),
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/guide/", response_class=HTMLResponse)
+def guide_page_slash() -> HTMLResponse:
+    return guide_page()
+
+
+@app.get("/mcp", response_class=HTMLResponse)
+def mcp_page() -> HTMLResponse:
+    if not MCP_PAGE_INDEX.exists():
+        return HTMLResponse("<h1>MCP guide not found</h1>", status_code=404)
+    return HTMLResponse(
+        read_frontend_html(MCP_PAGE_INDEX),
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/mcp/", response_class=HTMLResponse)
+def mcp_page_slash() -> HTMLResponse:
+    return mcp_page()
+
+
 @app.get("/reset-password", response_class=HTMLResponse)
 def reset_password_page() -> HTMLResponse:
     if not RESET_PASSWORD_INDEX.exists():
@@ -12830,6 +12864,28 @@ def reset_password_page() -> HTMLResponse:
     return HTMLResponse(
         read_frontend_html(RESET_PASSWORD_INDEX),
         headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/ui.css", response_class=HTMLResponse, include_in_schema=False)
+def shared_ui_styles() -> HTMLResponse:
+    if not SHARED_UI_STYLES.exists():
+        return HTMLResponse("/* Matrixs shared UI stylesheet not found. */", media_type="text/css", status_code=404)
+    return HTMLResponse(
+        SHARED_UI_STYLES.read_text(encoding="utf-8"),
+        media_type="text/css",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/ui.js", response_class=HTMLResponse, include_in_schema=False)
+def shared_ui_script() -> HTMLResponse:
+    if not SHARED_UI_SCRIPT.exists():
+        return HTMLResponse("window.__matrixsUiReady=false;", media_type="application/javascript", status_code=404)
+    return HTMLResponse(
+        SHARED_UI_SCRIPT.read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=300"},
     )
 
 

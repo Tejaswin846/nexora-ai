@@ -1757,9 +1757,11 @@ body.chat-mode .top-right {
 }
 
 </style>
+  <link rel="stylesheet" href="/ui.css?v=20260808">
+  <script src="/ui.js?v=20260808" defer></script>
 </head>
 
-<body>
+<body data-matrixs-page="workspace">
   <div class="login-screen" id="login">
     <div class="login-box">
       <div class="login-close" onclick="skipLogin()">✕</div>
@@ -2348,12 +2350,7 @@ body.chat-mode .top-right {
   </div>
 
   <script>
-    const API_BASE = window.API_BASE || (
-      window.location.protocol === "file:"
-        ? "http://127.0.0.1:8000"
-        : window.location.origin
-    );
-    window.API_BASE = API_BASE;
+    const API_BASE = "";
 
     const sendBtn = document.getElementById("sendBtn");
     const input = document.getElementById("userInput");
@@ -4219,10 +4216,7 @@ body.chat-mode .top-right {
       closeHandSocket();
       setHandStatus("connecting...");
       try {
-        const handSocketBase = window.location.protocol === "file:"
-          ? "ws://127.0.0.1:8000"
-          : (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host;
-        handSocket = new WebSocket(handSocketBase + "/ws/hand");
+        handSocket = new WebSocket("ws://127.0.0.1:8000/ws/hand");
       } catch (e) {
         setHandStatus("bridge unavailable");
         return;
@@ -8187,7 +8181,7 @@ body,
 
 <script id="nx-projects-real-modal-script">
 (function(){
-  const API_BASE_SAFE = window.API_BASE || "http://127.0.0.1:8000";
+  const API_BASE_SAFE = window.API_BASE || "";
 
   function projectIcon(){
     return '<svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15z"></path></svg>';
@@ -9064,7 +9058,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
 <script id="nx-original-answer-polish-final-script">
 (function(){
-  const API_BASE_FINAL = window.API_BASE || "http://127.0.0.1:8000";
+  const API_BASE_FINAL = window.API_BASE || "";
 
   const icons = {
     copy:'<svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"></rect><rect x="5" y="5" width="11" height="11" rx="2"></rect></svg>',
@@ -9847,7 +9841,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
 <script id="nx-v2-human-perplexity-answer-script">
 (function(){
-  const API_BASE_V2 = window.API_BASE || "http://127.0.0.1:8000";
+  const API_BASE_V2 = window.API_BASE || "";
 
   const icons = window.__nxActionIcons || {
     copy:'<svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"></rect><rect x="5" y="5" width="11" height="11" rx="2"></rect></svg>',
@@ -10065,15 +10059,15 @@ document.addEventListener("DOMContentLoaded",()=>{
       const lastAssistant = [...items].reverse().find(item => item && item.role === "assistant");
       const lastUser = [...items].reverse().find(item => item && item.role === "user");
       await fetch(API_BASE_V2 + "/feedback", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          rating: rating === "bad" ? "bad" : "good",
-          session_id: typeof sessionId !== "undefined" ? sessionId : null,
-          question: lastUser ? (lastUser.text || lastUser.content || "") : "",
-          answer: lastAssistant ? (lastAssistant.text || lastAssistant.content || "") : ""
-        })
-[+]      });
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+        rating: rating === "bad" ? "bad" : "good",
+        session_id: typeof sessionId !== "undefined" ? sessionId : null,
+        question: lastUser ? (lastUser.text || lastUser.content || "") : "",
+        answer: lastAssistant ? (lastAssistant.text || lastAssistant.content || "") : ""
+    })
+});
       if(button) button.classList.add("active");
       if(typeof nxFinalToast === "function"){
         nxFinalToast(rating === "bad" ? "Feedback saved. I will adjust." : "Feedback saved. I will keep that style.");
@@ -10378,7 +10372,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     }catch(err){
       const typingEl = el(typingId);
       if(typingEl) typingEl.remove();
-      renderAssistant("Error connecting to backend. Make sure the Nexora backend is running at `" + API_BASE_V2 + "`.", []);
+      renderAssistant("⚠️ Error connecting to backend. Make sure the FastAPI server is running at `http://127.0.0.1:8000`.", []);
       console.error(err);
     }finally{
       clearPendingQuestion(input);

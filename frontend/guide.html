@@ -1,0 +1,1746 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Software Guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f6f7f2;
+      --paper-2: #ebece5;
+      --ink: #101317;
+      --muted: #5c6570;
+      --line: rgba(16, 19, 23, .13);
+      --panel: #ffffff;
+      --green: #128c69;
+      --teal: #0e7490;
+      --gold: #b87505;
+      --rose: #be4659;
+      --charcoal: #1b2027;
+      --soft-green: #e8f4ef;
+      --soft-teal: #e8f3f6;
+      --soft-gold: #fff3db;
+      --shadow: 0 22px 54px rgba(31, 38, 45, .12);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 15px clamp(18px, 4vw, 54px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 247, 242, .9);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      font-weight: 920;
+      white-space: nowrap;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--charcoal);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 760;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 11px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      color: var(--ink);
+      border-color: var(--line);
+      background: rgba(255, 255, 255, .72);
+    }
+
+    .hero {
+      position: relative;
+      min-height: 84vh;
+      display: flex;
+      align-items: center;
+      padding: 86px clamp(20px, 5vw, 74px) 118px;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      background: #e9ece6;
+      isolation: isolate;
+    }
+
+    .hero-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+    }
+
+    .hero-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: rgba(246, 247, 242, .78);
+    }
+
+    .hero-copy {
+      width: min(870px, 96vw);
+      position: relative;
+      z-index: 2;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 {
+      max-width: 790px;
+      margin-bottom: 18px;
+      font-size: clamp(44px, 7.6vw, 86px);
+      line-height: .96;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 710px;
+      color: #37404a;
+      font-size: clamp(18px, 2vw, 23px);
+      line-height: 1.48;
+    }
+
+    .hero-actions,
+    .section-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 26px;
+    }
+
+    .btn {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, .78);
+      cursor: pointer;
+      font-weight: 840;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      background: #fff;
+    }
+
+    .btn.primary {
+      color: #fff;
+      background: var(--charcoal);
+      border-color: var(--charcoal);
+      box-shadow: 0 16px 34px rgba(27, 32, 39, .22);
+    }
+
+    .hero-strip {
+      position: absolute;
+      left: clamp(20px, 5vw, 74px);
+      right: clamp(20px, 5vw, 74px);
+      bottom: 26px;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .strip-link {
+      min-height: 72px;
+      display: grid;
+      align-content: center;
+      gap: 4px;
+      padding: 13px;
+      border: 1px solid rgba(16, 19, 23, .12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .8);
+      box-shadow: 0 14px 34px rgba(31, 38, 45, .08);
+    }
+
+    .strip-link span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .strip-link strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 15px;
+    }
+
+    .section {
+      width: min(1240px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 72px 0;
+    }
+
+    .section-head {
+      max-width: 820px;
+      margin-bottom: 26px;
+    }
+
+    .section-head h2 {
+      margin: 9px 0 12px;
+      font-size: clamp(31px, 4vw, 52px);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .map-table {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .part {
+      min-height: 216px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .part-tag {
+      display: inline-flex;
+      min-height: 27px;
+      align-items: center;
+      padding: 0 9px;
+      border-radius: 999px;
+      color: var(--green);
+      background: var(--soft-green);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .part:nth-child(2n) .part-tag {
+      color: var(--teal);
+      background: var(--soft-teal);
+    }
+
+    .part:nth-child(3n) .part-tag {
+      color: var(--gold);
+      background: var(--soft-gold);
+    }
+
+    .part h3 {
+      margin: 18px 0 9px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .part p {
+      margin-bottom: 15px;
+      color: var(--muted);
+      line-height: 1.56;
+    }
+
+    .part a {
+      color: var(--charcoal);
+      font-weight: 900;
+      border-bottom: 2px solid rgba(18, 140, 105, .28);
+    }
+
+    .picture-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .picture {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .picture-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 16px;
+      padding: 18px 18px 0;
+    }
+
+    .picture-head h3 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    .picture-head span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 880;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+
+    .mock {
+      position: relative;
+      height: 310px;
+      margin: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(16, 19, 23, .12);
+      border-radius: 8px;
+      background: #f1f3ee;
+    }
+
+    .mock.dark {
+      background: #171b20;
+      color: #f7faf8;
+    }
+
+    .browser-bar {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      border-bottom: 1px solid rgba(16, 19, 23, .1);
+      background: rgba(255, 255, 255, .7);
+    }
+
+    .dark .browser-bar {
+      border-color: rgba(255, 255, 255, .1);
+      background: rgba(255, 255, 255, .06);
+    }
+
+    .browser-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #c9cec6;
+    }
+
+    .mock-body {
+      position: relative;
+      height: calc(100% - 34px);
+      display: grid;
+      padding: 13px;
+      gap: 10px;
+    }
+
+    .chat-layout {
+      grid-template-columns: 108px minmax(0, 1fr);
+    }
+
+    .sidebar-mini,
+    .panel-mini,
+    .input-mini,
+    .table-mini,
+    .rail-mini,
+    .code-mini {
+      border: 1px solid rgba(16, 19, 23, .1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .78);
+    }
+
+    .dark .sidebar-mini,
+    .dark .panel-mini,
+    .dark .input-mini,
+    .dark .table-mini,
+    .dark .rail-mini,
+    .dark .code-mini {
+      border-color: rgba(255, 255, 255, .1);
+      background: rgba(255, 255, 255, .06);
+    }
+
+    .sidebar-mini {
+      padding: 11px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .mini-line {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(16, 19, 23, .15);
+    }
+
+    .dark .mini-line {
+      background: rgba(255, 255, 255, .18);
+    }
+
+    .mini-line.short { width: 58%; }
+    .mini-line.medium { width: 76%; }
+
+    .chat-center {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .answer-mini {
+      display: grid;
+      align-content: center;
+      gap: 10px;
+      padding: 22px;
+      text-align: center;
+    }
+
+    .answer-title {
+      font-size: 27px;
+      font-weight: 900;
+      line-height: 1.05;
+    }
+
+    .input-mini {
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
+
+    .round-tool {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .setup-layout {
+      grid-template-columns: 118px minmax(0, 1fr);
+    }
+
+    .rail-mini {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      align-content: start;
+    }
+
+    .rail-step {
+      min-height: 30px;
+      border-radius: 8px;
+      background: rgba(18, 140, 105, .12);
+    }
+
+    .panel-mini {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .framework-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .framework-tile,
+    .metric-tile {
+      min-height: 54px;
+      border-radius: 8px;
+      border: 1px solid rgba(16, 19, 23, .1);
+      background: #fff;
+    }
+
+    .dashboard-layout {
+      grid-template-rows: 74px minmax(0, 1fr);
+    }
+
+    .metrics-mini {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric-tile {
+      display: grid;
+      align-content: center;
+      padding: 10px;
+      gap: 7px;
+    }
+
+    .metric-tile strong {
+      font-size: 20px;
+    }
+
+    .table-mini {
+      display: grid;
+      gap: 9px;
+      padding: 13px;
+      align-content: start;
+    }
+
+    .row-mini {
+      min-height: 28px;
+      border-radius: 8px;
+      background: rgba(14, 116, 144, .12);
+    }
+
+    .observability-layout {
+      grid-template-columns: minmax(0, 1.4fr) minmax(120px, .72fr);
+    }
+
+    .trace-stack {
+      display: grid;
+      gap: 9px;
+    }
+
+    .alert-mini {
+      min-height: 66px;
+      border-radius: 8px;
+      background: rgba(184, 117, 5, .15);
+      border: 1px solid rgba(184, 117, 5, .2);
+    }
+
+    .code-layout {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .code-mini {
+      padding: 14px;
+      color: #dff7ea;
+      background: #1b2027;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    .sdk-flow {
+      display: grid;
+      align-content: center;
+      gap: 10px;
+    }
+
+    .flow-pill {
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--teal);
+      font-weight: 900;
+    }
+
+    .pin {
+      position: absolute;
+      left: var(--x);
+      top: var(--y);
+      width: 29px;
+      height: 29px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--rose);
+      border: 3px solid #fff;
+      box-shadow: 0 12px 24px rgba(190, 70, 89, .25);
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      padding: 0 18px 18px;
+      margin: 0;
+      list-style: none;
+    }
+
+    .legend li {
+      min-height: 44px;
+      padding: 10px;
+      border-radius: 8px;
+      color: var(--muted);
+      background: #f6f7f2;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .legend b {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+
+    .video-band {
+      background: var(--charcoal);
+      color: #f6f7f2;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .video-band .section-head p,
+    .video-band .eyebrow {
+      color: #b9d9cc;
+    }
+
+    .video-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.48fr) minmax(280px, .72fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .video-shell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 8px;
+      background: #0c1116;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, .35);
+      aspect-ratio: 16 / 9;
+    }
+
+    .video-shell video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #0c1116;
+    }
+
+    .video-empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 26px;
+      text-align: center;
+      color: #cbd7d2;
+      pointer-events: none;
+    }
+
+    .video-empty strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #fff;
+      font-size: 22px;
+    }
+
+    .chapters {
+      display: grid;
+      gap: 9px;
+    }
+
+    .chapter-btn {
+      width: 100%;
+      min-height: 64px;
+      display: grid;
+      gap: 3px;
+      padding: 11px 12px;
+      border: 1px solid rgba(255, 255, 255, .11);
+      border-radius: 8px;
+      color: #dbe7e1;
+      background: rgba(255, 255, 255, .055);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .chapter-btn:hover,
+    .chapter-btn.active {
+      background: rgba(232, 244, 239, .12);
+      border-color: rgba(185, 217, 204, .38);
+    }
+
+    .chapter-btn strong {
+      color: #fff;
+      font-size: 15px;
+    }
+
+    .chapter-btn span {
+      color: #b9c7c1;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .video-status {
+      min-height: 40px;
+      margin-top: 12px;
+      color: #b9c7c1;
+      font-size: 14px;
+      font-weight: 760;
+    }
+
+    .render-canvas {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 1280px;
+      height: 720px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .route-list {
+      position: sticky;
+      top: 96px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .route-card,
+    .use-step,
+    .note-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .route-card {
+      min-height: 76px;
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+      padding: 13px;
+    }
+
+    .route-card code {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 39px;
+      border-radius: 8px;
+      color: var(--teal);
+      background: var(--soft-teal);
+      font-weight: 900;
+    }
+
+    .route-card b {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .route-card span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .use-list {
+      display: grid;
+      gap: 12px;
+      counter-reset: useStep;
+    }
+
+    .use-step {
+      position: relative;
+      padding: 20px 20px 20px 74px;
+      min-height: 118px;
+      overflow: hidden;
+    }
+
+    .use-step::before {
+      counter-increment: useStep;
+      content: counter(useStep);
+      position: absolute;
+      left: 20px;
+      top: 20px;
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--green);
+      font-weight: 940;
+    }
+
+    .use-step:nth-child(2n)::before { background: var(--teal); }
+    .use-step:nth-child(3n)::before { background: var(--gold); }
+
+    .use-step h3 {
+      margin: 0 0 7px;
+      font-size: 20px;
+    }
+
+    .use-step p {
+      margin-bottom: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .cmd {
+      display: block;
+      overflow-x: auto;
+      padding: 12px;
+      border-radius: 8px;
+      color: #e9fff3;
+      background: var(--charcoal);
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .note-panel {
+      margin-top: 16px;
+      padding: 18px;
+      background: var(--soft-gold);
+      box-shadow: none;
+    }
+
+    .note-panel h3 {
+      margin-bottom: 8px;
+      font-size: 19px;
+    }
+
+    .note-panel p {
+      color: #5b451d;
+      line-height: 1.58;
+    }
+
+    .final {
+      padding: 62px 20px 74px;
+      text-align: center;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .final h2 {
+      margin-bottom: 12px;
+      font-size: clamp(30px, 4vw, 48px);
+      letter-spacing: 0;
+    }
+
+    .final p {
+      max-width: 700px;
+      margin: 0 auto 24px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    @media (max-width: 1050px) {
+      .map-table { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .picture-grid,
+      .video-grid,
+      .steps-grid { grid-template-columns: 1fr; }
+      .route-list { position: static; }
+      .hero {
+        min-height: auto;
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 68px 20px 30px;
+      }
+      .hero-copy {
+        width: calc(100vw - 40px);
+        max-width: calc(100vw - 40px);
+      }
+      .hero-strip {
+        position: relative;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: calc(100vw - 40px);
+        margin-top: 34px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { width: 100%; }
+      .hero-strip {
+        grid-template-columns: 1fr;
+      }
+      .map-table,
+      .legend,
+      .framework-row,
+      .metrics-mini,
+      .code-layout,
+      .observability-layout,
+      .setup-layout,
+      .chat-layout { grid-template-columns: 1fr; }
+      .mock { height: 360px; }
+      .route-card { grid-template-columns: 1fr; }
+      .use-step { padding-left: 20px; padding-top: 72px; }
+    }
+
+    @media (max-width: 520px) {
+      .section { width: min(100% - 24px, 1240px); padding: 52px 0; }
+      .hero-canvas {
+        opacity: .28;
+      }
+      .hero p {
+        max-width: 330px;
+        font-size: 17px;
+        line-height: 1.55;
+      }
+      .hero-actions .btn,
+      .section-actions .btn { width: 100%; }
+      .picture-head { flex-direction: column; }
+    }
+  </style>
+  <link rel="stylesheet" href="/ui.css?v=20260808">
+  <script src="/ui.js?v=20260808" defer></script>
+</head>
+<body data-matrixs-page="guide">
+  <header class="topbar">
+    <a class="brand" href="/guide">
+      <span class="mark">S</span>
+      <span>Software</span>
+    </a>
+    <nav class="nav" aria-label="Guide navigation">
+      <a class="active" href="/guide">Guide</a>
+      <a href="/onboarding">Setup</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/observability">Observability</a>
+      <a href="/mcp">MCP</a>
+      <a href="/code">Code</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="top">
+    <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-copy">
+      <div class="eyebrow">Software walkthrough</div>
+      <h1>Software Guide</h1>
+      <p>Learn what Software does, where each reliability screen lives, and how to use it from API keys to dashboards, observability, SDK telemetry, and production monitoring.</p>
+      <div class="hero-actions">
+        <a class="btn primary" href="#video">Watch the video guide</a>
+        <a class="btn" href="#pictures">See annotated pictures</a>
+        <a class="btn" href="#steps">Start step by step</a>
+      </div>
+    </div>
+    <div class="hero-strip" aria-label="Main guide areas">
+      <a class="strip-link" href="#map"><span>01</span><strong>What Software does</strong></a>
+      <a class="strip-link" href="#pictures"><span>02</span><strong>Where everything is</strong></a>
+      <a class="strip-link" href="#video"><span>03</span><strong>Video walkthroughs</strong></a>
+      <a class="strip-link" href="#steps"><span>04</span><strong>How to use it</strong></a>
+      <a class="strip-link" href="/onboarding"><span>05</span><strong>Connect a project</strong></a>
+    </div>
+  </section>
+
+  <main>
+    <section class="section" id="map">
+      <div class="section-head">
+        <div class="eyebrow">What it does</div>
+        <h2>Software is for AI-agent reliability.</h2>
+        <p>Software measures, predicts, and improves how AI agents behave in real workflows. It collects telemetry, scores reliability, shows failures, tracks latency and tokens, and helps teams decide whether an agent is ready for production.</p>
+      </div>
+
+      <div class="map-table">
+        <article class="part">
+          <span class="part-tag">Purpose</span>
+          <h3>AI-agent reliability monitoring</h3>
+          <p>Collect workflow runs, model calls, tool calls, errors, retries, recovery attempts, and completion events from real AI systems.</p>
+          <a href="#steps">View workflow</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">Setup</span>
+          <h3>Developer onboarding</h3>
+          <p>Connect a project, choose one manifest, and let Matrixs detect the stack and select the smallest valid protection adapter automatically.</p>
+          <a href="/onboarding">Open setup</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">Dashboard</span>
+          <h3>Projects and usage</h3>
+          <p>Manage API keys, connect projects, send test usage, and see requests, latency, tokens, errors, traces, and sessions update.</p>
+          <a href="/dashboard">Open dashboard</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">Operations</span>
+          <h3>AI observability</h3>
+          <p>Watch model calls, trace groups, session activity, and alert thresholds so AI systems are easier to debug in production.</p>
+          <a href="/observability">Open observability</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">Reliability</span>
+          <h3>Reliability scoring</h3>
+          <p>Software measures success rate, failure rate, recovery, retries, tool reliability, timeouts, confidence accuracy, and completion.</p>
+          <a href="#steps">View workflow</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">SDK</span>
+          <h3>Agent telemetry</h3>
+          <p>The Python SDK can track workflow starts, stages, model calls, tool calls, errors, completion state, predictions, and guardrails.</p>
+          <a href="/code">Open code page</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">Security</span>
+          <h3>Auth and private keys</h3>
+          <p>Cloud data is protected by auth, generated API keys are shown once, and production startup blocks unsafe local-only storage.</p>
+          <a href="/dashboard">Manage keys</a>
+        </article>
+        <article class="part">
+          <span class="part-tag">Deploy</span>
+          <h3>Public website hosting</h3>
+          <p>The backend serves the frontend and can run locally or deploy to Render, Hugging Face Spaces, Railway, Fly.io, or a Docker host.</p>
+          <a href="#steps">See run command</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="pictures">
+      <div class="section-head">
+        <div class="eyebrow">Pictures</div>
+        <h2>Where each important thing is.</h2>
+        <p>These annotated pictures show the page areas you will use most. The labels match the actual pages in the app.</p>
+      </div>
+
+      <div class="picture-grid">
+        <article class="picture">
+          <div class="picture-head">
+            <div>
+              <h3>Software overview</h3>
+              <p>Use this guide to understand the reliability workflow: collect events, score runs, inspect failures, and monitor production signals.</p>
+            </div>
+            <span>Picture 1</span>
+          </div>
+          <div class="mock dark">
+            <div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="mock-body chat-layout">
+              <div class="sidebar-mini">
+                <div class="mini-line medium"></div>
+                <div class="mini-line"></div>
+                <div class="mini-line short"></div>
+                <div class="mini-line medium"></div>
+              </div>
+              <div class="chat-center">
+                <div class="answer-mini">
+                  <div class="answer-title">Reliability flow</div>
+                  <div class="mini-line"></div>
+                  <div class="mini-line medium"></div>
+                </div>
+                <div class="input-mini">
+                  <div class="mini-line medium"></div>
+                  <div class="round-tool"></div>
+                </div>
+              </div>
+            </div>
+            <span class="pin" style="--x: 7%; --y: 24%;">1</span>
+            <span class="pin" style="--x: 48%; --y: 36%;">2</span>
+            <span class="pin" style="--x: 76%; --y: 78%;">3</span>
+          </div>
+          <ol class="legend">
+            <li><b>1. Navigation</b>Move between guide, setup, dashboard, observability, and code pages.</li>
+            <li><b>2. Reliability map</b>See how telemetry becomes traces, sessions, alerts, and scores.</li>
+            <li><b>3. Action buttons</b>Jump straight to setup, pictures, and the full video guide.</li>
+          </ol>
+        </article>
+
+        <article class="picture">
+          <div class="picture-head">
+            <div>
+              <h3>Setup Wizard</h3>
+              <p>Use this when you want a project to send real Software telemetry.</p>
+            </div>
+            <span>Picture 2</span>
+          </div>
+          <div class="mock">
+            <div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="mock-body setup-layout">
+              <div class="rail-mini">
+                <div class="rail-step"></div>
+                <div class="rail-step"></div>
+                <div class="rail-step"></div>
+                <div class="rail-step"></div>
+              </div>
+              <div class="panel-mini">
+                <div class="mini-line medium"></div>
+                <div class="framework-row">
+                  <div class="framework-tile"></div>
+                  <div class="framework-tile"></div>
+                  <div class="framework-tile"></div>
+                  <div class="framework-tile"></div>
+                </div>
+                <div class="input-mini"><div class="mini-line short"></div><div class="round-tool"></div></div>
+              </div>
+            </div>
+            <span class="pin" style="--x: 9%; --y: 28%;">1</span>
+            <span class="pin" style="--x: 46%; --y: 37%;">2</span>
+            <span class="pin" style="--x: 76%; --y: 76%;">3</span>
+          </div>
+          <ol class="legend">
+            <li><b>1. Step rail</b>Connect, Detect, Install, Test, and Protected.</li>
+            <li><b>2. Automatic detection</b>Choose a manifest; Matrixs selects the valid adapter.</li>
+            <li><b>3. Copy blocks</b>Copy the generated commands, environment variables, adapter code, and proof command.</li>
+          </ol>
+        </article>
+
+        <article class="picture">
+          <div class="picture-head">
+            <div>
+              <h3>Customer Dashboard</h3>
+              <p>Use this to manage keys, projects, integration snippets, and account-level usage.</p>
+            </div>
+            <span>Picture 3</span>
+          </div>
+          <div class="mock">
+            <div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="mock-body dashboard-layout">
+              <div class="metrics-mini">
+                <div class="metric-tile"><strong>42</strong><div class="mini-line"></div></div>
+                <div class="metric-tile"><strong>920ms</strong><div class="mini-line"></div></div>
+                <div class="metric-tile"><strong>7.8k</strong><div class="mini-line"></div></div>
+                <div class="metric-tile"><strong>0</strong><div class="mini-line"></div></div>
+              </div>
+              <div class="table-mini">
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+              </div>
+            </div>
+            <span class="pin" style="--x: 18%; --y: 27%;">1</span>
+            <span class="pin" style="--x: 45%; --y: 61%;">2</span>
+            <span class="pin" style="--x: 78%; --y: 61%;">3</span>
+          </div>
+          <ol class="legend">
+            <li><b>1. Stats</b>Total requests, average latency, tokens, errors, traces, and sessions.</li>
+            <li><b>2. Request table</b>Latest events from your connected projects.</li>
+            <li><b>3. Keys and projects</b>Create API keys and connect workspaces.</li>
+          </ol>
+        </article>
+
+        <article class="picture">
+          <div class="picture-head">
+            <div>
+              <h3>AI Observability</h3>
+              <p>Use this to debug model requests, traces, sessions, latency, token usage, and alert rules.</p>
+            </div>
+            <span>Picture 4</span>
+          </div>
+          <div class="mock dark">
+            <div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="mock-body observability-layout">
+              <div class="table-mini">
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+                <div class="row-mini"></div>
+              </div>
+              <div class="trace-stack">
+                <div class="alert-mini"></div>
+                <div class="panel-mini"></div>
+                <div class="panel-mini"></div>
+              </div>
+            </div>
+            <span class="pin" style="--x: 25%; --y: 43%;">1</span>
+            <span class="pin" style="--x: 69%; --y: 28%;">2</span>
+            <span class="pin" style="--x: 77%; --y: 68%;">3</span>
+          </div>
+          <ol class="legend">
+            <li><b>1. AI requests</b>Every observed model call with status, model, provider, latency, and tokens.</li>
+            <li><b>2. Active alerts</b>Warnings when latency, error-rate, or token thresholds are crossed.</li>
+            <li><b>3. Traces and sessions</b>Group related requests into execution paths and user sessions.</li>
+          </ol>
+        </article>
+
+        <article class="picture">
+          <div class="picture-head">
+            <div>
+              <h3>Code and SDK</h3>
+              <p>Use this area to understand integration snippets and send reliability events from real agents.</p>
+            </div>
+            <span>Picture 5</span>
+          </div>
+          <div class="mock">
+            <div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="mock-body code-layout">
+              <pre class="code-mini">from software_sdk import ReliabilityMonitor
+
+monitor.track_workflow("research-task")
+workflow.log_tool_call("search", success=True)
+workflow.complete(success=True)</pre>
+              <div class="sdk-flow">
+                <div class="flow-pill">Agent run</div>
+                <div class="flow-pill">Telemetry</div>
+                <div class="flow-pill">Score</div>
+                <div class="flow-pill">Dashboard</div>
+              </div>
+            </div>
+            <span class="pin" style="--x: 17%; --y: 34%;">1</span>
+            <span class="pin" style="--x: 63%; --y: 38%;">2</span>
+            <span class="pin" style="--x: 70%; --y: 76%;">3</span>
+          </div>
+          <ol class="legend">
+            <li><b>1. SDK snippet</b>Track workflows, stages, tool calls, model calls, and errors.</li>
+            <li><b>2. Telemetry flow</b>Events travel from your agent into Software APIs.</li>
+            <li><b>3. Reliability result</b>Dashboards show trends, risk, and guardrail context.</li>
+          </ol>
+        </article>
+
+        <article class="picture">
+          <div class="picture-head">
+            <div>
+              <h3>Reliability Engine</h3>
+              <p>This is the scoring logic behind Software+ reliability monitoring.</p>
+            </div>
+            <span>Picture 6</span>
+          </div>
+          <div class="mock">
+            <div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="mock-body code-layout">
+              <div class="sdk-flow">
+                <div class="flow-pill">Raw events</div>
+                <div class="flow-pill">Normalize</div>
+                <div class="flow-pill">Classify</div>
+                <div class="flow-pill">Score 0-100</div>
+              </div>
+              <div class="panel-mini">
+                <div class="metric-tile"><strong>92</strong><div class="mini-line medium"></div></div>
+                <div class="mini-line"></div>
+                <div class="mini-line short"></div>
+                <div class="mini-line medium"></div>
+              </div>
+            </div>
+            <span class="pin" style="--x: 20%; --y: 24%;">1</span>
+            <span class="pin" style="--x: 42%; --y: 58%;">2</span>
+            <span class="pin" style="--x: 76%; --y: 33%;">3</span>
+          </div>
+          <ol class="legend">
+            <li><b>1. Event collector</b>Receives benchmark, workflow, tool, retry, and recovery events.</li>
+            <li><b>2. Classifier</b>Groups failures like timeouts, planning errors, context loss, and parsing failures.</li>
+            <li><b>3. Scorecard</b>Combines ten metrics into a reliability score from 0 to 100.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="video-band" id="video">
+      <div class="section">
+        <div class="section-head">
+          <div class="eyebrow">Video guide</div>
+          <h2>Watch the 3-minute Software walkthrough.</h2>
+          <p>Choose a chapter. The page creates a 3-minute tutorial video in your browser and loads it into the player with controls.</p>
+        </div>
+
+        <div class="video-grid">
+          <div>
+            <div class="video-shell">
+              <video id="guideVideo" controls muted playsinline aria-label="Software tutorial video"></video>
+              <div class="video-empty" id="videoEmpty"><div><strong>Video is being prepared</strong><span>Pick any chapter to make a 3-minute tutorial.</span></div></div>
+              <canvas class="render-canvas" id="videoCanvas" width="1280" height="720" aria-hidden="true"></canvas>
+            </div>
+            <div class="video-status" id="videoStatus">Preparing the 3-minute full tour video...</div>
+          </div>
+
+          <div class="chapters" id="chapters"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="steps">
+      <div class="section-head">
+        <div class="eyebrow">How to use it</div>
+        <h2>Start with this path.</h2>
+        <p>This path moves from running the website to connecting a real project and checking whether your AI agent is behaving reliably.</p>
+      </div>
+
+      <div class="steps-grid">
+        <aside class="route-list" aria-label="Page routes">
+          <a class="route-card" href="/guide"><code>/guide</code><span><b>This guide</b>Pictures, videos, and step-by-step instructions.</span></a>
+          <a class="route-card" href="/onboarding"><code>/onboarding</code><span><b>Setup wizard</b>Connect, auto-detect, install, test, and verify.</span></a>
+          <a class="route-card" href="/dashboard"><code>/dashboard</code><span><b>Dashboard</b>Keys, projects, snippets, usage, and test events.</span></a>
+          <a class="route-card" href="/observability"><code>/observability</code><span><b>AI operations</b>Requests, traces, sessions, alerts, latency, errors, tokens.</span></a>
+          <a class="route-card" href="/code"><code>/code</code><span><b>Code page</b>Developer-focused coding and SDK information.</span></a>
+        </aside>
+
+        <div>
+          <div class="use-list">
+            <article class="use-step">
+              <h3>Run the local website</h3>
+              <p>Start the FastAPI backend from the repository root. The backend serves the frontend pages directly.</p>
+              <code class="cmd">python -m pip install -e .
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000</code>
+            </article>
+            <article class="use-step">
+              <h3>Open the Software guide</h3>
+              <p>Use the guide page as the public explanation of what Software does and where each reliability screen lives.</p>
+              <code class="cmd">http://127.0.0.1:8000/guide</code>
+            </article>
+            <article class="use-step">
+              <h3>Connect a project</h3>
+              <p>Open the setup wizard, connect a project, choose a manifest, run the generated install, and prove the real protected path.</p>
+              <code class="cmd">http://127.0.0.1:8000/onboarding</code>
+            </article>
+            <article class="use-step">
+              <h3>Watch account usage</h3>
+              <p>Open the dashboard after creating a key and project. Use the generated snippet or the test event button to confirm data is arriving.</p>
+              <code class="cmd">http://127.0.0.1:8000/dashboard</code>
+            </article>
+            <article class="use-step">
+              <h3>Debug AI operations</h3>
+              <p>Open observability to inspect each AI request, trace, session, token count, latency value, error marker, and alert threshold.</p>
+              <code class="cmd">http://127.0.0.1:8000/observability</code>
+            </article>
+            <article class="use-step">
+              <h3>Add SDK telemetry to an agent</h3>
+              <p>Install the SDK locally and track workflow events from your own AI agent, then flush them into the Software dashboard.</p>
+              <code class="cmd">pip install -e .
+python examples/custom_agent_example.py</code>
+            </article>
+          </div>
+
+          <div class="note-panel">
+            <h3>What to check first</h3>
+            <p>If the dashboard is empty, create an API key, connect a project, and send a test event from either the setup wizard or dashboard. If observability is empty, use the Send Demo Event button to make sample AI activity.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="final">
+    <h2>Ready to try it?</h2>
+    <p>Use the guide when someone new needs the full Software tour, then jump into setup when you want Software to monitor a real AI project.</p>
+    <div class="section-actions" style="justify-content:center;margin-top:0">
+      <a class="btn primary" href="/onboarding">Start setup</a>
+      <a class="btn" href="/dashboard">Open dashboard</a>
+      <a class="btn" href="/observability">Open observability</a>
+    </div>
+  </section>
+
+  <script>
+    const heroCanvas = document.getElementById("heroCanvas");
+    const heroCtx = heroCanvas.getContext("2d");
+    const nodes = [
+      ["Events", .18, .24, "#128c69"],
+      ["Setup", .76, .2, "#0e7490"],
+      ["Dashboard", .64, .58, "#b87505"],
+      ["Observability", .24, .68, "#be4659"],
+      ["SDK", .84, .78, "#1b2027"]
+    ];
+    let pointer = { x: 0, y: 0, active: false };
+    let heroAnimating = false;
+
+    function resizeHero() {
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const rect = heroCanvas.getBoundingClientRect();
+      heroCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      heroCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      heroCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!heroAnimating) {
+        heroAnimating = true;
+        requestAnimationFrame(drawHero);
+      }
+    }
+
+    function roundedRect(ctx, x, y, w, h, r) {
+      const radius = Math.max(0, Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2));
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    }
+
+    function drawHero(time) {
+      const rect = heroCanvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      heroCtx.clearRect(0, 0, w, h);
+      heroCtx.fillStyle = "#e9ece6";
+      heroCtx.fillRect(0, 0, w, h);
+
+      heroCtx.strokeStyle = "rgba(16,19,23,.08)";
+      heroCtx.lineWidth = 1;
+      for (let x = -80; x < w + 80; x += 70) {
+        heroCtx.beginPath();
+        heroCtx.moveTo(x + Math.sin(time * .0003) * 8, 0);
+        heroCtx.lineTo(x - 120, h);
+        heroCtx.stroke();
+      }
+      for (let y = 35; y < h; y += 76) {
+        heroCtx.beginPath();
+        heroCtx.moveTo(0, y);
+        heroCtx.lineTo(w, y + Math.cos(time * .00022 + y) * 8);
+        heroCtx.stroke();
+      }
+
+      const centerX = w * .72;
+      const centerY = h * .47;
+      heroCtx.strokeStyle = "rgba(16,19,23,.16)";
+      heroCtx.lineWidth = 2;
+      nodes.forEach((node) => {
+        const x = w * node[1];
+        const y = h * node[2];
+        heroCtx.beginPath();
+        heroCtx.moveTo(centerX, centerY);
+        heroCtx.lineTo(x, y);
+        heroCtx.stroke();
+      });
+
+      roundedRect(heroCtx, centerX - 110, centerY - 58, 220, 116, 8);
+      heroCtx.fillStyle = "rgba(255,255,255,.72)";
+      heroCtx.fill();
+      heroCtx.strokeStyle = "rgba(16,19,23,.13)";
+      heroCtx.stroke();
+      heroCtx.fillStyle = "#101317";
+      heroCtx.font = "900 24px Inter, system-ui, sans-serif";
+      heroCtx.fillText("Software", centerX - 45, centerY - 6);
+      heroCtx.fillStyle = "#5c6570";
+      heroCtx.font = "700 13px Inter, system-ui, sans-serif";
+      heroCtx.fillText("AI + reliability", centerX - 52, centerY + 22);
+
+      nodes.forEach((node, index) => {
+        const drift = Math.sin(time * .001 + index) * 4;
+        let x = w * node[1];
+        let y = h * node[2] + drift;
+        if (pointer.active) {
+          const dx = x - pointer.x;
+          const dy = y - pointer.y;
+          const dist = Math.max(80, Math.sqrt(dx * dx + dy * dy));
+          if (dist < 220) {
+            x += dx / dist * 12;
+            y += dy / dist * 12;
+          }
+        }
+        roundedRect(heroCtx, x - 64, y - 32, 128, 64, 8);
+        heroCtx.fillStyle = "rgba(255,255,255,.82)";
+        heroCtx.fill();
+        heroCtx.strokeStyle = "rgba(16,19,23,.14)";
+        heroCtx.stroke();
+        heroCtx.fillStyle = node[3];
+        heroCtx.beginPath();
+        heroCtx.arc(x - 42, y, 10, 0, Math.PI * 2);
+        heroCtx.fill();
+        heroCtx.fillStyle = "#101317";
+        heroCtx.font = "850 14px Inter, system-ui, sans-serif";
+        heroCtx.fillText(node[0], x - 22, y + 5);
+      });
+
+      requestAnimationFrame(drawHero);
+    }
+
+    window.addEventListener("resize", resizeHero);
+    window.addEventListener("pointermove", (event) => {
+      const rect = heroCanvas.getBoundingClientRect();
+      pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top, active: true };
+    });
+    window.addEventListener("pointerleave", () => { pointer.active = false; });
+    resizeHero();
+
+    const chapters = [
+      {
+        id: "tour",
+        title: "Full Tour",
+        summary: "Setup, dashboard, observability, SDK telemetry, and reliability scoring.",
+        heading: "Software Guide",
+        subhead: "A reliability monitoring layer for real AI-agent workflows.",
+        steps: ["Collect events", "Connect a project", "Watch reliability signals"]
+      },
+      {
+        id: "overview",
+        title: "Software Overview",
+        summary: "What Software monitors and why reliability scoring matters.",
+        heading: "Understand Software",
+        subhead: "Software turns raw AI-agent activity into operational reliability evidence.",
+        steps: ["Collect telemetry", "Classify failures", "Score readiness"]
+      },
+      {
+        id: "setup",
+        title: "Setup Wizard",
+        summary: "Connect a project, auto-detect the adapter, install, and prove the real path.",
+        heading: "Connect a project",
+        subhead: "The wizard turns a blank integration into a verified event.",
+        steps: ["Connect project", "Detect integration", "Install and test protection"]
+      },
+      {
+        id: "dashboard",
+        title: "Dashboard",
+        summary: "Keys, projects, requests, tokens, latency, and snippets.",
+        heading: "Watch usage",
+        subhead: "The dashboard changes when your project sends events.",
+        steps: ["Create keys", "Connect projects", "Check latest requests"]
+      },
+      {
+        id: "observability",
+        title: "Observability",
+        summary: "Requests, traces, sessions, alerts, and operational debugging.",
+        heading: "Debug AI behavior",
+        subhead: "Trace slow, expensive, failed, or risky model activity.",
+        steps: ["Inspect requests", "Group by trace", "Tune alert thresholds"]
+      },
+      {
+        id: "sdk",
+        title: "SDK Telemetry",
+        summary: "Track workflows, tools, model calls, errors, and reliability scores.",
+        heading: "Instrument your agent",
+        subhead: "Send workflow telemetry into Software with the Python SDK.",
+        steps: ["Install SDK", "Track workflow events", "Review reliability score"]
+      }
+    ];
+
+    const chaptersEl = document.getElementById("chapters");
+    const video = document.getElementById("guideVideo");
+    const videoEmpty = document.getElementById("videoEmpty");
+    const videoStatus = document.getElementById("videoStatus");
+    const videoCanvas = document.getElementById("videoCanvas");
+    const videoCtx = videoCanvas.getContext("2d");
+    let activeChapter = "tour";
+    let currentVideoUrl = "";
+    let recordingToken = 0;
+
+    function renderChapters() {
+      chaptersEl.innerHTML = "";
+      chapters.forEach((chapter) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chapter-btn";
+        btn.classList.toggle("active", chapter.id === activeChapter);
+        btn.innerHTML = `<strong>${chapter.title}</strong><span>${chapter.summary}</span>`;
+        btn.addEventListener("click", () => recordChapter(chapter.id));
+        chaptersEl.appendChild(btn);
+      });
+    }
+
+    function drawVideoFrame(chapter, progress) {
+      const w = videoCanvas.width;
+      const h = videoCanvas.height;
+      videoCtx.fillStyle = "#f6f7f2";
+      videoCtx.fillRect(0, 0, w, h);
+      videoCtx.fillStyle = "#e3e7df";
+      for (let i = 0; i < 16; i++) {
+        videoCtx.fillRect(i * 96 - (progress * 80 % 96), 0, 1, h);
+      }
+      for (let i = 0; i < 10; i++) {
+        videoCtx.fillRect(0, i * 84, w, 1);
+      }
+
+      roundedRect(videoCtx, 52, 54, 1176, 612, 18);
+      videoCtx.fillStyle = "#ffffff";
+      videoCtx.fill();
+      videoCtx.strokeStyle = "rgba(16,19,23,.14)";
+      videoCtx.lineWidth = 2;
+      videoCtx.stroke();
+
+      videoCtx.fillStyle = "#1b2027";
+      roundedRect(videoCtx, 88, 96, 224, 510, 10);
+      videoCtx.fill();
+      videoCtx.fillStyle = "#f6f7f2";
+      videoCtx.font = "900 30px Inter, system-ui, sans-serif";
+      videoCtx.fillText("Software", 122, 150);
+      const sideItems = ["Events", "Setup", "Dashboard", "Observability", "SDK"];
+      sideItems.forEach((item, index) => {
+        const y = 196 + index * 70;
+        const isActive = chapter.title.toLowerCase().includes(item.toLowerCase()) || (chapter.id === "tour" && index === Math.floor(progress * sideItems.length) % sideItems.length);
+        videoCtx.fillStyle = isActive ? "#128c69" : "rgba(255,255,255,.12)";
+        roundedRect(videoCtx, 112, y - 24, 164, 44, 8);
+        videoCtx.fill();
+        videoCtx.fillStyle = "#f6f7f2";
+        videoCtx.font = "800 18px Inter, system-ui, sans-serif";
+        videoCtx.fillText(item, 128, y + 4);
+      });
+
+      videoCtx.fillStyle = "#101317";
+      videoCtx.font = "900 54px Inter, system-ui, sans-serif";
+      videoCtx.fillText(chapter.heading, 360, 164);
+      videoCtx.fillStyle = "#5c6570";
+      videoCtx.font = "600 25px Inter, system-ui, sans-serif";
+      wrapText(videoCtx, chapter.subhead, 362, 206, 740, 34);
+
+      const panelY = 306;
+      chapter.steps.forEach((step, index) => {
+        const x = 360 + index * 268;
+        const lift = Math.sin(progress * Math.PI * 2 + index) * 4;
+        roundedRect(videoCtx, x, panelY + lift, 232, 176, 10);
+        videoCtx.fillStyle = index === 0 ? "#e8f4ef" : index === 1 ? "#e8f3f6" : "#fff3db";
+        videoCtx.fill();
+        videoCtx.strokeStyle = "rgba(16,19,23,.13)";
+        videoCtx.stroke();
+        videoCtx.fillStyle = index === 0 ? "#128c69" : index === 1 ? "#0e7490" : "#b87505";
+        videoCtx.beginPath();
+        videoCtx.arc(x + 36, panelY + 38 + lift, 15, 0, Math.PI * 2);
+        videoCtx.fill();
+        videoCtx.fillStyle = "#fff";
+        videoCtx.font = "900 17px Inter, system-ui, sans-serif";
+        videoCtx.fillText(String(index + 1), x + 31, panelY + 44 + lift);
+        videoCtx.fillStyle = "#101317";
+        videoCtx.font = "850 25px Inter, system-ui, sans-serif";
+        wrapText(videoCtx, step, x + 24, panelY + 88 + lift, 186, 30);
+      });
+
+      const barX = 360;
+      const barY = 558;
+      roundedRect(videoCtx, barX, barY, 720, 18, 999);
+      videoCtx.fillStyle = "#dde2d8";
+      videoCtx.fill();
+      roundedRect(videoCtx, barX, barY, 720 * progress, 18, 999);
+      videoCtx.fillStyle = "#128c69";
+      videoCtx.fill();
+      videoCtx.fillStyle = "#5c6570";
+      videoCtx.font = "800 18px Inter, system-ui, sans-serif";
+      videoCtx.fillText("Silent tutorial chapter - use the page text for exact commands", 360, 620);
+    }
+
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+      const words = String(text).split(" ");
+      let line = "";
+      words.forEach((word, index) => {
+        const test = line ? line + " " + word : word;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          ctx.fillText(line, x, y);
+          line = word;
+          y += lineHeight;
+        } else {
+          line = test;
+        }
+        if (index === words.length - 1 && line) ctx.fillText(line, x, y);
+      });
+    }
+
+    async function recordChapter(id) {
+      activeChapter = id;
+      renderChapters();
+      const chapter = chapters.find((item) => item.id === id) || chapters[0];
+      const token = ++recordingToken;
+      videoStatus.textContent = `Creating ${chapter.title} 3-minute video...`;
+      videoEmpty.style.display = "grid";
+
+      if (!videoCanvas.captureStream || !window.MediaRecorder) {
+        drawVideoFrame(chapter, 1);
+        videoStatus.textContent = "This browser cannot generate video clips here, but the storyboard is visible in the guide.";
+        videoEmpty.innerHTML = "<div><strong>Video generation unavailable</strong><span>Your browser does not support MediaRecorder.</span></div>";
+        return;
+      }
+
+      const stream = videoCanvas.captureStream(10);
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      };
+      const stopped = new Promise((resolve) => {
+        recorder.onstop = resolve;
+      });
+
+      const duration = 180000;
+      const start = performance.now();
+      recorder.start();
+
+      await new Promise((resolve) => {
+        function tick(now) {
+          if (token !== recordingToken) {
+            resolve();
+            return;
+          }
+          const progress = Math.min(1, (now - start) / duration);
+          drawVideoFrame(chapter, progress);
+          if (progress < 1) window.setTimeout(() => requestAnimationFrame(tick), 100);
+          else resolve();
+        }
+        requestAnimationFrame(tick);
+      });
+
+      if (token !== recordingToken) {
+        try { recorder.stop(); } catch (error) {}
+        return;
+      }
+      recorder.stop();
+      await stopped;
+      stream.getTracks().forEach((track) => track.stop());
+      if (token !== recordingToken) return;
+
+      const blob = new Blob(chunks, { type: mimeType });
+      if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+      currentVideoUrl = URL.createObjectURL(blob);
+      video.src = currentVideoUrl;
+      videoEmpty.style.display = "none";
+      videoStatus.textContent = `${chapter.title} 3-minute video ready. Use the controls to replay, pause, or scrub.`;
+      video.play().catch(() => {});
+    }
+
+    renderChapters();
+    recordChapter("tour");
+  </script>
+</body>
+</html>
