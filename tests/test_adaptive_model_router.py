@@ -53,6 +53,15 @@ class AdaptiveModelRouterTests(unittest.TestCase):
             self.assertEqual(runtime.select_ollama_model(None, "instant", available), "qwen2.5:3b")
             self.assertEqual(runtime.select_ollama_model(None, "thinking", available), "qwen3:14b")
 
+    def test_offline_ollama_discovery_is_negatively_cached(self):
+        with (
+            patch.object(runtime, "OLLAMA_MODELS_CACHE", (0.0, [])),
+            patch.object(runtime.HTTP, "get", side_effect=TimeoutError("offline")) as get,
+        ):
+            self.assertEqual(runtime.ollama_available_models(), [])
+            self.assertEqual(runtime.ollama_available_models(), [])
+            self.assertEqual(get.call_count, 1)
+
     def test_online_provider_is_tried_without_slow_ollama_probe(self):
         with (
             patch.object(runtime, "configured_free_providers", return_value=["groq"]),

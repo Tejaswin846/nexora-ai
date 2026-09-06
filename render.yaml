@@ -37,6 +37,14 @@ services:
         value: "25"
       - key: NEXORA_OLLAMA_THINKING_TIMEOUT
         value: "75"
+      - key: NEXORA_OLLAMA_DISCOVERY_TIMEOUT
+        value: "3"
+      - key: POLLINATIONS_TIMEOUT
+        value: "8"
+      - key: POLLINATIONS_PRIMARY_TIMEOUT
+        value: "6"
+      - key: POLLINATIONS_BACKUP_TIMEOUT
+        value: "2"
       - key: NEXORA_AUTONOMOUS_RESEARCH
         value: "true"
       - key: NEXORA_IMAGE_PROVIDER

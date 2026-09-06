@@ -567,9 +567,9 @@ FREE_API_PROVIDER = "ollama" if QWEN_LOCK_ENABLED else ("auto" if ADAPTIVE_MODEL
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
-POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "12"))
-POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "8"))
-POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "5"))
+POLLINATIONS_TIMEOUT = int(os.getenv("POLLINATIONS_TIMEOUT", "8"))
+POLLINATIONS_PRIMARY_TIMEOUT = int(os.getenv("POLLINATIONS_PRIMARY_TIMEOUT", "6"))
+POLLINATIONS_BACKUP_TIMEOUT = int(os.getenv("POLLINATIONS_BACKUP_TIMEOUT", "2"))
 POLLINATIONS_ATTEMPTS = max(1, int(os.getenv("POLLINATIONS_ATTEMPTS", "1")))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -590,6 +590,7 @@ PROVIDER_THINKING_TIMEOUT = max(PROVIDER_INSTANT_TIMEOUT, int(os.getenv("NEXORA_
 OLLAMA_INSTANT_TIMEOUT = max(5, int(os.getenv("NEXORA_OLLAMA_INSTANT_TIMEOUT", "25")))
 OLLAMA_THINKING_TIMEOUT = max(OLLAMA_INSTANT_TIMEOUT, int(os.getenv("NEXORA_OLLAMA_THINKING_TIMEOUT", "75")))
 OLLAMA_MODELS_CACHE_TTL = max(5.0, float(os.getenv("NEXORA_OLLAMA_MODELS_CACHE_TTL", "60")))
+OLLAMA_DISCOVERY_TIMEOUT = max(1.0, float(os.getenv("NEXORA_OLLAMA_DISCOVERY_TIMEOUT", "3")))
 FAST_PROVIDER_ORDER = os.getenv(
     "NEXORA_FAST_PROVIDER_ORDER",
     "groq,gemini,openrouter,huggingface,pollinations",
@@ -8463,26 +8464,23 @@ def build_file_context(session_id: str) -> str:
 
 
 def is_ollama_ok() -> bool:
-    try:
-        response = HTTP.get(f"{OLLAMA_URL}/api/tags", timeout=5)
-        return response.status_code == 200
-    except Exception:
-        return False
+    return bool(ollama_available_models())
 
 
 def ollama_available_models(force_refresh: bool = False) -> List[str]:
     global OLLAMA_MODELS_CACHE
     cached_at, cached_models = OLLAMA_MODELS_CACHE
-    if not force_refresh and cached_models and time.time() - cached_at < OLLAMA_MODELS_CACHE_TTL:
+    if not force_refresh and cached_at and time.time() - cached_at < OLLAMA_MODELS_CACHE_TTL:
         return list(cached_models)
     try:
-        response = HTTP.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        response = HTTP.get(f"{OLLAMA_URL}/api/tags", timeout=OLLAMA_DISCOVERY_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
         OLLAMA_MODELS_CACHE = (time.time(), models)
         return list(models)
     except Exception:
+        OLLAMA_MODELS_CACHE = (time.time(), list(cached_models))
         return list(cached_models)
 
 
