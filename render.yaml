@@ -8,11 +8,15 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NEXORA_PROVIDER
-        value: ollama
-      - key: NEXORA_OLLAMA_MODE
-        value: primary
-      - key: NEXORA_FORCE_OLLAMA_CHAT
+        value: auto
+      - key: NEXORA_ADAPTIVE_MODEL_ROUTING
         value: "true"
+      - key: NEXORA_OLLAMA_MODE
+        value: fallback
+      - key: NEXORA_FORCE_OLLAMA_CHAT
+        value: "false"
+      - key: NEXORA_LOCK_QWEN
+        value: "false"
       - key: NEXORA_FAST_MODEL
         value: qwen2.5:3b
       - key: NEXORA_THINKING_MODEL
@@ -25,6 +29,14 @@ services:
         value: "160"
       - key: NEXORA_OLLAMA_THINKING_MAX_TOKENS
         value: "120"
+      - key: NEXORA_PROVIDER_INSTANT_TIMEOUT
+        value: "12"
+      - key: NEXORA_PROVIDER_THINKING_TIMEOUT
+        value: "35"
+      - key: NEXORA_OLLAMA_INSTANT_TIMEOUT
+        value: "25"
+      - key: NEXORA_OLLAMA_THINKING_TIMEOUT
+        value: "75"
       - key: NEXORA_AUTONOMOUS_RESEARCH
         value: "true"
       - key: NEXORA_IMAGE_PROVIDER

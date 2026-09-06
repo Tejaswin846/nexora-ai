@@ -531,7 +531,8 @@ CLERK_AUTH_REQUIRED = os.getenv("NEXORA_CLERK_AUTH_REQUIRED", "true").strip().lo
 clerk_verifier = ClerkJWTVerifier()
 supabase_storage_client = SupabaseStorageClient()
 
-QWEN_LOCK_ENABLED = os.getenv("NEXORA_LOCK_QWEN", "true").strip().lower() not in {"0", "false", "off", "no"}
+ADAPTIVE_MODEL_ROUTING = os.getenv("NEXORA_ADAPTIVE_MODEL_ROUTING", "true").strip().lower() not in {"0", "false", "off", "no"}
+QWEN_LOCK_ENABLED = os.getenv("NEXORA_LOCK_QWEN", "false").strip().lower() not in {"0", "false", "off", "no"}
 REMOTE_OLLAMA_URL = (
     os.getenv(
         "NEXORA_REMOTE_OLLAMA_URL",
@@ -553,14 +554,16 @@ OLLAMA_URL = (
 FAST_MODEL = "qwen2.5:3b" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_FAST_MODEL", "qwen2.5:3b")
 THINKING_MODEL = "qwen3:14b" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_THINKING_MODEL", "qwen3:14b")
 DEFAULT_MODEL = FAST_MODEL
-OLLAMA_MODE = "primary" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_OLLAMA_MODE", "primary").strip().lower()
+configured_ollama_mode = os.getenv("NEXORA_OLLAMA_MODE", "fallback" if ADAPTIVE_MODEL_ROUTING else "primary").strip().lower()
+OLLAMA_MODE = "primary" if QWEN_LOCK_ENABLED else ("fallback" if ADAPTIVE_MODEL_ROUTING and configured_ollama_mode == "primary" else configured_ollama_mode)
 OLLAMA_KEEP_ALIVE = os.getenv("NEXORA_OLLAMA_KEEP_ALIVE", "30m").strip()
 OLLAMA_THINK = os.getenv("NEXORA_OLLAMA_THINK", "false").strip().lower() in {"1", "true", "yes", "on"}
 OLLAMA_CONTEXT_TOKENS = 512 if QWEN_LOCK_ENABLED else int(os.getenv("NEXORA_OLLAMA_CONTEXT_TOKENS", "2048"))
 OLLAMA_INSTANT_MAX_TOKENS = 160 if QWEN_LOCK_ENABLED else int(os.getenv("NEXORA_OLLAMA_INSTANT_MAX_TOKENS", "160"))
 OLLAMA_THINKING_MAX_TOKENS = 120 if QWEN_LOCK_ENABLED else int(os.getenv("NEXORA_OLLAMA_THINKING_MAX_TOKENS", "320"))
 
-FREE_API_PROVIDER = "ollama" if QWEN_LOCK_ENABLED else os.getenv("NEXORA_PROVIDER", "ollama").strip().lower()
+configured_text_provider = os.getenv("NEXORA_PROVIDER", "auto" if ADAPTIVE_MODEL_ROUTING else "ollama").strip().lower()
+FREE_API_PROVIDER = "ollama" if QWEN_LOCK_ENABLED else ("auto" if ADAPTIVE_MODEL_ROUTING and configured_text_provider == "ollama" else configured_text_provider)
 POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai-fast")
 POLLINATIONS_BACKUP_MODELS = os.getenv("POLLINATIONS_BACKUP_MODELS", "").strip()
 POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
@@ -582,6 +585,19 @@ SEARCH_TIMEOUT = int(os.getenv("NEXORA_SEARCH_TIMEOUT", "6"))
 MAX_MODEL_TOKENS = int(os.getenv("NEXORA_MAX_TOKENS", "2600"))
 INSTANT_TIMEOUT = int(os.getenv("NEXORA_INSTANT_TIMEOUT", "180"))
 THINKING_TIMEOUT = int(os.getenv("NEXORA_THINKING_TIMEOUT", "420"))
+PROVIDER_INSTANT_TIMEOUT = max(3, int(os.getenv("NEXORA_PROVIDER_INSTANT_TIMEOUT", "12")))
+PROVIDER_THINKING_TIMEOUT = max(PROVIDER_INSTANT_TIMEOUT, int(os.getenv("NEXORA_PROVIDER_THINKING_TIMEOUT", "35")))
+OLLAMA_INSTANT_TIMEOUT = max(5, int(os.getenv("NEXORA_OLLAMA_INSTANT_TIMEOUT", "25")))
+OLLAMA_THINKING_TIMEOUT = max(OLLAMA_INSTANT_TIMEOUT, int(os.getenv("NEXORA_OLLAMA_THINKING_TIMEOUT", "75")))
+OLLAMA_MODELS_CACHE_TTL = max(5.0, float(os.getenv("NEXORA_OLLAMA_MODELS_CACHE_TTL", "60")))
+FAST_PROVIDER_ORDER = os.getenv(
+    "NEXORA_FAST_PROVIDER_ORDER",
+    "groq,gemini,openrouter,huggingface,pollinations",
+)
+THINKING_PROVIDER_ORDER = os.getenv(
+    "NEXORA_THINKING_PROVIDER_ORDER",
+    "gemini,openrouter,groq,huggingface,pollinations",
+)
 FREE_CLUB_MODE = os.getenv("NEXORA_FREE_CLUB_MODE", "auto").strip().lower()
 FREE_CLUB_MIN_QUERY_CHARS = int(os.getenv("NEXORA_FREE_CLUB_MIN_QUERY_CHARS", "35"))
 FREE_CLUB_REVIEW_MAX_CHARS = int(os.getenv("NEXORA_FREE_CLUB_REVIEW_MAX_CHARS", "4200"))
@@ -624,6 +640,7 @@ POLLINATIONS_LOCK = threading.Lock()
 JSON_WRITE_LOCK = threading.RLock()
 SEARCH_CACHE_LOCK = threading.Lock()
 PROVIDER_COOLDOWNS: Dict[str, float] = {}
+OLLAMA_MODELS_CACHE: Tuple[float, List[str]] = (0.0, [])
 LOG_LEVEL = os.getenv("NEXORA_LOG_LEVEL", "INFO").strip().upper() or "INFO"
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 LOGGER = logging.getLogger("nexora")
@@ -8453,14 +8470,20 @@ def is_ollama_ok() -> bool:
         return False
 
 
-def ollama_available_models() -> List[str]:
+def ollama_available_models(force_refresh: bool = False) -> List[str]:
+    global OLLAMA_MODELS_CACHE
+    cached_at, cached_models = OLLAMA_MODELS_CACHE
+    if not force_refresh and cached_models and time.time() - cached_at < OLLAMA_MODELS_CACHE_TTL:
+        return list(cached_models)
     try:
         response = HTTP.get(f"{OLLAMA_URL}/api/tags", timeout=5)
         response.raise_for_status()
         data = response.json()
-        return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+        models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+        OLLAMA_MODELS_CACHE = (time.time(), models)
+        return list(models)
     except Exception:
-        return []
+        return list(cached_models)
 
 
 def safe_ollama_url() -> str:
@@ -8510,8 +8533,40 @@ def model_size_score(model_name: str) -> float:
     return 99.0
 
 
-def select_ollama_model(requested: Optional[str]) -> str:
-    available = ollama_available_models()
+def ollama_quality_score(model_name: str) -> float:
+    text = model_name.lower()
+    score = 0.0
+    for term, value in (
+        ("qwen3", 120),
+        ("qwen2.5", 115),
+        ("llama3.3", 112),
+        ("llama3.2", 108),
+        ("llama3.1", 106),
+        ("mistral", 96),
+        ("gemma3", 94),
+        ("gemma2", 92),
+        ("phi4", 90),
+        ("deepseek", 88),
+    ):
+        if term in text:
+            score += value
+            break
+    size = model_size_score(model_name)
+    if size < 99:
+        score += min(size, 70.0)
+    if any(marker in text for marker in ("instruct", "chat")):
+        score += 3
+    if any(marker in text for marker in ("embed", "embedding", "vision")):
+        score -= 100
+    return score
+
+
+def select_ollama_model(
+    requested: Optional[str],
+    response_mode: str = "instant",
+    available: Optional[List[str]] = None,
+) -> str:
+    available = list(available) if available is not None else ollama_available_models()
     profile = system_profile()
     aliases = {
         "nexora instant": FAST_MODEL,
@@ -8529,13 +8584,24 @@ def select_ollama_model(requested: Optional[str]) -> str:
             return mapped
         if requested in available:
             return requested
-    if FAST_MODEL in available:
-        return FAST_MODEL
-    if THINKING_MODEL in available:
-        return THINKING_MODEL
-    if available and profile["level"] in {"tiny", "light"}:
-        small_models = sorted(available, key=model_size_score)
-        return small_models[0]
+        stripped = requested.split(":", 1)[1] if requested.startswith("ollama:") else requested
+        if stripped in available:
+            return stripped
+    preferred = THINKING_MODEL if response_mode == "thinking" else FAST_MODEL
+    secondary = FAST_MODEL if response_mode == "thinking" else THINKING_MODEL
+    if preferred in available:
+        return preferred
+    if secondary in available:
+        return secondary
+    usable = [model for model in available if not re.search(r"\b(embed|embedding|vision)\b", model.lower())] or available
+    if usable and response_mode != "thinking":
+        fast_candidates = [model for model in usable if model_size_score(model) <= 4.0]
+        if fast_candidates:
+            return max(fast_candidates, key=lambda model: (ollama_quality_score(model), -model_size_score(model)))
+    if usable and profile["level"] in {"tiny", "light"} and response_mode != "thinking":
+        return min(usable, key=model_size_score)
+    if usable:
+        return max(usable, key=ollama_quality_score)
     return available[0] if available else FAST_MODEL
 
 
@@ -8549,7 +8615,8 @@ def ollama_status() -> Dict[str, Any]:
         "ready": ready,
         "url": safe_ollama_url(),
         "available_models": available,
-        "selected_model": select_ollama_model(None) if ready else FAST_MODEL,
+        "selected_model": select_ollama_model(None, "instant", available) if ready else FAST_MODEL,
+        "thinking_selected_model": select_ollama_model(None, "thinking", available) if ready else THINKING_MODEL,
         "fast_model": FAST_MODEL,
         "thinking_model": THINKING_MODEL,
         "keep_alive": OLLAMA_KEEP_ALIVE,
@@ -8558,11 +8625,10 @@ def ollama_status() -> Dict[str, Any]:
 
 def ollama_chat(messages: List[Dict[str, str]], model: str, response_mode: str = "instant") -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
+    timeout = min(timeout, OLLAMA_THINKING_TIMEOUT if response_mode == "thinking" else OLLAMA_INSTANT_TIMEOUT)
     num_ctx = min(current_performance_limits().get("ollama_context_tokens", 2048), OLLAMA_CONTEXT_TOKENS)
     token_cap = OLLAMA_THINKING_MAX_TOKENS if response_mode == "thinking" else OLLAMA_INSTANT_MAX_TOKENS
     max_tokens = min(max_tokens, token_cap)
-    if model_size_score(model) >= 10:
-        timeout = max(timeout, 420 if response_mode == "thinking" else 180)
     payload = {
         "model": model,
         "messages": compact_provider_messages("ollama", messages, response_mode),
@@ -8671,6 +8737,31 @@ def configured_free_providers() -> List[str]:
     return keyed_providers + no_key_providers
 
 
+def provider_order_for_request(requested: Optional[str], response_mode: str) -> List[str]:
+    configured = configured_free_providers()
+    aliases = {
+        "pollinations": "pollinations",
+        "pollination": "pollinations",
+        "free": "pollinations",
+        "no key": "pollinations",
+        "groq": "groq",
+        "gemini": "gemini",
+        "openrouter": "openrouter",
+        "huggingface": "huggingface",
+        "hf": "huggingface",
+    }
+    requested_key = clean_text(requested or "").lower()
+    explicit = aliases.get(requested_key)
+    if explicit and explicit in configured:
+        return [explicit]
+
+    raw_order = THINKING_PROVIDER_ORDER if response_mode == "thinking" else FAST_PROVIDER_ORDER
+    preferred = [item.strip().lower() for item in raw_order.split(",") if item.strip()]
+    ordered = [provider for provider in preferred if provider in configured]
+    ordered.extend(provider for provider in configured if provider not in ordered)
+    return ordered
+
+
 def free_provider_status() -> Dict[str, Any]:
     ollama_info = ollama_status()
     provider_priority = list(configured_free_providers())
@@ -8742,6 +8833,15 @@ def free_provider_status() -> Dict[str, Any]:
             "gemini": GEMINI_MODEL,
             "openrouter": OPENROUTER_MODEL,
             "huggingface": HF_MODEL,
+        },
+        "adaptive_routing": {
+            "enabled": ADAPTIVE_MODEL_ROUTING,
+            "instant_provider_order": provider_order_for_request(None, "instant"),
+            "thinking_provider_order": provider_order_for_request(None, "thinking"),
+            "provider_instant_timeout": PROVIDER_INSTANT_TIMEOUT,
+            "provider_thinking_timeout": PROVIDER_THINKING_TIMEOUT,
+            "ollama_instant_timeout": OLLAMA_INSTANT_TIMEOUT,
+            "ollama_thinking_timeout": OLLAMA_THINKING_TIMEOUT,
         },
         "ollama": ollama_info,
         "labels": FREE_PROVIDER_LABELS,
@@ -9054,6 +9154,7 @@ def call_openai_compatible_chat(
     timeout_override: Optional[int] = None,
 ) -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
+    timeout = min(timeout, PROVIDER_THINKING_TIMEOUT if response_mode == "thinking" else PROVIDER_INSTANT_TIMEOUT)
     if provider == "pollinations":
         timeout = min(timeout, POLLINATIONS_TIMEOUT)
     if timeout_override is not None:
@@ -9167,6 +9268,7 @@ def call_pollinations_chat(messages: List[Dict[str, str]], response_mode: str = 
 
 def call_gemini_chat(messages: List[Dict[str, str]], response_mode: str = "instant") -> str:
     max_tokens, timeout, temperature = mode_limits(response_mode)
+    timeout = min(timeout, PROVIDER_THINKING_TIMEOUT if response_mode == "thinking" else PROVIDER_INSTANT_TIMEOUT)
     system_parts = []
     contents = []
     for message in messages:
@@ -9201,22 +9303,12 @@ def call_gemini_chat(messages: List[Dict[str, str]], response_mode: str = "insta
 
 def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], response_mode: str) -> Tuple[str, str]:
     provider_errors = []
-    requested_key = (requested or "").strip().lower()
-    providers = configured_free_providers()
-    aliases = {
-        "pollinations": "pollinations",
-        "pollination": "pollinations",
-        "free": "pollinations",
-        "no key": "pollinations",
-        "groq": "groq",
-        "gemini": "gemini",
-        "openrouter": "openrouter",
-        "huggingface": "huggingface",
-        "hf": "huggingface",
-    }
-    if requested_key in aliases and aliases[requested_key] in providers:
-        providers = [aliases[requested_key]]
+    providers = provider_order_for_request(requested, response_mode)
     for provider in providers:
+        cooldown = provider_cooldown_remaining(provider)
+        if cooldown:
+            provider_errors.append(f"{provider}: cooling down for {int(cooldown)}s")
+            continue
         try:
             if provider == "pollinations":
                 reply = call_pollinations_chat(messages, response_mode)
@@ -9266,6 +9358,7 @@ def free_api_chat(messages: List[Dict[str, str]], requested: Optional[str], resp
                 return reply, f"huggingface:{HF_MODEL}:{response_mode}"
         except Exception as error:
             provider_errors.append(f"{provider}: {error}")
+            note_provider_cooldown(provider, 60 if is_rate_limit_error(error) else 20)
     raise RuntimeError("; ".join(provider_errors) or "No free API provider is configured")
 
 
@@ -9274,12 +9367,14 @@ def requested_prefers_ollama(requested: Optional[str]) -> bool:
     return bool(key and (
         key in {"ollama", "local", "offline", "local model", "llama"}
         or key.startswith("ollama:")
-        or key.startswith("llama")
+        or key.startswith(("llama", "qwen", "mistral", "gemma", "deepseek", "phi"))
     ))
 
 
 def force_ollama_chat_enabled() -> bool:
-    force_setting = os.getenv("NEXORA_FORCE_OLLAMA_CHAT", "true").strip().lower()
+    if ADAPTIVE_MODEL_ROUTING and not QWEN_LOCK_ENABLED:
+        return False
+    force_setting = os.getenv("NEXORA_FORCE_OLLAMA_CHAT", "false").strip().lower()
     if force_setting in {"0", "false", "off", "no"}:
         return False
     return FREE_API_PROVIDER == "ollama" or OLLAMA_MODE in {"primary", "local", "always"}
@@ -9335,10 +9430,18 @@ def generate_with_engine_club(
     errors: List[str] = []
     tools: List[str] = []
     free_providers = configured_free_providers()
-    available_ollama = ollama_available_models()
-    ollama_ready = ollama_is_ready(available_ollama)
     ollama_enabled = OLLAMA_MODE not in {"off", "false", "0", "disabled", "none"}
     force_ollama = force_ollama_chat_enabled()
+    explicit_ollama = requested_prefers_ollama(requested_model)
+    probe_ollama_first = ollama_enabled and (
+        force_ollama
+        or explicit_ollama
+        or FREE_API_PROVIDER == "ollama"
+        or OLLAMA_MODE in {"primary", "local", "always"}
+        or not free_providers
+    )
+    available_ollama = ollama_available_models() if probe_ollama_first else []
+    ollama_ready = ollama_is_ready(available_ollama)
     prefer_ollama = should_prefer_ollama(
         requested_model,
         response_mode,
@@ -9352,7 +9455,7 @@ def generate_with_engine_club(
     )
 
     def try_ollama(label: str) -> Tuple[str, str, List[str]]:
-        model = select_ollama_model(requested_model)
+        model = select_ollama_model(requested_model, response_mode, available_ollama)
         reply = ollama_chat(messages, model, response_mode)
         if not clean_text(reply):
             raise RuntimeError("empty ollama response")
@@ -9373,14 +9476,20 @@ def generate_with_engine_club(
     if free_providers:
         try:
             reply, model_used = free_api_chat(messages, requested_model, response_mode)
-            return reply, model_used, tools + [f"free_api:{response_mode}"]
+            selected_provider = model_used.split(":", 1)[0]
+            return reply, model_used, tools + [f"adaptive_route:{response_mode}:{selected_provider}"]
         except Exception as error:
             errors.append(f"free_api: {error}")
             tools.append("free_api_failed")
 
-    if ollama_enabled and ollama_ready and not prefer_ollama:
+    if ollama_enabled and not ollama_ready and not probe_ollama_first:
+        available_ollama = ollama_available_models()
+        ollama_ready = ollama_is_ready(available_ollama)
+
+    if ollama_enabled and ollama_ready and not (force_ollama or prefer_ollama):
         try:
-            return try_ollama("ollama_fallback")
+            reply, model_used, ollama_tools = try_ollama("ollama_fallback")
+            return reply, model_used, tools + ollama_tools
         except Exception as error:
             errors.append(f"ollama: {error}")
             tools.append("ollama_fallback_failed")
@@ -13805,7 +13914,7 @@ def chat(req: ChatRequest, request: Request) -> ChatResponse:
         if image_context:
             file_context = "\n\n".join(part for part in [file_context, image_context] if part)
         response_mode = forced_ollama_response_mode(req.mode, req.model)
-        model = select_ollama_model(req.model)
+        model = select_ollama_model(req.model, response_mode)
         tools_used = [
             "ollama_forced_direct",
             f"ollama_mode:{OLLAMA_MODE}",
@@ -14364,7 +14473,7 @@ def chat(req: ChatRequest, request: Request) -> ChatResponse:
         tools_used.append("engine_club_failed")
         if force_ollama_chat:
             model_failed = True
-            model_used = f"ollama:{select_ollama_model(req.model)}:{response_mode}:failed"
+            model_used = f"ollama:{select_ollama_model(req.model, response_mode)}:{response_mode}:failed"
             reply = (
                 "Ollama/Qwen is selected, but it did not return a usable response. "
                 f"Check that Ollama is running at {OLLAMA_URL} with the qwen3:14b model loaded."
